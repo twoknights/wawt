@@ -29,9 +29,9 @@
 
 namespace BDS {
 
-                            //==================
-                            // struct WawtScreen
-                            //==================
+                            //=================
+                            // class WawtScreen
+                            //=================
 
 /**
  * @brief Exposes operational aspects of a user interface screen.
@@ -57,27 +57,29 @@ namespace BDS {
 class WawtScreen {
   protected:
     // PROTECTED TYPES
-    using ButtonBar    = Wawt::ButtonBar;
-    using Button       = Wawt::Button;
-    using Canvas       = Wawt::Canvas;
-    using Label        = Wawt::Label;
-    using List         = Wawt::List;
-    using Panel        = Wawt::Panel;
-    using TextEntry    = Wawt::TextEntry;
+    using ButtonBar     = Wawt::ButtonBar;
+    using Button        = Wawt::Button;
+    using Canvas        = Wawt::Canvas;
+    using Label         = Wawt::Label;
+    using List          = Wawt::List;
+    using Panel         = Wawt::Panel;
+    using TextEntry     = Wawt::TextEntry;
 
-    using Layout       = Wawt::Layout;
-    using InputHandler = Wawt::InputHandler;
-    using TextString   = Wawt::TextString;
-    using DrawSettings = Wawt::DrawSettings;
+    using Layout        = Wawt::Layout;
+    using InputHandler  = Wawt::InputHandler;
+    using TextString    = Wawt::TextString;
+    using DrawSettings  = Wawt::DrawSettings;
 
-    using Align        = Wawt::Align;
-    using Enablement   = Wawt::Enablement;
-    using Metric       = Wawt::Metric;
-    using TieScale     = Wawt::TieScale;
-    using Vertex       = Wawt::Vertex;
-    using WidgetId     = Wawt::WidgetId;
+    using FocusCb       = Wawt::FocusCb;
 
-    using CloseFn      = std::function<void(const std::function<void()>&)>;
+    using Align         = Wawt::Align;
+    using Enablement    = Wawt::Enablement;
+    using Metric        = Wawt::Metric;
+    using TieScale      = Wawt::TieScale;
+    using Vertex        = Wawt::Vertex;
+    using WidgetId      = Wawt::WidgetId;
+
+    using CloseFn       = std::function<void(const std::function<void()>&)>;
 
     // PROTECTED CONSTRUCTOR
     /**
@@ -116,11 +118,13 @@ class WawtScreen {
      * opposite edge from the beginning).
      */
     constexpr static const Metric kLINE_BEG   = Metric(-1.0);
+    constexpr static const Metric kLINE_125   = Metric(-0.25);
     constexpr static const Metric kLINE_25    = Metric(-0.5);
     constexpr static const Metric kLINE_33    = Metric(-1.0/3.0);
     constexpr static const Metric kLINE_MID   = Metric( 0.0);
     constexpr static const Metric kLINE_66    = Metric( 1.0/3.0);
     constexpr static const Metric kLINE_75    = Metric( 0.5);
+    constexpr static const Metric kLINE_875   = Metric( 0.25);
     constexpr static const Metric kLINE_END   = Metric( 1.0);
 
     /**

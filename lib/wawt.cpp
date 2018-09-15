@@ -198,6 +198,7 @@ bool handleChar(Wawt::Base            *base,
             }
         }
         else if (pressed == Wawt::Char_t('\r')) {
+            // Note that callback can modify the string before returning.
             bool ret = (*enterFn) ? (*enterFn)(&text) : true;
             base->textView().setText(text);
             return ret;                                               // RETURN
@@ -800,6 +801,35 @@ Wawt::InputHandler::downEvent(int x, int y, Base* base)
                             // class  Wawt::Label
                             //------------------
 
+
+                            //--------------------
+                            // class  Wawt::Layout
+                            //--------------------
+
+Wawt::Layout
+Wawt::Layout::slice(bool vertical, double begin, double end)
+{
+    Layout layout;
+    double begin_offset = begin < 0.0 || (begin == 0.0 &&   end < 0.0) ?  1.0
+                                                                       : -1.0;
+    double   end_offset =   end < 0.0 || (  end == 0.0 && begin < 0.0) ?  1.0
+                                                                       : -1.0;
+
+    if (vertical) {
+        layout.d_upperLeft.d_vertex.d_sx  =  2.0*begin + begin_offset;
+        layout.d_upperLeft.d_vertex.d_sy  = -1.0;
+        layout.d_lowerRight.d_vertex.d_sx =  2.0*end   +   end_offset;
+        layout.d_lowerRight.d_vertex.d_sy =  1.0;
+    }
+    else {
+        layout.d_upperLeft.d_vertex.d_sx  = -1.0;
+        layout.d_upperLeft.d_vertex.d_sy  =  2.0*begin + begin_offset;
+        layout.d_lowerRight.d_vertex.d_sx =  1.0;
+        layout.d_lowerRight.d_vertex.d_sy =  2.0*end   +   end_offset;
+    }
+    return layout;                                                    // RETURN
+}
+
                             //----------------------
                             // class  Wawt::TextBlock
                             //----------------------
@@ -1104,13 +1134,13 @@ Wawt::List::popUpDropDown()
     canvas.d_draw.d_upperLeft  = d_root->d_draw.d_upperLeft;
     canvas.d_draw.d_lowerRight = d_root->d_draw.d_lowerRight;
     canvas.d_draw.d_tracking   = std::make_tuple(kCANVAS, nextId.value(), -1);
-    canvas.d_widgetId          = Wawt_Id::inc(nextId);
+    canvas.d_widgetId          = inc(nextId);
     widgets.emplace_back(canvas);
 
     auto& dropDown   = std::get<List>(widgets.emplace_back(*this));
     auto  dropDownId = nextId.value();
     dropDown.d_draw.d_tracking    = std::make_tuple(kLIST, dropDownId, -1);
-    dropDown.d_widgetId           = Wawt_Id::inc(nextId);
+    dropDown.d_widgetId           = inc(nextId);
     dropDown.d_buttonClick        =
         [this](auto, auto index) {
             d_root->d_widgets.pop_back();
@@ -1557,7 +1587,6 @@ Wawt::scalePosition(Panel::Widget *widget, const Scale& scale, double border)
         } break;                                                       // BREAK
         case kLIST: { // List
             auto& list = std::get<List>(*widget);
-            list.d_rowHeight *= scale.second;
             list.d_draw.d_borderThickness
                 = scaleBorder(border, list.d_layout.d_borderThickness);
             scaleAdapterParameters(&list.d_draw, scale);
@@ -1587,28 +1616,28 @@ Wawt::setIds(Panel::Widget *widget, Wawt::WidgetId& id)
     switch (index) {
         case kCANVAS: { // Canvas
             auto& canvas = std::get<Canvas>(*widget);
-            canvas.d_widgetId        = Wawt_Id::inc(id);
+            canvas.d_widgetId        = inc(id);
             canvas.d_draw.d_tracking = {index, canvas.d_widgetId.value(), -1};
         } break;                                                   // BREAK
         case kTEXTENTRY: { // TextEntry
             auto& entry = std::get<TextEntry>(*widget);
-            entry.d_widgetId        = Wawt_Id::inc(id);
+            entry.d_widgetId        = inc(id);
             entry.d_draw.d_tracking = {index, entry.d_widgetId.value(), -1};
         } break;                                                   // BREAK
         case kLABEL: { // Label
             auto& label = std::get<Label>(*widget);
-            label.d_widgetId        = Wawt_Id::inc(id);
+            label.d_widgetId        = inc(id);
             label.d_draw.d_tracking = {index, label.d_widgetId.value(), -1};
         } break;                                                   // BREAK
         case kBUTTON: { // Button
             auto& btn = std::get<Button>(*widget);
-            btn.d_widgetId        = Wawt_Id::inc(id);
+            btn.d_widgetId        = inc(id);
             btn.d_draw.d_tracking = {index, btn.d_widgetId.value(), -1};
         } break;                                                   // BREAK
         case kBUTTONBAR: { // ButtonBar
             auto& bar   = std::get<ButtonBar>(*widget);
             auto  row = 0;
-            bar.d_widgetId        = Wawt_Id::inc(id);
+            bar.d_widgetId        = inc(id);
             bar.d_draw.d_tracking = {index, bar.d_widgetId.value(), -1};
 
             for (auto& btn : bar.d_buttons) {
@@ -1618,7 +1647,7 @@ Wawt::setIds(Panel::Widget *widget, Wawt::WidgetId& id)
         case kLIST: { // List
             auto& list = std::get<List>(*widget);
             auto  row = 0;
-            list.d_widgetId        = Wawt_Id::inc(id);
+            list.d_widgetId        = inc(id);
             list.d_draw.d_tracking = {index, list.d_widgetId.value(), -1};
 
             for (auto& btn : list.d_buttons) {
@@ -1631,7 +1660,7 @@ Wawt::setIds(Panel::Widget *widget, Wawt::WidgetId& id)
             for (auto& nextWidget : panel.d_widgets) {
                 setIds(&nextWidget, id);
             }
-            panel.d_widgetId        = Wawt_Id::inc(id);
+            panel.d_widgetId        = inc(id);
             panel.d_draw.d_tracking = {index, panel.d_widgetId.value(), -1};
         } break;                                                   // BREAK
         default: abort();
@@ -1956,7 +1985,7 @@ Wawt::setScrollableListStartingRow(Wawt::List *list, unsigned int row)
 {
     WidgetId id(list->d_widgetId.value()-2, true, false);
     auto& up    = list->d_root->lookup<Wawt::Button>(id, "Scroll up button");
-    Wawt_Id::inc(id);
+    inc(id);
     auto& down  = list->d_root->lookup<Wawt::Button>(id, "Scroll down button");
     list->setStartingRow(row, &up, &down);
     return;                                                           // RETURN
@@ -2019,7 +2048,7 @@ Wawt::popUpModalDialogBox(Panel *root, Panel&& dialogBox)
     Canvas canvas({root->d_layout.d_upperLeft, root->d_layout.d_lowerRight},
                   PaintFn(),
                   {OnClickCb()}); // transparent
-    canvas.d_widgetId          = Wawt_Id::inc(nextId);
+    canvas.d_widgetId          = inc(nextId);
     canvas.d_draw.d_upperLeft  = root->d_draw.d_upperLeft;
     canvas.d_draw.d_lowerRight = root->d_draw.d_lowerRight;
     widgets.emplace_back(canvas);

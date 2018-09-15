@@ -31,4 +31,5 @@ endif()
 
 add_subdirectory(doc)
 add_subdirectory(examples/adapters)
+add_subdirectory(examples/tictacdoh)
 add_subdirectory(lib)

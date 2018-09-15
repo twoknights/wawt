@@ -1,4 +1,4 @@
-/** @file what.h
+/** @file wawt.h
  *  @brief Provides definition of WAWT related types.
  *
  * Copyright 2018 Bruce Szablak
@@ -18,6 +18,8 @@
 
 #ifndef BDS_WAWT_H
 #define BDS_WAWT_H
+
+#include "wawt_id.h"
 
 #include <any>
 #include <cassert>
@@ -39,148 +41,6 @@
 
 namespace BDS {
 
-                                    //==============
-                                    // class Wawt_Id
-                                    //==============
-
-class Wawt_Id {
-  public:
-
-    template<typename IntType>
-    class IntId {
-      protected:
-        IntType d_id;
-
-      public:
-        using value_type = IntType;
-
-        constexpr IntId() : d_id() { }
-
-        constexpr IntId(const IntId& copy) : d_id(copy.d_id) { }
-
-        template<typename OtherInt>
-        constexpr IntId(OtherInt value) : d_id(static_cast<IntType>(value)) { }
-
-        constexpr bool operator==(const IntId& rhs) const {
-            return d_id == rhs.d_id;
-        }
-
-        constexpr bool operator!=(const IntId& rhs) const {
-            return !(*this == rhs);
-        }
-
-        constexpr bool operator<(const IntId& rhs) const {
-            return d_id < rhs.d_id;
-        }
-
-        constexpr bool operator>(const IntId& rhs) const {
-            return d_id > rhs.d_id;
-        }
-        
-        constexpr IntType value() const {
-            return d_id;
-        }
-    };
-
-    template<typename IntType, typename Name>
-    class Mixin {
-      protected:
-        IntType d_value;
-
-      public:
-        constexpr Mixin() : d_value() { }
-
-        constexpr Mixin(bool value) : d_value(value) { }
-
-        constexpr Mixin(const Mixin& copy) : d_value(copy.d_value) { }
-
-        constexpr Mixin& operator=(const Mixin& rhs) {
-            d_value = rhs.d_value;
-            return *this;
-        }
-
-        constexpr bool operator==(const Mixin& rhs) const {
-            return d_value == rhs.d_value;
-        }
-
-        constexpr bool operator!=(const Mixin& rhs) const {
-            return !(*this == rhs);
-        }
-    };
-
-    template<typename IdType, typename... Mixins>
-    class Id : public Mixins... { // parameter pack
-        IdType d_id;
-      public:
-        constexpr Id() : Mixins()..., d_id() { }
-
-        template<typename OtherType>
-        constexpr Id(OtherType id, Mixins... args)
-            : Mixins(args)..., d_id(id) { }
-
-        constexpr Id(const Id& copy) : Mixins(copy)..., d_id(copy.d_id) { }
-
-        constexpr Id& operator=(const Id& rhs) {
-            (Mixins::operator=(rhs), ...);
-            d_id = rhs.d_id;
-            return *this;
-        }
-
-        constexpr bool operator==(const Id& rhs) const { // fold expression
-            return d_id == rhs.d_id && (... && Mixins::operator==(rhs));
-        }
-
-        constexpr bool operator!=(const Id& rhs) const {
-            return !(*this == rhs);
-        }
-
-        constexpr bool operator<(const Id& rhs) const {
-            return d_id < rhs.d_id;
-        }
-
-        constexpr bool operator>(const Id& rhs) const {
-            return d_id > rhs.d_id;
-        }
-        
-        constexpr typename IdType::value_type value() const {
-            return d_id.value();
-        }
-        
-        constexpr operator int() const {
-            return d_id.value();
-        }
-    };
-
-    class IsSet : public Mixin<bool, IsSet> {
-      public:
-        constexpr IsSet()              = default;
-        constexpr IsSet(bool) : Mixin(true) { }
-
-        constexpr bool isSet() const {
-            return d_value;
-        }
-    };
-
-    class IsRelative : public Mixin<bool, IsRelative> {
-      public:
-        constexpr IsRelative()     = default;
-        constexpr IsRelative(bool flag) : Mixin(flag) { }
-
-        constexpr bool isRelative() const {
-            return d_value;
-        }
-    };
-
-    using WidgetId   = Id<IntId<uint16_t>, IsSet, IsRelative>;
-
-    static WidgetId inc(WidgetId& id) {
-        assert(id.isSet());
-        assert(!id.isRelative());
-        auto next = Wawt_Id::WidgetId(id.value()+1, true, false);
-        return std::exchange(id, std::move(next));
-    }
-};
-
                                     //===========
                                     // class Wawt
                                     //===========
@@ -200,13 +60,23 @@ class Wawt {
     // Char type:
     // Note: fixed length encodings required. These would be: ANSI (char),
     // UCS-2 (wchar_t), and UTF-32 (char32_t).
-    using Char_t   = char32_t;
-    using String_t = std::u32string;
+    using Char_t       = char32_t;
+    using String_t     = std::u32string;
+    using StringView_t = std::u32string_view; // Not used in implementation
 
     // Identifiers:
     using OptInt      = std::optional<int>;
 
-    using WidgetId    = Wawt_Id::WidgetId;
+    using WidgetId   = Wawt_Id::Id<Wawt_Id::IntId<uint16_t>,
+                                   Wawt_Id::IsSet,
+                                   Wawt_Id::IsRelative>;
+
+    static WidgetId inc(WidgetId& id) {
+        assert(id.isSet());
+        assert(!id.isRelative());
+        auto next = WidgetId(id.value()+1, true, false);
+        return std::exchange(id, std::move(next));
+    }
 
     using Scale       = std::pair<double, double>;
 
@@ -493,6 +363,14 @@ class Wawt {
         Position            d_lowerRight;
         double              d_borderThickness;
 
+        static Layout slice(bool vertical, double begin, double end);
+
+        static Layout centered(double width, double height) {
+            auto w = std::abs(width)/2.0;
+            auto h = std::abs(height)/2.0;
+            return Layout({{Metric(-w),Metric(-h)}}, {{Metric(w),Metric(h)}});
+        }
+
         constexpr Layout(const Position& upperLeft       = {},
                          const Position& lowerRight      = {{Metric(1.0),
                                                              Metric(1.0)}},
@@ -511,10 +389,15 @@ class Wawt {
         }
 
         Layout&& translate(double x, double y) && {
-            this->d_upperLeft.d_vertex.d_sx  += x;
-            this->d_upperLeft.d_vertex.d_sy  += y;
-            this->d_lowerRight.d_vertex.d_sx += x;
-            this->d_lowerRight.d_vertex.d_sy += y;
+            d_upperLeft.d_vertex.d_sx  += x;
+            d_upperLeft.d_vertex.d_sy  += y;
+            d_lowerRight.d_vertex.d_sx += x;
+            d_lowerRight.d_vertex.d_sy += y;
+            return std::move(*this);
+        }
+
+        Layout&& border(unsigned int thickness) && {
+            d_borderThickness = double(thickness);
             return std::move(*this);
         }
     };
@@ -834,15 +717,6 @@ class Wawt {
         friend class Wawt;
 
       public:
-        template <typename Callable>
-        static InputHandler onPush(const Callable& callback) {
-            auto wrap = [push = callback](Text* arg) {
-                (void)push(arg);
-                return FocusCb();
-            };
-            return InputHandler(std::move(wrap));
-        }
-        
         Button()                        = default;
 
         /// Used in 'ButtonBar' which determines the layout
@@ -1037,6 +911,8 @@ class Wawt {
                                     List,          // 5
                                     Panel>;        // 6
 
+        using Widgets = std::vector<Widget>;
+
         Panel()                             = default;
         
         Panel(Layout&& layout, DrawSettings&& options = DrawSettings())
@@ -1062,6 +938,23 @@ class Wawt {
                    TextString(),
                    std::move(options))
             , d_widgets(widgets) { }
+
+        Panel(Layout&&                      layout,
+              const Widgets&                widgets)
+            : Base(std::move(layout),
+                   InputHandler().defaultAction(ActionType::eCLICK),
+                   TextString(),
+                   DrawSettings())
+            , d_widgets(widgets.begin(), widgets.end()) { }
+
+        Panel(Layout&&                      layout,
+              DrawSettings&&                options,
+              const Widgets&                widgets)
+            : Base(std::move(layout),
+                   InputHandler().defaultAction(ActionType::eCLICK),
+                   TextString(),
+                   std::move(options))
+            , d_widgets(widgets.begin(), widgets.end()) { }
 
 
         template<class WIDGET>
