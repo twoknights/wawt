@@ -18,6 +18,7 @@
 
 #include "sfmladapter.h"
 #include "drawoptions.h"
+#include "wawt.h"
 
 #include <SFML/Graphics/CircleShape.hpp>
 #include <SFML/Graphics/Color.hpp>
@@ -35,6 +36,7 @@
 #include <cmath>
 #include <chrono>
 #include <thread>
+//#include <type_traits>
 
 #include <iostream>
 
@@ -80,6 +82,21 @@ void drawCircle(sf::RenderWindow  *window,
     window->draw(circle);
 }
 
+sf::String toString(const Wawt::String_t& string) {
+    if constexpr(std::is_same_v<Wawt::String_t, std::u32string>) {
+        return sf::String(reinterpret_cast<const sf::Uint32*>(string.data()));
+    }
+    else if constexpr(std::is_same_v<Wawt::String_t, std::wstring>) {
+        return sf::String(reinterpret_cast<const wchar_t*>(string.data()));
+    }
+    else if constexpr(std::is_same_v<Wawt::String_t, std::string>) {
+        return sf::String(reinterpret_cast<const char*>(string.data()));
+    }
+    else {
+        assert(!"Unsupported string type");
+    }
+}
+
 } // end unnamed namespace
 
                                 //------------------
@@ -95,8 +112,14 @@ SfmlAdapter::SfmlAdapter(sf::RenderWindow&   window,
     d_font.loadFromFile(path.c_str());
 
     if (!noArrow) {
-        Wawt::s_downArrow = L'\u25BC';
-        Wawt::s_upArrow   = L'\u25B2';
+        if constexpr (std::is_same_v<Wawt::Char_t,wchar_t>) {
+            Wawt::s_downArrow = L'\u25BC';
+            Wawt::s_upArrow   = L'\u25B2';
+        }
+        else if constexpr (std::is_same_v<Wawt::Char_t,char32_t>) {
+            Wawt::s_downArrow = U'\u25BC';
+            Wawt::s_upArrow   = U'\u25B2';
+        }
     }
 }
 
@@ -104,7 +127,7 @@ SfmlAdapter::SfmlAdapter(sf::RenderWindow&   window,
 
 void
 SfmlAdapter::draw(const Wawt::DrawDirective&  widget,
-                  const std::wstring&        text)
+                  const Wawt::String_t&      text)
 {
     DrawOptions options;
 
@@ -199,7 +222,7 @@ SfmlAdapter::draw(const Wawt::DrawDirective&  widget,
     }
 
     if (!text.empty()) {
-        sf::Text  label{text, d_font, widget.d_charSize};
+        sf::Text   label{toString(text), d_font, widget.d_charSize};
 
         label.setFillColor(textColor);
 
@@ -219,14 +242,14 @@ SfmlAdapter::draw(const Wawt::DrawDirective&  widget,
 void
 SfmlAdapter::getTextMetrics(Wawt::DrawDirective   *parameters,
                             Wawt::TextMetrics     *metrics,
-                            const std::wstring&   text,
+                            const Wawt::String_t& text,
                             double                startLimit)
 {
     assert(metrics->d_textHeight > 0);    // these are upper limits
     assert(metrics->d_textWidth > 0);     // bullet size excluded
 
     DrawOptions   effects;
-    sf::String    string(text);
+    sf::String    string(toString(text));
     sf::FloatRect bounds(0,0,0,0);
     uint16_t      charSize = uint16_t(std::round(parameters->d_charSize));
     sf::Text      label{string, d_font, charSize};
@@ -326,14 +349,14 @@ SfmlWindow::eventLoop(sf::RenderWindow&                 window,
                     if (mouseUp) {
 
                         if (onKey) {
-                            onKey(L'\0'); // erase cursor
+                            onKey(Wawt::Char_t(0)); // erase cursor
                         }
                         onKey = mouseUp(event.mouseButton.x,
                                         event.mouseButton.y,
                                         true);
 
                         if (onKey) {
-                            onKey(L'\0'); // show cursor
+                            onKey(Wawt::Char_t(0)); // show cursor
                         }
                     }
                     connector.draw();
@@ -341,12 +364,13 @@ SfmlWindow::eventLoop(sf::RenderWindow&                 window,
                 }
                 else if (event.type == sf::Event::TextEntered) {
                     window.clear();
-                    if (onKey) {
-                        wchar_t pressed = L'\0';
-                        sf::Utf<32>::encodeWide(event.text.unicode, &pressed);
 
-                        if (pressed) {
-                            if (onKey(pressed)) { // focus lost?
+                    if (onKey) {
+                        auto key = static_cast<Wawt::Char_t>(event.text
+                                                                  .unicode);
+
+                        if (key) {
+                            if (onKey(key)) { // focus lost?
                                 onKey = Wawt::FocusCb();
                             }
                         }

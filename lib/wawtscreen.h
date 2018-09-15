@@ -57,20 +57,27 @@ namespace BDS {
 class WawtScreen {
   protected:
     // PROTECTED TYPES
-    using ButtonBar  = Wawt::ButtonBar;
-    using Button     = Wawt::Button;
-    using Canvas     = Wawt::Canvas;
-    using Enablement = Wawt::Enablement;
-    using Label      = Wawt::Label;
-    using List       = Wawt::List;
-    using Panel      = Wawt::Panel;
-    using TieScale   = Wawt::TieScale;
-    using TextEntry  = Wawt::TextEntry;
-    using Metric     = Wawt::Metric;
-    using Vertex     = Wawt::Vertex;
-    using WidgetId   = Wawt::WidgetId;
+    using ButtonBar    = Wawt::ButtonBar;
+    using Button       = Wawt::Button;
+    using Canvas       = Wawt::Canvas;
+    using Label        = Wawt::Label;
+    using List         = Wawt::List;
+    using Panel        = Wawt::Panel;
+    using TextEntry    = Wawt::TextEntry;
 
-    using CloseFn    = std::function<void(const std::function<void()>&)>;
+    using Layout       = Wawt::Layout;
+    using InputHandler = Wawt::InputHandler;
+    using TextString   = Wawt::TextString;
+    using DrawSettings = Wawt::DrawSettings;
+
+    using Align        = Wawt::Align;
+    using Enablement   = Wawt::Enablement;
+    using Metric       = Wawt::Metric;
+    using TieScale     = Wawt::TieScale;
+    using Vertex       = Wawt::Vertex;
+    using WidgetId     = Wawt::WidgetId;
+
+    using CloseFn      = std::function<void(const std::function<void()>&)>;
 
     // PROTECTED CONSTRUCTOR
     /**
@@ -237,7 +244,9 @@ class WawtScreen {
      */
     Wawt::EventUpCb downEvent(int x, int y) {
         try {
-            return d_screen.downEvent(x, y);
+            auto cb = d_screen.downEvent(x, y);
+            refresh();
+            return cb;
         }
         catch (Wawt::Exception caught) {
             throw Wawt::Exception("Click on screen '" + d_name + "', "
@@ -466,8 +475,8 @@ class WawtScreenImpl : public WawtScreen {
      * @return A 'Wawt::Layout' structure for use in the screen's root panel.
      *
      */
-    Wawt::Layout screenLayout(int width, int height) {
-        return Wawt::Layout({}, {kUPPER_LEFT, width-1, height-1});
+    Layout screenLayout(int width, int height) {
+        return Layout({}, {kUPPER_LEFT, width-1, height-1});
     }
 
     //! Get the draw options for the root screen panel.

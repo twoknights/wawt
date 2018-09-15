@@ -48,18 +48,49 @@ constexpr static const Wawt::Vertex kCENTER_LEFT  {-1.0_M, 0.0_M};
 constexpr static const Wawt::Vertex kCENTER_CENTER{ 0.0_M, 0.0_M};
 constexpr static const Wawt::Vertex kCENTER_RIGHT { 1.0_M, 0.0_M};
 
-const char * const s_alignment[] = { "LEFT", "CENTER", "RIGHT" };
-
 using FontIdMap  = std::map<Wawt::FontSizeGrp, uint16_t>;
 
-WawtDump s_defaultAdapter(std::wcout);
+WawtDump s_defaultAdapter(std::cout);
 
 inline
-std::wostream& operator<<(std::wostream& os, const WawtDump::Indent indent) {
+std::ostream& operator<<(std::ostream& os, WawtDump::Indent indent) {
     if (indent.d_indent > 0) {
-        os << std::setw(indent.d_indent) << L' ';
+        os << std::setw(indent.d_indent) << ' ';
     }
     return os;                                                        // RETURN
+}
+
+inline
+std::ostream& operator<<(std::ostream& os, Wawt::WidgetId id) {
+    if (id.isSet()) {
+        os << '\'' << id.value();
+        if (id.isRelative()) {
+            os << "_wr'";
+        }
+        else {
+            os << "_w'";
+        }
+    }
+    else {
+        os << "'unset'";
+    }
+    return os;
+}
+
+inline
+void outputString(std::ostream& os, const Wawt::String_t& text) {
+    // NOTE: std::codecvt is deprecated. So, to avoid compiler warnings,
+    // and until this is sorted out, assume fixed size 8-bit encoding is
+    // kept in the char type. For anticipated use (i.e. test drivers), this
+    // is expected to be good enough.
+    for (auto c : text) {
+        const char *p = reinterpret_cast<const char*>(&c);
+        for (auto i=0u; i < sizeof(c); ++i, ++p) {
+            if (*p) {
+                os.put(static_cast<char>(*p));
+            }
+        }
+    }
 }
 
 Wawt::FocusCb eatMouseUp(int, int, bool) {
@@ -150,7 +181,7 @@ const Wawt::DrawDirective *getAdapterView(const Wawt::Panel& parent,
 bool handleChar(Wawt::Base            *base,
                 Wawt::EnterFn         *enterFn,
                 uint16_t              maxChars,
-                wchar_t               pressed)
+                Wawt::Char_t          pressed)
 {
     auto text = base->textView().getText();
     bool hasCursor = !text.empty() && text.back() == Wawt::s_cursor;
@@ -161,12 +192,12 @@ bool handleChar(Wawt::Base            *base,
     }
 
     if (pressed) {
-        if (pressed == L'\b') {
+        if (pressed == Wawt::Char_t('\b')) {
             if (!text.empty()) {
                 text.pop_back();
             }
         }
-        else if (pressed == L'\r') {
+        else if (pressed == Wawt::Char_t('\r')) {
             bool ret = (*enterFn) ? (*enterFn)(&text) : true;
             base->textView().setText(text);
             return ret;                                               // RETURN
@@ -238,7 +269,8 @@ Wawt::DrawPosition makeAbsolute(const Wawt::Position& position,
 void refreshTextMetric(Wawt::DrawDirective            *args,
                        Wawt::TextBlock                *block,
                        Wawt::DrawAdapter              *adapter_p,
-                       FontIdMap&                     fontIdToSize) {
+                       FontIdMap&                     fontIdToSize,
+                       const Wawt::TextMapper&        textLookup) {
     auto  id         = block->fontSizeGrp();
     auto  textHeight = args->interiorHeight();
     auto  fontSize   = id.has_value() ? fontIdToSize.find(*id)->second : 0;
@@ -247,7 +279,8 @@ void refreshTextMetric(Wawt::DrawDirective            *args,
                                       ? args->interiorHeight()
                                       : 0;
 
-    if (charSize != args->d_charSize) {
+    if (charSize != args->d_charSize || block->needRefresh()) {
+        block->setText(textLookup);
         block->initTextMetricValues(args, adapter_p, charSize);
 
         if (fontSize == 0 && id.has_value()) {
@@ -262,7 +295,7 @@ void refreshTextMetric(Wawt::DrawDirective            *args,
         assert(margin >= 0);
 
         args->d_startx += block->alignment() == Wawt::Align::eRIGHT ? margin
-                                                                   : margin/2;
+                                                                    : margin/2;
     }
     return;                                                           // RETURN
 }
@@ -394,6 +427,70 @@ Wawt::Base::setEnablement(Enablement newSetting)
     return;                                                           // RETURN
 }
 
+void
+Wawt::Base::serialize(std::ostream&  os,
+                      const char    *widgetName,
+                      bool           container,
+                      unsigned int   indent) const
+{
+    WawtDump::Indent spaces(indent);
+    os << spaces << "<" << widgetName << " id=" << d_widgetId << ">\n";
+
+    spaces += 2;
+    os << spaces
+       << "<layout border='" << d_layout.d_borderThickness
+       << "' tie='" << int(d_layout.d_tie) << "'>\n";
+    spaces += 2;
+    os << spaces
+       <<     "<ul sx='" << d_layout.d_upperLeft.d_vertex.d_sx
+       <<       "' sy='" << d_layout.d_upperLeft.d_vertex.d_sy
+       <<   "' widget="  << d_layout.d_upperLeft.d_widgetId
+       <<    " bias_x='" << int(d_layout.d_upperLeft.d_endPoint.first)
+       <<   "' bias_y='" << int(d_layout.d_upperLeft.d_endPoint.second)
+       << "' offset_x='" << d_layout.d_upperLeft.d_x
+       << "' offset_y='" << d_layout.d_upperLeft.d_y
+       << "'>\n";
+    os << spaces
+       <<     "<lr sx='" << d_layout.d_lowerRight.d_vertex.d_sx
+       <<       "' sy='" << d_layout.d_lowerRight.d_vertex.d_sy
+       <<   "' widget="  << d_layout.d_lowerRight.d_widgetId
+       <<    " bias_x='" << int(d_layout.d_lowerRight.d_endPoint.first)
+       <<   "' bias_y='" << int(d_layout.d_lowerRight.d_endPoint.second)
+       << "' offset_x='" << d_layout.d_lowerRight.d_x
+       << "' offset_y='" << d_layout.d_lowerRight.d_y
+       << "'>\n";
+    spaces -= 2;
+    os << spaces << "</layout>\n";
+
+    os << spaces
+       << "<input action='" << int(d_input.d_type)
+       << "' variant='"     << d_input.d_callback.index() << "'>\n";
+
+    os << spaces
+       << "<text textId='"  << int(d_text.d_block.d_id)
+       << "' align='"       << int(d_text.d_block.d_alignment)
+       << "' group='";
+
+    if (d_text.d_block.d_fontSizeGrp.has_value()) {
+        os << d_text.d_block.d_fontSizeGrp.value();
+    }
+    os << "' string='";
+    outputString(os, d_text.d_block.d_string);
+    os << "'/>\n";
+
+    os << spaces
+       << "<draw options='" << int(d_draw.d_options.has_value())
+       << "' paint='" << (d_draw.d_paintFn ? "set" : "unset")
+       << "' bullet='" << int(d_draw.d_bulletType)
+       << "'/>\n";
+
+    if (!container) {
+        spaces -= 2;
+        os << spaces << "</" << widgetName << ">\n";
+    }
+    return;
+}
+
                             //-------------------
                             // class  Wawt::Button
                             //-------------------
@@ -414,12 +511,12 @@ Wawt::ButtonBar::draw(DrawAdapter *adapter) const
 }
 
 Wawt::ButtonBar::ButtonBar(Layout&&                          layout,
-                          OptInt                            borderThickness,
-                          std::initializer_list<Button>     buttons)
+                           OptInt                            borderThickness,
+                           std::initializer_list<Button>     buttons)
 : Base(std::move(layout),
        InputHandler().defaultAction(ActionType::eCLICK),
        TextString(),
-       DrawOptions())
+       DrawSettings())
 , d_buttons(buttons)
 {
     for (auto& btn : d_buttons) {
@@ -444,17 +541,32 @@ Wawt::ButtonBar::downEvent(int x, int y)
     return cb;                                                        // RETURN
 }
 
+void
+Wawt::ButtonBar::serialize(std::ostream& os, unsigned int indent) const
+{
+    Base::serialize(os, "bar", true, indent);
+    indent += 2;
+
+    for (auto& button : d_buttons) {
+        button.serialize(os, "button", false, indent);
+    }
+    WawtDump::Indent spaces(indent-2);
+
+    os << spaces << "</bar>\n";
+    return;                                                           // RETURN
+}
+
 
                             //-------------------
                             // class  Wawt::Canvas
                             //-------------------
 
-                            //---------------------------
-                            // class  Wawt::DrawOptions
-                            //---------------------------
+                            //--------------------------
+                            // class  Wawt::DrawSettings
+                            //--------------------------
 
 bool
-Wawt::DrawOptions::draw(DrawAdapter *adapter, const std::wstring& text) const
+Wawt::DrawSettings::draw(DrawAdapter *adapter, const String_t& text) const
 {
     if (!d_hidden) {
 
@@ -578,7 +690,7 @@ Wawt::InputHandler::callSelectFn(Text *text)
     else if (auto p3 = std::get_if<std::pair<EnterFn,uint16_t>>(&d_callback)) {
         return  [text,
                  enterFn  = &p3->first,
-                 maxChars = p3->second] (wchar_t c) {
+                 maxChars = p3->second] (Wawt::Char_t c) {
                     return handleChar(text, enterFn, maxChars, c);
                 };                                                    // RETURN
     }
@@ -646,7 +758,7 @@ Wawt::InputHandler::downEvent(int x, int y, Text* text)
         assert(p5);
         auto focusCb = [text,
                         enterFn  = &p5->first,
-                        maxChars = p5->second] (wchar_t c) {
+                        maxChars = p5->second] (Wawt::Char_t c) {
                             return handleChar(text, enterFn, maxChars, c);
                         };
         return [focusCb](int, int, bool up) {
@@ -694,8 +806,8 @@ Wawt::InputHandler::downEvent(int x, int y, Base* base)
 
 void
 Wawt::TextBlock::initTextMetricValues(Wawt::DrawDirective      *args,
-                                     Wawt::DrawAdapter        *adapter,
-                                     uint16_t                 upperLimit)
+                                      Wawt::DrawAdapter        *adapter,
+                                      uint16_t                  upperLimit)
 {
     int  width  = args->interiorWidth();
     int  height = args->interiorHeight();
@@ -718,6 +830,7 @@ Wawt::TextBlock::initTextMetricValues(Wawt::DrawDirective      *args,
 void
 Wawt::TextBlock::setText(TextId id)
 {
+    d_needRefresh = true;
     d_block.d_id = id;
 
     if (id != kNOID) {
@@ -726,8 +839,9 @@ Wawt::TextBlock::setText(TextId id)
 }
 
 void
-Wawt::TextBlock::setText(std::wstring string)
+Wawt::TextBlock::setText(Wawt::String_t string)
 {
+    d_needRefresh = true;
     d_block.d_string = std::move(string);
     d_block.d_id     = kNOID;
 }
@@ -736,8 +850,9 @@ void
 Wawt::TextBlock::setText(const TextMapper& mappingFn)
 {
     if (d_block.d_id != kNOID && mappingFn) {
-        d_block.d_string = mappingFn(d_block.d_id);
+        d_block.d_string      = mappingFn(d_block.d_id);
     }
+    d_needRefresh = false; // since refresh ALWAYS follows remap
 }
 
                             //----------------------
@@ -760,12 +875,12 @@ Wawt::List::draw(DrawAdapter *adapter) const
 }
 
 Wawt::List::List(Layout&&                          layout,
-                FontSizeGrp                       fontSizeGrp,
-                DrawOptions&&                  options,
-                ListType                          listType,
-                Labels                            labels,
-                const GroupCb&                    click,
-                Panel                            *root)
+                 FontSizeGrp                       fontSizeGrp,
+                 DrawSettings&&                    options,
+                 ListType                          listType,
+                 Labels                            labels,
+                 const GroupCb&                    click,
+                 Panel                            *root)
 : Base(std::move(layout),
        InputHandler().defaultAction(ActionType::eCLICK),
        TextString(),
@@ -800,12 +915,12 @@ Wawt::List::List(Layout&&                          layout,
 }
 
 Wawt::List::List(Layout&&                          layout,
-                FontSizeGrp                       fontSizeGrp,
-                DrawOptions&&                  options,
-                ListType                          listType,
-                unsigned int                      rows,
-                const GroupCb&                    click,
-                Panel                            *root)
+                 FontSizeGrp                       fontSizeGrp,
+                 DrawSettings&&                    options,
+                 ListType                          listType,
+                 unsigned int                      rows,
+                 const GroupCb&                    click,
+                 Panel                            *root)
 : Base(std::move(layout),
        InputHandler().defaultAction(ActionType::eCLICK),
        TextString(),
@@ -1068,8 +1183,8 @@ Wawt::List::initButton(unsigned int index, bool lastButton)
             // Use to initialize drop-down selection:
             button.d_input.d_callback = [this](Text *clicked) {
                 d_buttons.back()
-                         .textView().setText(std::wstring(1, s_downArrow)
-                                             + L' '
+                         .textView().setText(String_t(1, s_downArrow)
+                                             + Char_t(' ')
                                              + clicked->textView().getText());
                 return FocusCb();
             };
@@ -1234,6 +1349,22 @@ Wawt::List::setButtonPositions(bool resizeListBox)
     return;                                                           // RETURN
 }
 
+void
+Wawt::List::serialize(std::ostream& os, unsigned int indent) const
+{
+    std::string list = "list rows='" + std::to_string(d_rows) + "'";
+    Base::serialize(os, list.c_str(), true, indent);
+    indent += 2;
+
+    for (auto& button : d_buttons) {
+        button.serialize(os, "button", false, indent);
+    }
+    WawtDump::Indent spaces(indent-2);
+
+    os << spaces << "</list>\n";
+    return;                                                           // RETURN
+}
+
                             //------------------
                             // class  Wawt::Panel
                             //------------------
@@ -1331,6 +1462,51 @@ Wawt::Panel::downEvent(int x, int y)
         }
     }
     return cb;                                                        // RETURN
+}
+
+void
+Wawt::Panel::serialize(std::ostream& os, unsigned int indent) const
+{
+    Base::serialize(os, "panel", true, indent);
+    indent += 2;
+
+    for (auto& widget : d_widgets) {
+        switch (widget.index()) {
+            case kCANVAS: { // Canvas
+                auto& obj = std::get<Canvas>(widget);
+                obj.serialize(os, "canvas", false, indent);
+            } break;                                               // BREAK
+            case kTEXTENTRY: { // TextEntry
+                auto& obj = std::get<TextEntry>(widget);
+                obj.serialize(os, "entry", false, indent);
+            } break;                                               // BREAK
+            case kLABEL: { // Label
+                auto& obj = std::get<Label>(widget);
+                obj.serialize(os, "label", false, indent);
+            } break;                                               // BREAK
+            case kBUTTON: { // Button
+                auto& obj = std::get<Button>(widget);
+                obj.serialize(os, "button", false, indent);
+            } break;                                               // BREAK
+            case 4: { // ButtonBar
+                auto& obj = std::get<ButtonBar>(widget);
+                obj.serialize(os, indent);
+            } break;                                               // BREAK
+            case kLIST: { // List
+                auto& obj = std::get<List>(widget);
+                obj.serialize(os, indent);
+            } break;                                               // BREAK
+            case kPANEL: { // Panel
+                auto& obj = std::get<Panel>(widget);
+                obj.serialize(os, indent);
+            } break;                                               // BREAK
+            default: abort();
+        }
+    }
+    WawtDump::Indent spaces(indent-2);
+
+    os << spaces << "</panel>\n";
+    return;                                                           // RETURN
 }
 
                                 //-----------
@@ -1720,11 +1896,11 @@ Wawt::scrollableList(List          list,
     auto&     options   = listView.d_options;
     Button    scrollUp({{},{}, border, TieScale::eUL_X},
                        {scrollUpCb},
-                       {std::wstring(1, s_upArrow)},
+                       {String_t(1, s_upArrow)},
                        {options});
     Button    scrollDown({{},{}, border, TieScale::eLR_X},
                          {scrollDownCb},
-                         {std::wstring(1, s_downArrow)},
+                         {String_t(1, s_downArrow)},
                          {options});
 
     auto rowHeight  = 2.0/double(list.windowSize()); // as a scale factor
@@ -1792,9 +1968,9 @@ const Wawt::WidgetId   Wawt::kROOT(UINT16_MAX-1, true, true);
 
 const std::any        Wawt::s_noOptions;
 
-wchar_t Wawt::s_downArrow = L'v';
-wchar_t Wawt::s_upArrow   = L'^';
-wchar_t Wawt::s_cursor    = L'|';
+Wawt::Char_t Wawt::s_downArrow = Wawt::Char_t('v');
+Wawt::Char_t Wawt::s_upArrow   = Wawt::Char_t('^');
+Wawt::Char_t Wawt::s_cursor    = Wawt::Char_t('|');
 
 // PUBLIC CONSTRUCTOR
 Wawt::Wawt(const TextMapper& mappingFn, DrawAdapter *adapter)
@@ -1887,21 +2063,24 @@ Wawt::refreshTextMetrics(Panel *panel)
                 refreshTextMetric(&entry.d_draw,
                                   &entry.d_text,
                                   d_adapter_p,
-                                  d_fontIdToSize);
+                                  d_fontIdToSize,
+                                  d_idToString);
             } break;                                                   // BREAK
             case kLABEL: { // Label
                 auto& label = std::get<Label>(widget);
                 refreshTextMetric(&label.d_draw,
                                   &label.d_text,
                                   d_adapter_p,
-                                  d_fontIdToSize);
+                                  d_fontIdToSize,
+                                  d_idToString);
             } break;                                                   // BREAK
             case kBUTTON: { // Button
                 auto& button = std::get<Button>(widget);
                 refreshTextMetric(&button.d_draw,
                                   &button.d_text,
                                   d_adapter_p,
-                                  d_fontIdToSize);
+                                  d_fontIdToSize,
+                                  d_idToString);
             } break;                                                   // BREAK
             case kBUTTONBAR: { // ButtonBar
                 auto& bar = std::get<ButtonBar>(widget);
@@ -1916,7 +2095,8 @@ Wawt::refreshTextMetrics(Panel *panel)
                     refreshTextMetric(&button.d_draw,
                                       &button.d_text,
                                       d_adapter_p,
-                                      d_fontIdToSize);
+                                      d_fontIdToSize,
+                                      d_idToString);
                     auto width = button.d_text.d_metrics.d_textWidth
                                     + 2*button.d_draw.d_borderThickness + 4;
 
@@ -1944,7 +2124,8 @@ Wawt::refreshTextMetrics(Panel *panel)
                     refreshTextMetric(&view,
                                       &button.d_text,
                                       d_adapter_p,
-                                      d_fontIdToSize);
+                                      d_fontIdToSize,
+                                      d_idToString);
                 }
             } break;                                                   // BREAK
             case kLIST: { // List
@@ -1953,7 +2134,8 @@ Wawt::refreshTextMetrics(Panel *panel)
                     refreshTextMetric(&button.d_draw,
                                       &button.d_text,
                                       d_adapter_p,
-                                      d_fontIdToSize);
+                                      d_fontIdToSize,
+                                      d_idToString);
                 }
             } break;                                                   // BREAK
             case kPANEL: { // Panel
@@ -2120,61 +2302,60 @@ Wawt::setTextAndFontValues(Panel *root)
 
 void
 WawtDump::draw(const Wawt::DrawDirective&  widget,
-              const std::wstring&        text)
+               const Wawt::String_t&       text)
 {
     auto [type, id, row] = widget.d_tracking;
-    d_dumpOs << std::boolalpha << d_indent << L"<Widget id=" << type
-             << L"," << id;
+    d_dumpOs << std::boolalpha << d_indent << "<widget id=" << type
+             << "," << id;
 
     if (row >= 0) {
-        d_dumpOs  << L"," << row;
+        d_dumpOs  << "," << row;
     }
-    d_dumpOs  << L"' borderThickness='"    << widget.d_borderThickness
-              << L"' greyEffect='"         << widget.d_greyEffect
-              << L"' options='"            << widget.d_options.has_value()
-              << L"'>\n";
+    d_dumpOs  << "' borderThickness='"   << widget.d_borderThickness
+              << "' greyEffect='"        << widget.d_greyEffect
+              << "' options='"           << widget.d_options.has_value()
+              << "'>\n";
     d_indent += 2;
     d_dumpOs  << d_indent
-              << L"<UpperLeft x='"         << widget.d_upperLeft.d_x
-              << L"' y='"                  << widget.d_upperLeft.d_y
-              << L"'/>\n"
+              << "<upperLeft x='"        << widget.d_upperLeft.d_x
+              << "' y='"                 << widget.d_upperLeft.d_y
+              << "'/>\n"
               << d_indent
-              << L"<LowerRight x='"        << widget.d_lowerRight.d_x
-              << L"' y='"                  << widget.d_lowerRight.d_y
-              << L"'/>\n";
+              << "<lowerRight x='"       << widget.d_lowerRight.d_x
+              << "' y='"                 << widget.d_lowerRight.d_y
+              << "'/>\n";
 
     if (widget.d_charSize > 0) {
-        //std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
         d_dumpOs  << d_indent
-                  << L"<Text startx='"     << Int(widget.d_startx)
-                  << L"' selected='"       << widget.d_selected;
+                  << "<text startx='"    << Int(widget.d_startx)
+                  << "' selected='"      << widget.d_selected;
 
         if (widget.d_bulletType      == Wawt::BulletType::eCHECK) {
-            d_dumpOs  << L"' bulletType='Check";
+            d_dumpOs  << "' bulletType='Check";
         }
         else if (widget.d_bulletType == Wawt::BulletType::eRADIO) {
-            d_dumpOs  << L"' bulletType='Radio";
+            d_dumpOs  << "' bulletType='Radio";
         }
-        d_dumpOs  << L"'>\n";
+        d_dumpOs  << "'>\n";
         d_indent += 2;
         d_dumpOs  << d_indent
-                  << L"<String charSize='" << widget.d_charSize
-                  << L"'>"
-                  << text
-                  << L"</String>\n";
+                  << "<string charSize='" << widget.d_charSize
+                  << "'>";
+        outputString(d_dumpOs, text);
+        d_dumpOs  << "</string>\n";
         d_indent -= 2;
         d_dumpOs  << d_indent
-                  << L"</Text>\n";
+                  << "</text>\n";
     }
     d_indent -= 2;
-    d_dumpOs  << d_indent << L"</Widget>\n" << std::noboolalpha;
+    d_dumpOs  << d_indent << "</widget>\n" << std::noboolalpha;
 }
 
 void
-WawtDump::getTextMetrics(Wawt::DrawDirective   *parameters,
-                        Wawt::TextMetrics     *metrics,
-                        const std::wstring&   text,
-                        double                upperLimit)
+WawtDump::getTextMetrics(Wawt::DrawDirective    *parameters,
+                         Wawt::TextMetrics      *metrics,
+                         const Wawt::String_t&   text,
+                         double                  upperLimit)
 {
     assert(metrics->d_textHeight >= upperLimit);    // these are upper limits
     assert(metrics->d_textWidth > 0);               // bullet size excluded

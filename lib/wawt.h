@@ -181,9 +181,9 @@ class Wawt_Id {
     }
 };
 
-                                    //==========
+                                    //===========
                                     // class Wawt
-                                    //==========
+                                    //===========
 
 class Wawt {
   public:
@@ -196,6 +196,13 @@ class Wawt {
     class  Panel;
 
     // PUBLIC TYPES
+
+    // Char type:
+    // Note: fixed length encodings required. These would be: ANSI (char),
+    // UCS-2 (wchar_t), and UTF-32 (char32_t).
+    using Char_t   = char32_t;
+    using String_t = std::u32string;
+
     // Identifiers:
     using OptInt      = std::optional<int>;
 
@@ -211,9 +218,9 @@ class Wawt {
 
     // PUBLIC TYPES
 
-                                //==================
-                                // class DrawOptions   
-                                //==================
+                                //===================
+                                // class DrawSettings  
+                                //===================
 
     enum class BulletType { eNONE, eRADIO, eCHECK };
 
@@ -264,7 +271,7 @@ class Wawt {
         }
     };
 
-    class DrawOptions : DrawDirective {
+    class DrawSettings : DrawDirective {
         friend class Base;
         friend class Wawt;
         friend class List;
@@ -272,23 +279,23 @@ class Wawt {
         bool                d_hidden;
         PaintFn             d_paintFn;
 
-        bool draw(DrawAdapter *adapter, const std::wstring& text) const;
+        bool draw(DrawAdapter *adapter, const String_t& txt) const;
 
       public:
-        DrawOptions() : DrawDirective() , d_hidden(false) , d_paintFn() { }
+        DrawSettings() : DrawDirective() , d_hidden(false) , d_paintFn() { }
 
         template<class OptionClass>
-        DrawOptions(OptionClass&& options)
+        DrawSettings(OptionClass&& options)
             : DrawDirective(std::any(std::move(options)))
             , d_hidden(false)
             , d_paintFn() { }
 
-        DrawOptions&& paintFn(const PaintFn& paintFn) && {
+        DrawSettings&& paintFn(const PaintFn& paintFn) && {
             d_paintFn = paintFn;
             return std::move(*this);
         }
 
-        DrawOptions&& bulletType(BulletType value) && {
+        DrawSettings&& bulletType(BulletType value) && {
             d_bulletType = value;
             return std::move(*this);
         }
@@ -330,9 +337,9 @@ class Wawt {
                                 // class InputHandler  
                                 //===================
 
-    using EnterFn     = std::function<bool(std::wstring*)>;
+    using EnterFn     = std::function<bool(String_t*)>;
 
-    using FocusCb     = std::function<bool(wchar_t)>;
+    using FocusCb     = std::function<bool(Char_t)>;
 
     using GroupCb     = std::function<FocusCb(List*, uint16_t)>;
 
@@ -411,6 +418,11 @@ class Wawt {
 
         bool textcontains(int x, int y, const Text *text) const;
     };
+
+
+                                //=============
+                                // class Layout
+                                //=============
 
     struct Metric {
         double              d_r;
@@ -511,12 +523,11 @@ class Wawt {
                                 // class TextBlock
                                 //================
 
-
     using FontSizeGrp = std::optional<uint16_t>;
 
     using TextId      = uint16_t;
 
-    using TextMapper  = std::function<std::wstring(const TextId&)>;
+    using TextMapper  = std::function<String_t(const TextId&)>;
 
     enum class Align { eINVALID, eLEFT, eCENTER, eRIGHT };
 
@@ -530,7 +541,7 @@ class Wawt {
 
     struct TextString {
         TextId              d_id;
-        std::wstring        d_string;
+        String_t            d_string;
         Align               d_alignment;
         FontSizeGrp         d_fontSizeGrp;
 
@@ -548,7 +559,7 @@ class Wawt {
             , d_alignment(alignment)
             , d_fontSizeGrp() { }
 
-        TextString(std::wstring string,
+        TextString(String_t     string,
                    FontSizeGrp  group     = FontSizeGrp(),
                    Align        alignment = Align::eINVALID)
             : d_id()
@@ -556,7 +567,7 @@ class Wawt {
             , d_alignment(alignment)
             , d_fontSizeGrp(group) { }
 
-        TextString(std::wstring string, Align alignment)
+        TextString(String_t string, Align alignment)
             : d_id()
             , d_string(std::move(string))
             , d_alignment(alignment)
@@ -583,6 +594,7 @@ class Wawt {
 
         TextMetrics         d_metrics       {};
         TextString          d_block         {};
+        bool                d_needRefresh   = false;
 
       public:
         TextBlock()                         = default; 
@@ -603,12 +615,13 @@ class Wawt {
 
         void setText(TextId id);
 
-        void setText(std::wstring string);
+        void setText(String_t string);
 
         void setText(const TextMapper& mappingFn);
 
         void setText(const TextString& value) {
-            d_block = value;
+            d_block       = value;
+            d_needRefresh = true;
         }
 
         Align alignment() const {
@@ -619,12 +632,16 @@ class Wawt {
             return d_block.d_fontSizeGrp;
         }
 
-        const std::wstring& getText() const {
+        const String_t& getText() const {
             return d_block.d_string;
         }
 
         const TextMetrics& metrics() const {
             return d_metrics;
+        }
+
+        bool needRefresh() const {
+            return d_needRefresh;
         }
     };
 
@@ -651,8 +668,12 @@ class Wawt {
         Layout              d_layout{};
         InputHandler        d_input{};
         TextBlock           d_text{};
-        DrawOptions         d_draw{};
+        DrawSettings        d_draw{};
 
+        void serialize(std::ostream&  os,
+                       const char    *widgetName,
+                       bool           container,
+                       unsigned int   indent) const;
       public:
         WidgetId            d_widgetId{};
 
@@ -662,7 +683,7 @@ class Wawt {
         Base(Layout&&          layout,
              InputHandler&&    input,
              TextString&&      text,
-             DrawOptions&&     options)
+             DrawSettings&&    options)
             : d_layout(std::move(layout))
             , d_input(std::move(input))
             , d_text(std::move(text))
@@ -673,7 +694,7 @@ class Wawt {
             return d_input.downEvent(x, y, this);
         }
 
-        DrawOptions& drawView() {
+        DrawSettings& drawView() {
             return d_draw;
         }
 
@@ -700,7 +721,9 @@ class Wawt {
             return d_draw.draw(adapter, d_text.getText());
         }
 
-        const DrawOptions&    drawView()   const {
+        void serialize(std::ostream& os) const;
+
+        const DrawSettings&    drawView()   const {
             return d_draw;
         }
 
@@ -727,7 +750,7 @@ class Wawt {
         Canvas(Layout&&          layout          = Layout(),
                const PaintFn&    paintFn         = PaintFn(),
                InputHandler&&    onClick         = InputHandler(),
-               DrawOptions&&     options         = DrawOptions())
+               DrawSettings&&    options         = DrawSettings())
             : Base(std::move(layout),
                    std::move(onClick).defaultAction(ActionType::eCLICK),
                    TextString(),
@@ -758,7 +781,7 @@ class Wawt {
         Text(Layout&&          layout,
              InputHandler&&    mouse,
              TextString&&      text,
-             DrawOptions&&  options)
+             DrawSettings&&    options)
             : Base(std::move(layout),
                    std::move(mouse),
                    std::move(text),
@@ -776,22 +799,12 @@ class Wawt {
         TextEntry()                     = default;
 
         TextEntry(Layout&&          layout,
-                  const EnterFn&    enterFn,
                   unsigned int      maxChars,
-                  TextString&&      text,
-                  DrawOptions&&  options     = DrawOptions())
+                  const EnterFn&    enterFn     = EnterFn(),
+                  TextString&&      text        = TextString(),
+                  DrawSettings&&    options     = DrawSettings())
             : Text(std::move(layout),
                    InputHandler(std::pair(enterFn,maxChars),
-                                ActionType::eENTRY),
-                   std::move(text).defaultAlignment(Align::eLEFT),
-                   std::move(options)) { }
-
-        TextEntry(Layout&&          layout,
-                  unsigned int      maxChars,
-                  TextString&&      text,
-                  DrawOptions&&  options     = DrawOptions())
-            : Text(std::move(layout),
-                   InputHandler(std::pair(EnterFn(),maxChars),
                                 ActionType::eENTRY),
                    std::move(text).defaultAlignment(Align::eLEFT),
                    std::move(options)) { }
@@ -805,7 +818,7 @@ class Wawt {
       public:
         Label(Layout&&          layout,
               TextString&&      text,
-              DrawOptions&&  options = DrawOptions())
+              DrawSettings&&    options = DrawSettings())
             : Text(std::move(layout),
                    InputHandler(),
                    std::move(text).defaultAlignment(Align::eCENTER),
@@ -821,13 +834,21 @@ class Wawt {
         friend class Wawt;
 
       public:
+        template <typename Callable>
+        static InputHandler onPush(const Callable& callback) {
+            auto wrap = [push = callback](Text* arg) {
+                (void)push(arg);
+                return FocusCb();
+            };
+            return InputHandler(std::move(wrap));
+        }
         
         Button()                        = default;
 
         /// Used in 'ButtonBar' which determines the layout
         Button(TextString&&              text,
                InputHandler&&            onClick,
-               DrawOptions&&             options = DrawOptions())
+               DrawSettings&&            options = DrawSettings())
             : Text(Layout(),
                    std::move(onClick),
                    std::move(text),
@@ -837,7 +858,7 @@ class Wawt {
         Button(Layout&&                  layout,
                InputHandler&&            onClick,
                TextString&&              text,
-               DrawOptions&&             options = DrawOptions())
+               DrawSettings&&            options = DrawSettings())
             : Text(std::move(layout),
                    std::move(onClick).defaultAction(ActionType::eCLICK),
                    std::move(text),
@@ -866,6 +887,8 @@ class Wawt {
 
 
         EventUpCb downEvent(int x, int y);
+
+        void serialize(std::ostream& os, unsigned int indent = 0) const;
     };
 
                                     //===========
@@ -919,7 +942,7 @@ class Wawt {
 
         List(Layout&&                          layout,
              FontSizeGrp                       fontSizeGrp,
-             DrawOptions&&                  options,
+             DrawSettings&&                    options,
              ListType                          listType,
              Labels                            labels,
              const GroupCb&                    click = GroupCb(),
@@ -927,7 +950,7 @@ class Wawt {
 
         List(Layout&&                          layout,
              FontSizeGrp                       fontSizeGrp,
-             DrawOptions&&                  options,
+             DrawSettings&&                    options,
              ListType                          listType,
              unsigned int                      rows,
              const GroupCb&                    click    = GroupCb(),
@@ -939,7 +962,7 @@ class Wawt {
              Labels                            labels,
              const GroupCb&                    click = GroupCb(),
              Panel                            *root  = nullptr)
-            : List(std::move(layout), fontSizeGrp, DrawOptions(),
+            : List(std::move(layout), fontSizeGrp, DrawSettings(),
                    listType, labels, click, root) { }
 
         List(Layout&&                          layout,
@@ -948,7 +971,7 @@ class Wawt {
              unsigned int                      rows,
              const GroupCb&                    click    = GroupCb(),
              Panel                            *root     = nullptr)
-            : List(std::move(layout), fontSizeGrp, DrawOptions(),
+            : List(std::move(layout), fontSizeGrp, DrawSettings(),
                    listType, rows, click, root) { }
 
         List(const List& copy);
@@ -987,6 +1010,8 @@ class Wawt {
             return d_buttons;
         }
 
+        void serialize(std::ostream& os, unsigned int indent = 0) const;
+
         int startRow() const {
             return d_startRow;
         }
@@ -1014,7 +1039,7 @@ class Wawt {
 
         Panel()                             = default;
         
-        Panel(Layout&& layout, DrawOptions&& options = DrawOptions())
+        Panel(Layout&& layout, DrawSettings&& options = DrawSettings())
             : Base(std::move(layout),
                    InputHandler().defaultAction(ActionType::eCLICK),
                    TextString(),
@@ -1026,11 +1051,11 @@ class Wawt {
             : Base(std::move(layout),
                    InputHandler().defaultAction(ActionType::eCLICK),
                    TextString(),
-                   DrawOptions())
+                   DrawSettings())
             , d_widgets(widgets) { }
 
         Panel(Layout&&                      layout,
-              DrawOptions&&                 options,
+              DrawSettings&&                options,
               std::initializer_list<Widget> widgets)
             : Base(std::move(layout),
                    InputHandler().defaultAction(ActionType::eCLICK),
@@ -1048,6 +1073,8 @@ class Wawt {
         const WIDGET& lookup(WidgetId id, const std::string& whatInfo) const {
             return const_cast<Panel*>(this)->lookup<WIDGET>(id, whatInfo);
         }
+
+        void serialize(std::ostream& os, unsigned int indent = 0) const;
 
         const std::list<Widget>& widgets() const {
             return d_widgets;
@@ -1073,11 +1100,11 @@ class Wawt {
     class  DrawAdapter {
       public:
         virtual void  draw(const Wawt::DrawDirective&  parameters,
-                           const std::wstring&        text)              = 0;
+                           const String_t&             text)               = 0;
 
-        virtual void  getTextMetrics(Wawt::DrawDirective   *parameters,
-                                     Wawt::TextMetrics     *metrics,
-                                     const std::wstring&   text,
+        virtual void  getTextMetrics(Wawt::DrawDirective  *parameters,
+                                     Wawt::TextMetrics    *metrics,
+                                     const String_t&       text,
                                      double                upperLimit = 0) = 0;
     };
 
@@ -1128,9 +1155,9 @@ class Wawt {
     };
 
     // PUBLIC CLASS DATA
-    static wchar_t   s_downArrow;
-    static wchar_t   s_upArrow;
-    static wchar_t   s_cursor;
+    static Char_t   s_downArrow;
+    static Char_t   s_upArrow;
+    static Char_t   s_cursor;
 
     static const std::any  s_noOptions;
 
@@ -1261,14 +1288,14 @@ Wawt::Panel::lookup(Wawt::WidgetId id, const std::string& whatInfo)
     return std::get<WIDGET>(*widget);                                 // RETURN
 }
 
-                            //===============
+                            //================
                             // class  WawtDump
-                            //===============
+                            //================
 
 class  WawtDump : public Wawt::DrawAdapter {
   public:
     struct Indent {
-        unsigned int d_indent = 0;
+        unsigned int d_indent;
 
         Indent& operator+=(unsigned int change) {
             d_indent += change;
@@ -1279,21 +1306,23 @@ class  WawtDump : public Wawt::DrawAdapter {
             d_indent -= change;
             return *this;
         }
+
+        Indent(unsigned int indent = 0) : d_indent(indent) { }
     };
 
-    explicit WawtDump(std::wostream& os) : d_dumpOs(os) { }
+    explicit WawtDump(std::ostream& os) : d_dumpOs(os) { }
 
     void     draw(const Wawt::DrawDirective&  widget,
-                  const std::wstring&        text)                override;
+                  const Wawt::String_t&       text)                override;
 
     void     getTextMetrics(Wawt::DrawDirective   *options,
                             Wawt::TextMetrics     *metrics,
-                            const std::wstring&   text,
-                            double                upperLimit = 0) override;
+                            const Wawt::String_t&  text,
+                            double                 upperLimit = 0) override;
 
   private:
     Indent         d_indent;
-    std::wostream& d_dumpOs;
+    std::ostream&  d_dumpOs;
 };
 
 // FREE OPERATORS

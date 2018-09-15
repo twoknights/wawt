@@ -40,11 +40,11 @@ class SfmlAdapter : public Wawt::DrawAdapter {
     // PUBLIC Wawt::DrawAdapter INTERFACE
 
     void  draw(const Wawt::DrawDirective&  widget,
-               const std::wstring&         text)                   override;
+               const Wawt::String_t&       text)                   override;
 
     void  getTextMetrics(Wawt::DrawDirective   *parameters,
                          Wawt::TextMetrics     *metrics,
-                         const std::wstring&    text,
+                         const Wawt::String_t&  text,
                          double                 upperLimit = 0)    override;
 
   private:

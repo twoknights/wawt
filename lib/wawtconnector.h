@@ -32,13 +32,13 @@ namespace BDS {
 
 class WawtConnector {
     // PRIVATE TYPES
-    struct FairMutex {
+    struct FifoMutex {
         std::mutex                  d_lock;
         std::condition_variable     d_signal;
         std::atomic_uint            d_nextTicket;
         std::atomic_uint            d_nowServing;
 
-        FairMutex() { d_nowServing = 0; d_nextTicket = 0; }
+        FifoMutex() { d_nowServing = 0; d_nextTicket = 0; }
 
         void lock();
         void unlock();
@@ -49,7 +49,7 @@ class WawtConnector {
     Wawt::EventUpCb wrap(Wawt::EventUpCb&& unwrapped);
 
     // PRIVATE DATA MEMBERS
-    FairMutex                 d_lock;
+    FifoMutex                 d_lock;
     std::atomic<WawtScreen*>  d_pending;
     WawtScreen               *d_current;
     Wawt                      d_wawt;
@@ -91,7 +91,7 @@ class WawtConnector {
 
     template<typename Func, typename... Args>
     decltype(auto) call(Func&& func, Args&&... args) {
-        std::unique_lock<FairMutex> guard(d_lock);
+        std::unique_lock<FifoMutex> guard(d_lock);
         decltype(auto) ret{std::invoke(std::forward<Func>(func),
                                        std::forward<Args>(args)...)};
         return ret;

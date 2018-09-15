@@ -31,11 +31,11 @@ namespace {
 }  // unnamed namespace
 
                         //--------------------------------
-                        // class WawtConnector::FairMutex
+                        // class WawtConnector::FifoMutex
                         //--------------------------------
 
 void
-WawtConnector::FairMutex::lock()
+WawtConnector::FifoMutex::lock()
 {
     unsigned int myTicket = d_nextTicket++;
 
@@ -44,7 +44,7 @@ WawtConnector::FairMutex::lock()
 }
 
 void
-WawtConnector::FairMutex::unlock()
+WawtConnector::FifoMutex::unlock()
 {
     d_nowServing += 1;
     d_signal.notify_all();
@@ -61,8 +61,8 @@ WawtConnector::wrap(Wawt::FocusCb&& unwrapped)
 {
     return  [me      = this,
              count   = d_loadCount,
-             cb      = std::move(unwrapped)](wchar_t key) {
-                std::unique_lock<FairMutex> guard(me->d_lock);
+             cb      = std::move(unwrapped)](Wawt::Char_t key) {
+                std::unique_lock<FifoMutex> guard(me->d_lock);
 
                 if (count == me->d_loadCount) {
                     return cb(key);
@@ -77,7 +77,7 @@ WawtConnector::wrap(Wawt::EventUpCb&& unwrapped)
     return  [me      = this,
              count   = d_loadCount,
              cb      = std::move(unwrapped)](int x, int y, bool up) {
-                std::unique_lock<FairMutex> guard(me->d_lock);
+                std::unique_lock<FifoMutex> guard(me->d_lock);
                 Wawt::FocusCb focusCb;
 
                 if (count == me->d_loadCount) {
@@ -95,7 +95,7 @@ WawtConnector::wrap(Wawt::EventUpCb&& unwrapped)
 Wawt::EventUpCb
 WawtConnector::downEvent(int x, int y)
 {
-    std::unique_lock<FairMutex> guard(d_lock);
+    std::unique_lock<FifoMutex> guard(d_lock);
     auto hold = d_pending.load();
 
     if (hold && hold != d_current) {
@@ -117,7 +117,7 @@ WawtConnector::downEvent(int x, int y)
 void
 WawtConnector::draw()
 {
-    std::unique_lock<FairMutex> guard(d_lock);
+    std::unique_lock<FifoMutex> guard(d_lock);
     auto hold = d_pending.load();
 
     if (hold && hold != d_current) {
@@ -133,7 +133,7 @@ WawtConnector::draw()
 void
 WawtConnector::resize(int width, int height)
 {
-    std::unique_lock<FairMutex> guard(d_lock);
+    std::unique_lock<FifoMutex> guard(d_lock);
     WawtScreen *hold;
 
     do {
@@ -154,7 +154,7 @@ WawtConnector::resize(int width, int height)
 void
 WawtConnector::shutdownRequested(const std::function<void()>& completion)
 {
-    std::unique_lock<FairMutex> guard(d_lock);
+    std::unique_lock<FifoMutex> guard(d_lock);
     auto hold = d_pending.load();
 
     if (hold && hold != d_current) {
