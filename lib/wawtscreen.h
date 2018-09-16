@@ -72,6 +72,7 @@ class WawtScreen {
 
     using FocusCb       = Wawt::FocusCb;
 
+    using ActionType    = Wawt::ActionType;
     using Align         = Wawt::Align;
     using Enablement    = Wawt::Enablement;
     using Metric        = Wawt::Metric;

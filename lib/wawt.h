@@ -250,27 +250,27 @@ class Wawt {
                                       std::pair<SelectFn,bool>,
                                       std::pair<OnClickCb,bool>>;
 
-        ActionType          d_type;
+        ActionType          d_action;
         Callback            d_callback;
 
         InputHandler(Callback   cb     = Callback(),
                      ActionType action = ActionType::eINVALID)
-            : d_disabled(d_type == ActionType::eINVALID)
-            , d_type(action)
+            : d_disabled(action == ActionType::eINVALID)
+            , d_action(action)
             , d_callback(std::move(cb)) { }
 
         InputHandler&& defaultAction(ActionType type) && {
-            if (d_type == ActionType::eINVALID) {
-                d_type     = type;
-                d_disabled = d_type == ActionType::eINVALID;
+            if (d_action == ActionType::eINVALID) {
+                d_action   = type;
+                d_disabled = d_action == ActionType::eINVALID;
             }
             return std::move(*this);
         }
 
         void defaultAction(ActionType type) & {
-            if (d_callback.index() > 0 && d_type == ActionType::eINVALID) {
-                d_type     = type;
-                d_disabled = d_type == ActionType::eINVALID;
+            if (d_callback.index() > 0 && d_action == ActionType::eINVALID) {
+                d_action   = type;
+                d_disabled = d_action == ActionType::eINVALID;
             }
         }
 
@@ -366,8 +366,8 @@ class Wawt {
         static Layout slice(bool vertical, double begin, double end);
 
         static Layout centered(double width, double height) {
-            auto w = std::abs(width)/2.0;
-            auto h = std::abs(height)/2.0;
+            auto w = std::abs(width);
+            auto h = std::abs(height);
             return Layout({{Metric(-w),Metric(-h)}}, {{Metric(w),Metric(h)}});
         }
 

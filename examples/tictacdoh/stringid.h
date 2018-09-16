@@ -30,11 +30,8 @@ enum StringId {
     eNone   // 0 reserved by Wawt framework.
   , eGameSettings
   , eSelectLanguage
-  , eWaitFor
-  , eConnectTo
-  , eAddress
-  , ePortNumber
-  , eConnect
+  , eWaitForConnection
+  , eConnectToOpponent
   , ePlayAsX
   , ePlayAsO
 };
@@ -63,14 +60,17 @@ class StringIdLookup {
     // PUBLIC MANIPULATORS
     
     // Set current language and return previous setting.
-    Language currentLanguage(Language newCurrent) {
-        return static_cast<Language>(d_currentLanguage.exchange(
-                    static_cast<unsigned int>(newCurrent)));
-    }
+    Language currentLanguage(Language newCurrent);
 
     // PUBLIC ACCESSORS
     // Map StringId to string.
     Wawt::String_t operator()(StringId lookup) const;
+
+    operator Wawt::TextMapper() {
+        return [this](Wawt::TextId lookup) {
+            return this->operator()(static_cast<StringId>(lookup));
+        };
+    }
 
     Language currentLanguage() const {
         return static_cast<Language>(d_currentLanguage.load());

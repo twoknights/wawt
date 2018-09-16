@@ -127,7 +127,7 @@ SfmlAdapter::SfmlAdapter(sf::RenderWindow&   window,
 
 void
 SfmlAdapter::draw(const Wawt::DrawDirective&  widget,
-                  const Wawt::String_t&      text)
+                  const Wawt::String_t&       text)
 {
     DrawOptions options;
 
@@ -191,36 +191,6 @@ SfmlAdapter::draw(const Wawt::DrawDirective&  widget,
                 ? selectColor : fillColor,
             widget.d_borderThickness);
 
-    if (widget.d_bulletType == Wawt::BulletType::eRADIO) {
-        // Bullet size:
-        auto height = widget.height();
-        auto radius = float(widget.interiorHeight())/5.0;
-
-        drawCircle(&d_window,
-                   float(widget.d_upperLeft.d_x + height/2),
-                   float(widget.d_upperLeft.d_y + height/2),
-                   radius,
-                   textColor, // line color
-                   widget.d_selected ? textColor : fillColor,
-                   2);
-    }
-    else if (widget.d_bulletType == Wawt::BulletType::eCHECK) {
-        auto size   = float(widget.interiorHeight());
-        auto center = float(widget.d_borderThickness + size/2.0);
-        auto offset = float(center - 0.2*size);
-        auto ul_x   = float(widget.d_upperLeft.d_x + offset);
-        auto ul_y   = float(widget.d_upperLeft.d_y + offset);
-
-        drawBox(&d_window,
-                ul_x,
-                ul_y,
-                float(0.4*size),
-                float(0.4*size),
-                textColor,
-                widget.d_selected ? textColor : fillColor,
-                2);
-    }
-
     if (!text.empty()) {
         sf::Text   label{toString(text), d_font, widget.d_charSize};
 
@@ -235,6 +205,41 @@ SfmlAdapter::draw(const Wawt::DrawDirective&  widget,
         label.setOrigin(bounds.left, bounds.top + bounds.height/2.0f);
         label.setPosition(widget.d_startx, centery);
         d_window.draw(label);
+
+        if (widget.d_bulletType == Wawt::BulletType::eRADIO) {
+            auto lineSpacing = d_font.getLineSpacing(widget.d_charSize);
+            auto size        = float(widget.d_charSize); // Bullet size
+            auto height      = float(widget.height()) - (lineSpacing - size);
+            auto radius      = size/4.0;
+
+            drawCircle(&d_window,
+                       float(widget.d_upperLeft.d_x + size/2. - 1.),
+                       float(widget.d_upperLeft.d_y + height/2.),
+                       radius,
+                       textColor, // line color
+                       widget.d_selected ? textColor : fillColor,
+                       2);
+        }
+        else if (widget.d_bulletType == Wawt::BulletType::eCHECK) {
+            auto lineSpacing= d_font.getLineSpacing(widget.d_charSize);
+            auto size       = float(widget.d_charSize);
+            auto height     = float(widget.height()) - (lineSpacing - size);
+            auto xcenter    = float(widget.d_borderThickness + size/2.0);
+            auto ycenter    = float(height/2.0);
+            auto radius     = 0.2*size;
+            auto ul_x       = float(widget.d_upperLeft.d_x + xcenter - radius);
+            auto ul_y       = float(widget.d_upperLeft.d_y + ycenter - radius);
+
+            drawBox(&d_window,
+                    ul_x,
+                    ul_y,
+                    2*radius,
+                    2*radius,
+                    textColor,
+                    widget.d_selected ? textColor : fillColor,
+                    2);
+        }
+
     }
     return;                                                           // RETURN
 }
@@ -248,8 +253,8 @@ SfmlAdapter::getTextMetrics(Wawt::DrawDirective   *parameters,
     assert(metrics->d_textHeight > 0);    // these are upper limits
     assert(metrics->d_textWidth > 0);     // bullet size excluded
 
-    DrawOptions   effects;
     sf::String    string(toString(text));
+    DrawOptions   effects;
     sf::FloatRect bounds(0,0,0,0);
     uint16_t      charSize = uint16_t(std::round(parameters->d_charSize));
     sf::Text      label{string, d_font, charSize};
@@ -272,11 +277,16 @@ SfmlAdapter::getTextMetrics(Wawt::DrawDirective   *parameters,
 
         while (upperLimit - lowerLimit > 1) {
             label.setCharacterSize(charSize);
-            auto newBounds = label.getLocalBounds();
+            auto newBounds   = label.getLocalBounds();
             auto lineSpacing = d_font.getLineSpacing(charSize);
+            auto widthLimit  = metrics->d_textWidth;
+
+            if (parameters->d_bulletType != Wawt::BulletType::eNONE) {
+                widthLimit -= charSize;
+            }
 
             if (lineSpacing      >= metrics->d_textHeight
-             || newBounds.width  >= metrics->d_textWidth) {
+             || newBounds.width  >= widthLimit) {
                 upperLimit = charSize;
             }
             else {

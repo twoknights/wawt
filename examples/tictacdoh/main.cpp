@@ -79,15 +79,16 @@ int main()
                             sf::Style::Default,
                             sf::ContextSettings());
 
+    StringIdLookup   idMapper;
     SfmlAdapter      drawAdapter(window, path, arial);
 
     WawtConnector    connector(&drawAdapter,
+                               idMapper,
                                WIDTH,
                                HEIGHT,
                                DrawOptions::defaults());
 
-    StringIdLookup   mapper;
-    SetupScreen      setup(mapper);
+    SetupScreen      setup(idMapper);
 
     try {
         connector.setupScreen(&setup, "Setup Screen");

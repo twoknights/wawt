@@ -276,9 +276,6 @@ void refreshTextMetric(Wawt::DrawDirective            *args,
     auto  textHeight = args->interiorHeight();
     auto  fontSize   = id.has_value() ? fontIdToSize.find(*id)->second : 0;
     auto  charSize   = fontSize > 0   ? fontSize : textHeight;
-    auto  iconSize   = args->d_bulletType != Wawt::BulletType::eNONE
-                                      ? args->interiorHeight()
-                                      : 0;
 
     if (charSize != args->d_charSize || block->needRefresh()) {
         block->setText(textLookup);
@@ -288,6 +285,9 @@ void refreshTextMetric(Wawt::DrawDirective            *args,
             fontIdToSize[*id] = args->d_charSize;
         }
     }
+    auto  iconSize   = args->d_bulletType != Wawt::BulletType::eNONE
+                                      ? args->d_charSize
+                                      : 0;
     args->d_startx= args->d_upperLeft.d_x + args->d_borderThickness + iconSize;
 
     if (block->alignment() != Wawt::Align::eLEFT) {
@@ -464,7 +464,8 @@ Wawt::Base::serialize(std::ostream&  os,
     os << spaces << "</layout>\n";
 
     os << spaces
-       << "<input action='" << int(d_input.d_type)
+       << "<input action='" << int(d_input.d_action)
+       << "' disabled='"    << int(d_input.d_disabled)
        << "' variant='"     << d_input.d_callback.index() << "'>\n";
 
     os << spaces
@@ -481,8 +482,9 @@ Wawt::Base::serialize(std::ostream&  os,
 
     os << spaces
        << "<draw options='" << int(d_draw.d_options.has_value())
-       << "' paint='" << (d_draw.d_paintFn ? "set" : "unset")
-       << "' bullet='" << int(d_draw.d_bulletType)
+       << "' hidden='"      << int(d_draw.d_hidden)
+       << "' paint='"       << (d_draw.d_paintFn ? "set" : "unset")
+       << "' bullet='"      << int(d_draw.d_bulletType)
        << "'/>\n";
 
     if (!container) {
@@ -626,9 +628,9 @@ Wawt::InputHandler::callSelectFn(Text            *text,
                                 bool             callOnDown)
 {
     bool previous   = text->d_draw.d_selected;
-    bool finalvalue = d_type == ActionType::eCLICK
+    bool finalvalue = d_action == ActionType::eCLICK
                         ? false
-                        : (d_type == ActionType::eTOGGLE ? !previous : true);
+                        : (d_action == ActionType::eTOGGLE ? !previous : true);
 
     text->d_draw.d_selected = true;
 
@@ -652,9 +654,9 @@ Wawt::EventUpCb
 Wawt::InputHandler::callSelectFn(Base *base, const SelectFn& cb, bool callOnDown)
 {
     bool previous   = base->d_draw.d_selected;
-    bool finalvalue = d_type == ActionType::eCLICK
+    bool finalvalue = d_action == ActionType::eCLICK
                         ? false
-                        : (d_type == ActionType::eTOGGLE ? !previous : true);
+                        : (d_action == ActionType::eTOGGLE ? !previous : true);
 
     base->d_draw.d_selected = true;
 
@@ -710,7 +712,7 @@ Wawt::InputHandler::contains(int x, int y, const Base *base) const
 bool
 Wawt::InputHandler::textcontains(int x, int y, const Text *text) const
 {
-    if (d_type == ActionType::eENTRY
+    if (d_action == ActionType::eENTRY
      || text->d_layout.d_borderThickness > 0) {
         return contains(x, y, text);                                  // RETURN
     }
@@ -732,7 +734,7 @@ Wawt::EventUpCb
 Wawt::InputHandler::downEvent(int x, int y, Text* text)
 {
     if (!disabled() && textcontains(x, y, text)) {
-        assert(d_type != ActionType::eINVALID);
+        assert(d_action != ActionType::eINVALID);
 
         if (std::holds_alternative<std::monostate>(d_callback)) {
             return callSelectFn(text,
@@ -773,7 +775,7 @@ Wawt::EventUpCb
 Wawt::InputHandler::downEvent(int x, int y, Base* base)
 {
     if (!disabled() && contains(x, y, base)) {
-        assert(d_type != ActionType::eINVALID);
+        assert(d_action != ActionType::eINVALID);
 
         if (std::holds_alternative<std::monostate>(d_callback)) {
             return &eatMouseUp;                                       // RETURN
@@ -842,15 +844,13 @@ Wawt::TextBlock::initTextMetricValues(Wawt::DrawDirective      *args,
     int  width  = args->interiorWidth();
     int  height = args->interiorHeight();
 
-    if (args->d_bulletType != Wawt::BulletType::eNONE) {
-        width -= height;
-    }
     d_metrics.d_textWidth  = width  - 2;  // these are upper limits
     d_metrics.d_textHeight = height - 2;  // 1 pixel spacing around border.
 
     auto charSizeLimit
         = (upperLimit > 0 && upperLimit < height) ? upperLimit+1 : height;
 
+    // Note: adapter will factor in the size of any "bullet" if needed.
     adapter->getTextMetrics(args,
                             &d_metrics,
                             d_block.d_string,
@@ -1235,35 +1235,35 @@ Wawt::List::initButton(unsigned int index, bool lastButton)
     switch (d_type) {
         case ListType::eCHECKLIST:   {
             button.d_layout.d_borderThickness = 0;
-            button.d_input.d_type             = ActionType::eTOGGLE;
+            button.d_input.d_action           = ActionType::eTOGGLE;
             button.d_input.d_disabled         = false;
             button.d_text.alignment()         = Align::eLEFT;
             button.d_draw.d_bulletType        = BulletType::eCHECK;
         } break;
         case ListType::eRADIOLIST:   {
             button.d_layout.d_borderThickness = 0;
-            button.d_input.d_type             = ActionType::eBULLET;
+            button.d_input.d_action           = ActionType::eBULLET;
             button.d_input.d_disabled         = false;
             button.d_text.alignment()         = Align::eLEFT;
             button.d_draw.d_bulletType        = BulletType::eRADIO;
         } break;
         case ListType::ePICKLIST:    {
-            button.d_input.d_type             = ActionType::eTOGGLE;
+            button.d_input.d_action           = ActionType::eTOGGLE;
             button.d_input.d_disabled         = false;
             button.d_text.alignment()         = Align::eCENTER;
         } break;
         case ListType::eSELECTLIST:  {
-            button.d_input.d_type             = ActionType::eCLICK;
+            button.d_input.d_action           = ActionType::eCLICK;
             button.d_input.d_disabled         = false;
             button.d_text.alignment()         = Align::eCENTER;
         } break;
         case ListType::eVIEWLIST:    {
-            button.d_input.d_type             = ActionType::eCLICK;
+            button.d_input.d_action           = ActionType::eCLICK;
             button.d_input.d_disabled         = true;
             button.d_text.alignment()         = Align::eLEFT;
         } break;
         case ListType::eDROPDOWNLIST:{
-            button.d_input.d_type             = ActionType::eCLICK;
+            button.d_input.d_action           = ActionType::eCLICK;
             button.d_input.d_disabled         = !lastButton;
             button.d_text.alignment()         = Align::eCENTER;
             button.d_draw.d_hidden            = !lastButton;

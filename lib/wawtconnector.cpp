@@ -145,7 +145,6 @@ WawtConnector::resize(int width, int height)
         }
 
         if (d_current) {
-            std::cout << "resize: " << width << " " << height << std::endl;
             d_current->resize(width, height);
         }
     } while (hold != d_pending.load());
