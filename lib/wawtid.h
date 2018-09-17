@@ -1,4 +1,4 @@
-/** @file wawt_id.h
+/** @file wawtid.h
  *  @brief Provides definition of WAWT related types.
  *
  * Copyright 2018 Bruce Szablak
@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef BDS_WAWT_ID_H
-#define BDS_WAWT_ID_H
+#ifndef BDS_WAWTID_H
+#define BDS_WAWTID_H
 
 #include <any>
 #include <cassert>
@@ -40,7 +40,7 @@
 namespace BDS {
 
                                     //==============
-                                    // class Wawt_Id
+                                    // class WawtId
                                     //==============
 
 /**
@@ -55,7 +55,7 @@ namespace BDS {
  * ID's value underlying type. Setting a value results in a cast to the
  * underlying type.
  */
-class Wawt_Id {
+class WawtId {
   public:
 
     template<typename IntType>

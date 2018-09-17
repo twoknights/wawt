@@ -1,4 +1,4 @@
-/** @file sfmladapter.h
+/** @file sfmldrawadapter.h
  *  @brief Adapts SFML Graphics and Events to Wawt.
  *
  * Copyright 2018 Bruce Szablak
@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef BDS_SFMLADAPTER_H
-#define BDS_SFMLADAPTER_H
+#ifndef BDS_SFMLDRAWADAPTER_H
+#define BDS_SFMLDRAWADAPTER_H
 
 #include <SFML/Graphics/Font.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
@@ -29,13 +29,21 @@
 
 namespace BDS {
 
-class SfmlAdapter : public Wawt::DrawAdapter {
+                            //======================
+                            // class SfmlDrawAdapter
+                            //======================
+
+class SfmlDrawAdapter : public Wawt::DrawAdapter {
+    // PRIVATE MANIPULATORS
+    sf::Font& getFont(uint8_t index);
+
   public:
 
     // PUBLIC CREATORS
-    SfmlAdapter(sf::RenderWindow&   window,
-                const std::string&  fontPath,
-                bool                noArrow);
+    SfmlDrawAdapter(sf::RenderWindow&   window,
+                    const std::string&  defaultFontPath,
+                    bool                noArrow,
+                    const std::string&  otherFontPath = "");
 
     // PUBLIC Wawt::DrawAdapter INTERFACE
 
@@ -47,10 +55,27 @@ class SfmlAdapter : public Wawt::DrawAdapter {
                          const Wawt::String_t&  text,
                          double                 upperLimit = 0)    override;
 
+    // PUBLIC ACCESSORS
+    bool   isGood() const {
+        return d_defaultOk;
+    }
+
+    bool   otherFontAvailable() const {
+        return d_otherOk;
+    }
+
   private:
     sf::RenderWindow&        d_window;
-    sf::Font                 d_font;
+    sf::Font                 d_defaultFont;
+    sf::Font                 d_otherFont;
+    bool                     d_defaultOk;
+    bool                     d_otherOk;
 };
+
+                                //=================
+                                // class SfmlWindow
+                                //=================
+
 
 struct SfmlWindow {
     static void eventLoop(sf::RenderWindow&                 window,

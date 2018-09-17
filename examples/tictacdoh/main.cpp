@@ -18,8 +18,9 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
+#include "controller.h"
 #include "drawoptions.h"
-#include "sfmladapter.h"
+#include "sfmldrawadapter.h"
 #include "wawtconnector.h"
 
 #include "stringid.h"
@@ -80,7 +81,8 @@ int main()
                             sf::ContextSettings());
 
     StringIdLookup   idMapper;
-    SfmlAdapter      drawAdapter(window, path, arial);
+    SetupScreen      setup(idMapper);
+    SfmlDrawAdapter  drawAdapter(window, path, arial);
 
     WawtConnector    connector(&drawAdapter,
                                idMapper,
@@ -88,11 +90,10 @@ int main()
                                HEIGHT,
                                DrawOptions::defaults());
 
-    SetupScreen      setup(idMapper);
+    Controller       controller(connector);
 
     try {
-        connector.setupScreen(&setup, "Setup Screen");
-        connector.setCurrentScreen(&setup); // no optional arguments
+        controller.installScreens(&setup);
     }
     catch (Wawt::Exception& e) {
         std::cout << e.what() << std::endl;

@@ -58,7 +58,17 @@ SetupScreen::createScreenPanel()
         return Wawt::FocusCb(); // no text entry block gets the focus
     };
 
-    auto listenTo  = Wawt::EnterFn();
+    auto listenPopUp =
+        Panel(Layout::centered(0.33, 0.33).border(2), defaultScreenOptions(),
+        {
+            Label(Layout::slice(false, 0.1, 0.3),
+                  {S("Waiting for opponent."), Align::eCENTER})
+        });
+
+    auto listenTo  = [this,listenPopUp](auto) { addModalDialogBox(listenPopUp);
+        forwardToControl(std::string("foo"));
+        return true;
+    };
     auto connectTo = Wawt::EnterFn();
 
     Panel::Widgets selectLanguage = // 2 widgets
@@ -107,7 +117,7 @@ SetupScreen::createScreenPanel()
             }),
             Panel(Layout::slice(true, 0.5, 0.95),
             {
-/* 6 */         List(Layout::slice(false, 0.25, 0.45),
+/* 6 */         List(Layout::slice(false, 0.25, 0.40),
                      2_F,
                      Wawt::ListType::eRADIOLIST,
                      {

@@ -55,7 +55,26 @@ WawtConnector::FifoMutex::unlock()
                             // class WawtConnector
                             //---------------------
 
-// PRIVATE MANIPULATORS
+// PRIVATE MEMBERS
+
+void
+WawtConnector::forwardToController(int id, const std::any& message)
+{
+    // This method should only be called from a screen event handler,
+    // and, therefore, the lock must already be held.
+    assert(d_controller);
+    if (d_asyncController) {
+        std::thread callCb( [this, id, copy = message]() {
+                                d_controller(id, copy);
+                            });
+        callCb.detach();
+    }
+    else {
+        d_controller(id, message);
+    }
+    return;                                                           // RETURN
+}
+
 Wawt::FocusCb
 WawtConnector::wrap(Wawt::FocusCb&& unwrapped)
 {
@@ -68,7 +87,7 @@ WawtConnector::wrap(Wawt::FocusCb&& unwrapped)
                     return cb(key);
                 }
                 return false;
-             };
+             };                                                       // RETURN
 }
 
 Wawt::EventUpCb
@@ -88,10 +107,28 @@ WawtConnector::wrap(Wawt::EventUpCb&& unwrapped)
                     }
                 }
                 return focusCb;
-             };
+             };                                                       // RETURN
 }
 
-// PUBLIC MANIPULATORS
+// PUBLIC MEMBERS
+WawtConnector::WawtConnector(Wawt::DrawAdapter                  *adapter,
+                             const Wawt::TextMapper&            textMapper,
+                             int                                screenWidth,
+                             int                                screenHeight,
+                             const Wawt::WidgetOptionDefaults&  defaults)
+: d_lock()
+, d_pending()
+, d_current()
+, d_wawt(textMapper, adapter)
+, d_loadCount(0u)
+, d_screenWidth(screenWidth)
+, d_screenHeight(screenHeight)
+, d_asyncController(false)
+, d_controller()
+{
+    d_wawt.setWidgetOptionDefaults(defaults);
+}
+
 Wawt::EventUpCb
 WawtConnector::downEvent(int x, int y)
 {
@@ -111,7 +148,7 @@ WawtConnector::downEvent(int x, int y)
             eventUp = wrap(std::move(eventUp));
         }
     }
-    return eventUp;
+    return eventUp;                                                   // RETURN
 }
     
 void
@@ -128,6 +165,7 @@ WawtConnector::draw()
     if (d_current) {
         d_current->draw();
     }
+    return;                                                           // RETURN
 }
 
 void
@@ -148,6 +186,7 @@ WawtConnector::resize(int width, int height)
             d_current->resize(width, height);
         }
     } while (hold != d_pending.load());
+    return;                                                           // RETURN
 }
 
 void
@@ -167,6 +206,7 @@ WawtConnector::shutdownRequested(const std::function<void()>& completion)
     else {
         completion();
     }
+    return;                                                           // RETURN
 }
 
 }  // namespace BDS

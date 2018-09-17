@@ -55,6 +55,12 @@ namespace BDS {
  * Finally, this class is NOT thread-safe, and has no exception guarantee.
  */
 class WawtScreen {
+    // PRIVATE TYPES
+
+  public:
+    // PUBLIC TYPES
+    using ControllerCallback = std::function<void(const std::any&)>;
+
   protected:
     // PROTECTED TYPES
     using ButtonBar     = Wawt::ButtonBar;
@@ -99,10 +105,12 @@ class WawtScreen {
     // PROTECTED DATA MEMBERS
     Wawt                  *d_wawt;           ///< Holder of the WAWT adapters.
     std::string            d_name;           ///< Identifier for the screen.
+    ControllerCallback     d_controlCb;      ///< Forward messages to control.
     Wawt::Panel            d_screen;         ///< Root WAWT element.
     CloseFn                d_close;          ///< Call into Impl close method.
 
   public:
+
     // PUBLIC CONSTANTS
     /**
      * @brief Screen layout constants.
@@ -296,9 +304,13 @@ class WawtScreen {
      *
      * This method should be called immediately after the screen is created.
      */
-    void wawtScreenSetup(Wawt *wawt, std::string_view name) {
+    void wawtScreenSetup(Wawt             *wawt,
+                         std::string_view  name,
+                         const ControllerCallback& callback
+                                                    = ControllerCallback()) {
         d_wawt = wawt;
         d_name.assign(name.data(), name.length());
+        d_controlCb = callback;
     }
 
     // PUBLIC ACCESSSOR
@@ -307,8 +319,29 @@ class WawtScreen {
         return int(std::round(d_screen.adapterView().height()));
     }
 
+    //! Access the screen's "name" (requires 'setup' to have been performed).
     const std::string& name() const {
         return d_name;
+    }
+
+    /**
+     * @brief Update controller with information it needs to act on.
+     *
+     * @param message An application specific message type.
+     * @returns 'true' if controller has been established, 'false' otherwise.
+     *
+     * CAUTION: this method must only be called from the event loop
+     * thread (i.e. from a widget input event handler) so that the
+     * the callback can assume no other thread is calling it.
+     * It is recommended that a 'std::variant' be the message type used by
+     * the application in order to simplify the controller implementation.
+     */
+    bool forwardToControl(const std::any& message) const {
+        if (d_controlCb) {
+            d_controlCb(message);
+            return true;
+        }
+        return false;
     }
 
     //! Access the screen's width (requires 'setup' to have been performed).

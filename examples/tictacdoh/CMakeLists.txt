@@ -7,7 +7,7 @@ link_libraries(${CMAKE_THREAD_LIBS_INIT})
 
 include_directories(../adapters)
 
-add_executable(tictacdoh main.cpp stringid.cpp setupscreen.cpp)
+add_executable(tictacdoh main.cpp controller.cpp stringid.cpp setupscreen.cpp)
 
 target_link_libraries(tictacdoh   wawtsfml${LIBSUFFIX}
                                   wawt${LIBSUFFIX}

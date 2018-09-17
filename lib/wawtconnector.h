@@ -43,7 +43,12 @@ class WawtConnector {
         void lock();
         void unlock();
     };
+
+    using ControllerCallback = std::function<void(int,const std::any&)>;
+
     // PRIVATE CLASS MEMBERS
+    void            forwardToController(int id, const std::any& message);
+
     Wawt::FocusCb   wrap(Wawt::FocusCb&& unwrapped);
 
     Wawt::EventUpCb wrap(Wawt::EventUpCb&& unwrapped);
@@ -56,6 +61,8 @@ class WawtConnector {
     unsigned int              d_loadCount;
     int                       d_screenWidth;
     int                       d_screenHeight;
+    bool                      d_asyncController;
+    ControllerCallback        d_controller;
 
   public:
     // PUBLIC CONSTRUCTORS
@@ -63,16 +70,7 @@ class WawtConnector {
                    const Wawt::TextMapper&            textMapper,
                    int                                screenWidth,
                    int                                screenHeight,
-                   const Wawt::WidgetOptionDefaults&  defaults)
-        : d_lock()
-        , d_pending()
-        , d_current()
-        , d_wawt(textMapper, adapter)
-        , d_loadCount(0u)
-        , d_screenWidth(screenWidth)
-        , d_screenHeight(screenHeight) {
-            d_wawt.setWidgetOptionDefaults(defaults);
-        }
+                   const Wawt::WidgetOptionDefaults&  defaults);
 
     WawtConnector(Wawt::DrawAdapter                  *adapter,
                    int                                screenWidth,
@@ -97,16 +95,18 @@ class WawtConnector {
         return ret;
     }
 
+    template<typename Func, typename... Args>
+    void voidCall(Func&& func, Args&&... args) {
+        std::unique_lock<FifoMutex> guard(d_lock);
+        std::invoke(std::forward<Func>(func), std::forward<Args>(args)...);
+    }
+
     void resize(int width, int height);
 
-    template <class Screen, typename... Args>
-    void setupScreen(Screen                          *screen,
-                     std::string_view                 name,
-                     Args&&...                        args) {
-        screen->wawtScreenSetup(&d_wawt, name);
-        screen->setup(d_screenWidth,
-                      d_screenHeight,
-                      std::forward<Args>(args)...);
+    void setControllerCallback(const ControllerCallback& callback,
+                               bool                      async = false) {
+        d_controller      = callback;
+        d_asyncController = async;
     }
 
     template <class Screen, typename... Args>
@@ -121,6 +121,21 @@ class WawtConnector {
                                                       + caught.what());// THROW
         }
         d_pending = screen; // handled in draw, resize, etc.
+    }
+
+    template <class Screen, typename... Args>
+    void setupScreen(Screen                          *screen,
+                     std::string_view                 screenName,
+                     int                              controllerId,
+                     Args&&...                        args) {
+        screen->wawtScreenSetup(&d_wawt,
+                                screenName,
+                                [this, controllerId](const std::any& msg) {
+                                    forwardToController(controllerId, msg);
+                                });
+        screen->setup(d_screenWidth,
+                      d_screenHeight,
+                      std::forward<Args>(args)...);
     }
 
     void shutdownRequested(const std::function<void()>& completion);

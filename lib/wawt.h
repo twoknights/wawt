@@ -19,7 +19,7 @@
 #ifndef BDS_WAWT_H
 #define BDS_WAWT_H
 
-#include "wawt_id.h"
+#include "wawtid.h"
 
 #include <any>
 #include <cassert>
@@ -67,9 +67,9 @@ class Wawt {
     // Identifiers:
     using OptInt      = std::optional<int>;
 
-    using WidgetId   = Wawt_Id::Id<Wawt_Id::IntId<uint16_t>,
-                                   Wawt_Id::IsSet,
-                                   Wawt_Id::IsRelative>;
+    using WidgetId   = WawtId::Id<WawtId::IntId<uint16_t>,
+                                  WawtId::IsSet,
+                                  WawtId::IsRelative>;
 
     static WidgetId inc(WidgetId& id) {
         assert(id.isSet());

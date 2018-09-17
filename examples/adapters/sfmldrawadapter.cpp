@@ -1,4 +1,4 @@
-/** @file sfmladapter.cpp
+/** @file sfmldrawadapter.cpp
  *  @brief Implements Wawt::Adapter protocol for SFML.
  *
  * Copyright 2018 Bruce Szablak
@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-#include "sfmladapter.h"
+#include "sfmldrawadapter.h"
 #include "drawoptions.h"
 #include "wawt.h"
 
@@ -36,7 +36,7 @@
 #include <cmath>
 #include <chrono>
 #include <thread>
-//#include <type_traits>
+#include <type_traits>
 
 #include <iostream>
 
@@ -99,17 +99,42 @@ sf::String toString(const Wawt::String_t& string) {
 
 } // end unnamed namespace
 
-                                //------------------
-                                // class SfmlAdapter
-                                //------------------
+                                //----------------------
+                                // class SfmlDrawAdapter
+                                //----------------------
 
-SfmlAdapter::SfmlAdapter(sf::RenderWindow&   window,
-                         const std::string&  path,
-                         bool                noArrow)
-: d_window(window)
-, d_font()
+// PRIVATE MANIPULATORS
+sf::Font&
+SfmlDrawAdapter::getFont(uint8_t index)
 {
-    d_font.loadFromFile(path.c_str());
+    if (!d_otherOk || index == 0) {
+        return d_defaultFont;
+    }
+    return d_otherFont;
+}
+
+SfmlDrawAdapter::SfmlDrawAdapter(sf::RenderWindow&   window,
+                                 const std::string&  defaultFontPath,
+                                 bool                noArrow,
+                                 const std::string&  otherFontPath)
+: d_window(window)
+, d_defaultFont()
+, d_otherFont()
+, d_defaultOk()
+, d_otherOk()
+{
+    d_defaultOk = d_defaultFont.loadFromFile(defaultFontPath.c_str());
+
+    if (d_defaultOk) {
+        if (!otherFontPath.empty()) {
+            d_otherOk = d_otherFont.loadFromFile(otherFontPath.c_str());
+        }
+    }
+    else {
+        if (!otherFontPath.empty()) {
+            d_defaultOk = d_defaultFont.loadFromFile(otherFontPath.c_str());
+        }
+    }
 
     if (!noArrow) {
         if constexpr (std::is_same_v<Wawt::Char_t,wchar_t>) {
@@ -126,8 +151,8 @@ SfmlAdapter::SfmlAdapter(sf::RenderWindow&   window,
 // PUBLIC Wawt::Adapter INTERFACE
 
 void
-SfmlAdapter::draw(const Wawt::DrawDirective&  widget,
-                  const Wawt::String_t&       text)
+SfmlDrawAdapter::draw(const Wawt::DrawDirective&  widget,
+                      const Wawt::String_t&       text)
 {
     DrawOptions options;
 
@@ -145,7 +170,7 @@ SfmlAdapter::draw(const Wawt::DrawDirective&  widget,
             else {
                 msg += " index=" + std::to_string(type);
             }
-            throw Wawt::Exception(msg);                                 // THROW
+            throw Wawt::Exception(msg);                                // THROW
         }
     }
     sf::Color lineColor{options.d_lineColor.d_red,
@@ -192,7 +217,8 @@ SfmlAdapter::draw(const Wawt::DrawDirective&  widget,
             widget.d_borderThickness);
 
     if (!text.empty()) {
-        sf::Text   label{toString(text), d_font, widget.d_charSize};
+        sf::Font&  font = getFont(options.d_fontIndex);
+        sf::Text   label{toString(text), font, widget.d_charSize};
 
         label.setFillColor(textColor);
 
@@ -207,7 +233,7 @@ SfmlAdapter::draw(const Wawt::DrawDirective&  widget,
         d_window.draw(label);
 
         if (widget.d_bulletType == Wawt::BulletType::eRADIO) {
-            auto lineSpacing = d_font.getLineSpacing(widget.d_charSize);
+            auto lineSpacing = font.getLineSpacing(widget.d_charSize);
             auto size        = float(widget.d_charSize); // Bullet size
             auto height      = float(widget.height()) - (lineSpacing - size);
             auto radius      = size/4.0;
@@ -221,7 +247,7 @@ SfmlAdapter::draw(const Wawt::DrawDirective&  widget,
                        2);
         }
         else if (widget.d_bulletType == Wawt::BulletType::eCHECK) {
-            auto lineSpacing= d_font.getLineSpacing(widget.d_charSize);
+            auto lineSpacing= font.getLineSpacing(widget.d_charSize);
             auto size       = float(widget.d_charSize);
             auto height     = float(widget.height()) - (lineSpacing - size);
             auto xcenter    = float(widget.d_borderThickness + size/2.0);
@@ -245,10 +271,10 @@ SfmlAdapter::draw(const Wawt::DrawDirective&  widget,
 }
 
 void
-SfmlAdapter::getTextMetrics(Wawt::DrawDirective   *parameters,
-                            Wawt::TextMetrics     *metrics,
-                            const Wawt::String_t& text,
-                            double                startLimit)
+SfmlDrawAdapter::getTextMetrics(Wawt::DrawDirective   *parameters,
+                                Wawt::TextMetrics     *metrics,
+                                const Wawt::String_t& text,
+                                double                startLimit)
 {
     assert(metrics->d_textHeight > 0);    // these are upper limits
     assert(metrics->d_textWidth > 0);     // bullet size excluded
@@ -257,11 +283,12 @@ SfmlAdapter::getTextMetrics(Wawt::DrawDirective   *parameters,
     DrawOptions   effects;
     sf::FloatRect bounds(0,0,0,0);
     uint16_t      charSize = uint16_t(std::round(parameters->d_charSize));
-    sf::Text      label{string, d_font, charSize};
 
     if (parameters->d_options.has_value()) {
         effects = std::any_cast<DrawOptions>(parameters->d_options);
     }
+    sf::Font&     font = getFont(effects.d_fontIndex);
+    sf::Text      label{string, font, charSize};
 
     if (effects.d_boldEffect) {
         label.setStyle(sf::Text::Bold);
@@ -278,7 +305,7 @@ SfmlAdapter::getTextMetrics(Wawt::DrawDirective   *parameters,
         while (upperLimit - lowerLimit > 1) {
             label.setCharacterSize(charSize);
             auto newBounds   = label.getLocalBounds();
-            auto lineSpacing = d_font.getLineSpacing(charSize);
+            auto lineSpacing = font.getLineSpacing(charSize);
             auto widthLimit  = metrics->d_textWidth;
 
             if (parameters->d_bulletType != Wawt::BulletType::eNONE) {
@@ -303,6 +330,10 @@ SfmlAdapter::getTextMetrics(Wawt::DrawDirective   *parameters,
     metrics->d_textHeight = bounds.height;
     return;                                                           // RETURN
 }
+
+                                //-----------------
+                                // class SfmlWindow
+                                //-----------------
 
 void
 SfmlWindow::eventLoop(sf::RenderWindow&                 window,
