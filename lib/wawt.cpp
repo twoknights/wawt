@@ -371,6 +371,7 @@ Wawt::Base::Base(const Base& copy)
 , d_input(copy.d_input)
 , d_text(copy.d_text)
 , d_draw(copy.d_draw)
+, d_widgetId(copy.d_widgetId)
 {
     if (d_widgetLabel) {
         *d_widgetLabel = this;
@@ -384,6 +385,7 @@ Wawt::Base::Base(Base&& copy)
 , d_input(std::move(copy.d_input))
 , d_text(std::move(copy.d_text))
 , d_draw(std::move(copy.d_draw))
+, d_widgetId(std::move(copy.d_widgetId))
 {
     if (d_widgetLabel) {
         *d_widgetLabel = this;
@@ -414,6 +416,7 @@ Wawt::Base::operator=(Base&& rhs)
     d_input       = std::move(rhs.d_input);
     d_text        = std::move(rhs.d_text);
     d_draw        = std::move(rhs.d_draw);
+    d_widgetId    = std::move(rhs.d_widgetId);
 
     if (d_widgetLabel) {
         *d_widgetLabel = this;

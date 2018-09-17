@@ -348,7 +348,7 @@ SfmlWindow::eventLoop(sf::RenderWindow&                 window,
     while (window.isOpen()) {
         sf::Event event;
 
-        if (window.waitEvent(event)) {
+        if (window.pollEvent(event)) {
             try {
                 if (event.type == sf::Event::Closed) {
                     connector.shutdownRequested([&window]() {
@@ -377,15 +377,14 @@ SfmlWindow::eventLoop(sf::RenderWindow&                 window,
                 }
                 else if (event.type == sf::Event::MouseButtonPressed
                       && event.mouseButton.button == sf::Mouse::Button::Left) {
-                    window.clear();
                     mouseUp = connector.downEvent(event.mouseButton.x,
                                                    event.mouseButton.y);
+                    window.clear();
                     connector.draw();
                     window.display();
                 }
                 else if (event.type == sf::Event::MouseButtonReleased
                       && event.mouseButton.button == sf::Mouse::Button::Left) {
-                    window.clear();
 
                     if (mouseUp) {
 
@@ -400,6 +399,7 @@ SfmlWindow::eventLoop(sf::RenderWindow&                 window,
                             onKey(Wawt::Char_t(0)); // show cursor
                         }
                     }
+                    window.clear();
                     connector.draw();
                     window.display();
                 }

@@ -94,15 +94,13 @@ int main()
 
     try {
         controller.installScreens(&setup);
+        SfmlWindow::eventLoop(window, connector, 50ms, WIDTH/2, HEIGHT/2);
     }
     catch (Wawt::Exception& e) {
         std::cout << e.what() << std::endl;
 
         return 1;                                                     // RETURN
     }
-
-    SfmlWindow::eventLoop(window, connector, 50ms, WIDTH/2, HEIGHT/2);
-
     return 0;
 }
 

@@ -124,7 +124,7 @@ SetupScreen::createScreenPanel()
                      }),
 /* 11(7-10)*/   Panel(Layout::slice(false, 0.5, 0.7), networkConnect)
             })
-            , Button({{},{-0.95,-0.95}},
+            , Button({{},{-0.95,-0.95}, Vertex::eUPPER_LEFT},
                      {[this](auto) { d_screen.serialize(std::cout);
                                      return FocusCb();
                                    }, ActionType::eCLICK},
