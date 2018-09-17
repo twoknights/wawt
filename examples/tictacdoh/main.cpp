@@ -97,6 +97,7 @@ int main()
     }
     catch (Wawt::Exception& e) {
         std::cout << e.what() << std::endl;
+
         return 1;                                                     // RETURN
     }
 

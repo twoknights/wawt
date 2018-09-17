@@ -46,9 +46,6 @@ namespace {
 Wawt::Panel
 SetupScreen::createScreenPanel()
 {
-    constexpr int WIDTH  = 1280; // aka 720p
-    constexpr int HEIGHT =  720;
-
     auto changeLanguage = [this](auto, uint16_t index) {
         d_mapper.currentLanguage(static_cast<StringIdLookup::Language>(index));
         // Since this results in string IDs taking on new string values,
@@ -75,7 +72,7 @@ SetupScreen::createScreenPanel()
         {
             Label(Layout::slice(false, 0.25, 0.45),
                   {StringId::eSelectLanguage, Align::eCENTER}),
-            List({{-0.8_M|1._M, 1_wr},{0.8_M|5._M, 1_wr}},
+            List({{-0.8, 1., 1_wr},{0.8, 5., 1_wr}},
                  1_F,
                  Wawt::ListType::eSELECTLIST,
                  {
@@ -94,19 +91,20 @@ SetupScreen::createScreenPanel()
         {
             Label(Layout::slice(false, 0.0, 0.22),
                   {StringId::eWaitForConnection, 2_F, Align::eLEFT}),
-            TextEntry({{-1.0_M|1.1_M, 1_wr},{-0.5_M|3._M, 1_wr}},
+            TextEntry({{-1.0,1.1, 1_wr},{-0.5,3., 1_wr}},
                       5,
                       listenTo,
                       {StringId::eNone, 3_F, Align::eLEFT}),
             Label(Layout::slice(false, -0.45, -0.23),
                   {StringId::eConnectToOpponent, 2_F, Align::eLEFT}),
-            TextEntry(Layout::slice(false, -0.22, 0.0),
+            TextEntry(&d_connectEntry,
+                      Layout::slice(false, -0.22, 0.0),
                       40,
                       connectTo,
                       {StringId::eNone, 3_F, Align::eLEFT})
         };
 
-    return Panel(screenLayout(WIDTH, HEIGHT),
+    return Panel({},
         {
 /* 1 */     Label(Layout::slice(false, 0.1, 0.2),
                   {StringId::eGameSettings, Align::eCENTER}),
@@ -126,7 +124,7 @@ SetupScreen::createScreenPanel()
                      }),
 /* 11(7-10)*/   Panel(Layout::slice(false, 0.5, 0.7), networkConnect)
             })
-            , Button({{},{-0.95_M|-0.95_M}},
+            , Button({{},{-0.95,-0.95}},
                      {[this](auto) { d_screen.serialize(std::cout);
                                      return FocusCb();
                                    }, ActionType::eCLICK},
@@ -137,12 +135,12 @@ SetupScreen::createScreenPanel()
 void
 SetupScreen::initialize()
 {
-    d_connectEntry = &lookup<TextEntry>(10_w);
 }
 
 void
 SetupScreen::resetWidgets()
 {
+    d_connectEntry->setEnablement(Enablement::eOFF);
 }
 
 }  // namespace BDS

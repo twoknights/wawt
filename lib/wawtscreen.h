@@ -23,6 +23,7 @@
 
 #include <any>
 #include <experimental/type_traits>
+#include <sstream>
 #include <string>
 #include <typeinfo>
 #include <utility>
@@ -81,8 +82,7 @@ class WawtScreen {
     using ActionType    = Wawt::ActionType;
     using Align         = Wawt::Align;
     using Enablement    = Wawt::Enablement;
-    using Metric        = Wawt::Metric;
-    using TieScale      = Wawt::TieScale;
+    using Normalize     = Wawt::Normalize;
     using Vertex        = Wawt::Vertex;
     using WidgetId      = Wawt::WidgetId;
 
@@ -112,57 +112,14 @@ class WawtScreen {
   public:
 
     // PUBLIC CONSTANTS
-    /**
-     * @brief Screen layout constants.
-     *
-     * The layout of user interface elements is based on an origin lieing
-     * at the center of a rectangular region identified by a widget ID.
-     * The distance from the center to the side of the recangle is defined
-     * as having a length of one with "left/up" being negative, and
-     * "right/down" is positive (each direction is independently scaled).
-     *
-     * The following constants provide a means of specifying locations that
-     * can be more intuitive by naming the "left/up" edge as the "begining",
-     * followed by 25%, 33%, mid-point, 66%, 75%, and "end-point" (being the
-     * opposite edge from the beginning).
-     */
-    constexpr static const Metric kLINE_BEG   = Metric(-1.0);
-    constexpr static const Metric kLINE_125   = Metric(-0.25);
-    constexpr static const Metric kLINE_25    = Metric(-0.5);
-    constexpr static const Metric kLINE_33    = Metric(-1.0/3.0);
-    constexpr static const Metric kLINE_MID   = Metric( 0.0);
-    constexpr static const Metric kLINE_66    = Metric( 1.0/3.0);
-    constexpr static const Metric kLINE_75    = Metric( 0.5);
-    constexpr static const Metric kLINE_875   = Metric( 0.25);
-    constexpr static const Metric kLINE_END   = Metric( 1.0);
-
-    /**
-     * @brief Additional screen layout constants.
-     *
-     * The following constants define vertices on the rectangular area
-     * of a widget.
-     */
-    constexpr static const Vertex kUPPER_LEFT    {kLINE_BEG, kLINE_BEG};
-    constexpr static const Vertex kUPPER_CENTER  {kLINE_MID, kLINE_BEG};
-    constexpr static const Vertex kUPPER_RIGHT   {kLINE_END, kLINE_BEG};
-    constexpr static const Vertex kCENTER_LEFT   {kLINE_BEG, kLINE_MID};
-    constexpr static const Vertex kCENTER_CENTER {kLINE_MID, kLINE_MID};
-    constexpr static const Vertex kCENTER_RIGHT  {kLINE_END, kLINE_MID};
-    constexpr static const Vertex kLOWER_LEFT    {kLINE_BEG, kLINE_END};
-    constexpr static const Vertex kLOWER_CENTER  {kLINE_MID, kLINE_END};
-    constexpr static const Vertex kLOWER_RIGHT   {kLINE_END, kLINE_END};
-
-    //! Relative widget ID that references the containing panel.
-    constexpr static const WidgetId&   kPARENT          = Wawt::kPARENT;
 
     //! Border thickness placeholder that defaults to the assigned default.
     constexpr static const Wawt::OptInt kDEFAULT_BORDER{-1};
 
-    //! Vertex edge adjustment constants.
-    constexpr static const Wawt::ScaleBias kOUTER        = Wawt::eOUTER;
-    constexpr static const Wawt::ScaleBias kINNER        = Wawt::eINNER;
-    constexpr static const Wawt::ScaleBias kOUTER1       = Wawt::eOUTER1;
-    constexpr static const Wawt::ScaleBias kINNER1       = Wawt::eINNER1;
+    //! Scale normalization adjustment constants.
+    constexpr static const Wawt::Normalize kOUTER  = Wawt::Normalize::eOUTER;
+    constexpr static const Wawt::Normalize kMIDDLE = Wawt::Normalize::eMIDDLE;
+    constexpr static const Wawt::Normalize kINNER  = Wawt::Normalize::eINNER;
 
     // PUBLIC MANIPULATORS
 
@@ -314,16 +271,6 @@ class WawtScreen {
     }
 
     // PUBLIC ACCESSSOR
-    //! Access the screen's height (requires 'setup' to have been performed).
-    int height() const {
-        return int(std::round(d_screen.adapterView().height()));
-    }
-
-    //! Access the screen's "name" (requires 'setup' to have been performed).
-    const std::string& name() const {
-        return d_name;
-    }
-
     /**
      * @brief Update controller with information it needs to act on.
      *
@@ -342,6 +289,21 @@ class WawtScreen {
             return true;
         }
         return false;
+    }
+
+    //! Access the screen's height (requires 'setup' to have been performed).
+    int height() const {
+        return int(std::round(d_screen.adapterView().height()));
+    }
+
+    //! Access the screen's "name" (requires 'setup' to have been performed).
+    const std::string& name() const {
+        return d_name;
+    }
+
+    //! Serialize the screen's definition to the output stream 'os'
+    void serializeScreen(std::ostream& os) const {
+        d_screen.serialize(os);
     }
 
     //! Access the screen's width (requires 'setup' to have been performed).
@@ -378,14 +340,6 @@ class WawtScreen {
  * been shown, and the 'resetWidgets' method can return the screen
  * to an appropriate state (the state of the screen when
  * last displayed is usually not desired).
- *
- * The 'createScreenPanel' method must specify the size of the root panel
- * that was used when the screen layout. This can be accomplished by using
- * the root panel's layout returned by calling the 'screenLayout' method.
- * These values are used to determine how the other offset values found in the
- * screen definition must be scaled for the current screen dimensions.
- * The application methods may, once 'setup' completes, reference the current
- * screen dimensions in the corresponding data members if neccessary.
  *
  * Finally, this class is NOT thread-safe, and has no exception guarantee.
  */
@@ -466,15 +420,15 @@ class WawtScreenImpl : public WawtScreen {
     void activate(const WawtScreen *current, Types&... args);
 
     /**
-     * @brief Create the screen's definition.
+     * @brief Initialize the screen's definition.
      *
-     * @param initialWidth  The current screen width.
-     * @param initialHeight The current screen height.
+     * @param initialWidth  The screen width.
+     * @param initialHeight The screen height.
      * @param args The parameters the application needs to define the screen.
      *
-     * Calls the application's 'createScreenPanel', and (if defined) its
-     * 'initialize' methods.  This object is prepared to be activated on
-     * return.
+     * This method calls the application's 'createScreenPanel', and (if
+     * defined) its 'initialize' methods.  This object is prepared to be
+     * activated on return.
      */
     template<typename... Types>
     void setup(int initialWidth, int initialHeight, Types&... args);
@@ -505,18 +459,6 @@ class WawtScreenImpl : public WawtScreen {
     WidgetType& lookup(WidgetId id);
 
     // PROTECTED ACCESSORS
-    /**
-     * @brief Return the "box" layout for the screen's root panel.
-     *
-     * @param width The screen's width when layout was defined.
-     * @param height The screen's height when layout was defined.
-     * @return A 'Wawt::Layout' structure for use in the screen's root panel.
-     *
-     */
-    Layout screenLayout(int width, int height) {
-        return Layout({}, {kUPPER_LEFT, width-1, height-1});
-    }
-
     //! Get the draw options for the root screen panel.
     Option defaultScreenOptions()    const {
         return optionCast(d_wawt->defaultScreenOptions());
@@ -583,9 +525,11 @@ WawtScreenImpl<Derived,Option>::activate(const WawtScreen *current,
         }
     }
     catch (Wawt::Exception caught) {
-        throw Wawt::Exception("Activate screen '" + d_name
-                                                 + "', "
-                                                 + caught.what());     // THROW
+            std::ostringstream os;
+            os << "Activating screen ''" << d_name << "', "
+               << caught.what() << '\n';
+            serializeScreen(os);
+        throw Wawt::Exception(os.str());                              // THROW
     }
     return;                                                           // RETURN
 }
@@ -617,8 +561,10 @@ WawtScreenImpl<Derived,Option>::setup(int        initialWidth,
                                 double(initialHeight));
     }
     catch (Wawt::Exception caught) {
-        throw Wawt::Exception("Setup screen '" + d_name + "', "
-                                                        + caught.what());
+        std::ostringstream os;
+        os << "Setup of screen '" << d_name << "', " << caught.what() << '\n';
+        serializeScreen(os);
+        throw Wawt::Exception(os.str());                               // THROW
     }
     
     if constexpr (has_initialize<Derived>) {
@@ -626,8 +572,11 @@ WawtScreenImpl<Derived,Option>::setup(int        initialWidth,
             reinterpret_cast<Derived*>(this)->initialize();
         }
         catch (Wawt::Exception caught) {
-            throw Wawt::Exception("Initialize screen '" + d_name + "', "
-                                                       + caught.what());//THROW
+            std::ostringstream os;
+            os << "Initializing screen ''" << d_name << "', "
+               << caught.what() << '\n';
+            serializeScreen(os);
+            throw Wawt::Exception(os.str());                          // THROW
         }
     }
     return;                                                           // RETURN

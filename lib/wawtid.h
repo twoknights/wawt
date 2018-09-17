@@ -68,8 +68,6 @@ class WawtId {
 
         constexpr IntId() : d_id() { }
 
-        constexpr IntId(const IntId& copy) : d_id(copy.d_id) { }
-
         template<typename OtherInt>
         constexpr IntId(OtherInt value) : d_id(static_cast<IntType>(value)) { }
 
@@ -104,13 +102,6 @@ class WawtId {
 
         constexpr Mixin(bool value) : d_value(value) { }
 
-        constexpr Mixin(const Mixin& copy) : d_value(copy.d_value) { }
-
-        constexpr Mixin& operator=(const Mixin& rhs) {
-            d_value = rhs.d_value;
-            return *this;
-        }
-
         constexpr bool operator==(const Mixin& rhs) const {
             return d_value == rhs.d_value;
         }
@@ -132,8 +123,17 @@ class WawtId {
 
         constexpr Id(const Id& copy) : Mixins(copy)..., d_id(copy.d_id) { }
 
+        constexpr Id(Id&& copy) noexcept
+            : Mixins(std::move(copy))..., d_id(copy.d_id) { }
+
         constexpr Id& operator=(const Id& rhs) {
             (Mixins::operator=(rhs), ...);
+            d_id = rhs.d_id;
+            return *this;
+        }
+
+        constexpr Id& operator=(Id&& rhs) noexcept {
+            (Mixins::operator=(std::move(rhs)), ...);
             d_id = rhs.d_id;
             return *this;
         }
@@ -165,8 +165,8 @@ class WawtId {
 
     class IsSet : public Mixin<bool, IsSet> {
       public:
-        constexpr IsSet()              = default;
-        constexpr IsSet(bool) : Mixin(true) { }
+        constexpr IsSet()       : Mixin(false) { }
+        constexpr IsSet(bool f) : Mixin(f) { }
 
         constexpr bool isSet() const {
             return d_value;
@@ -175,7 +175,7 @@ class WawtId {
 
     class IsRelative : public Mixin<bool, IsRelative> {
       public:
-        constexpr IsRelative()     = default;
+        constexpr IsRelative()          : Mixin(false) { }
         constexpr IsRelative(bool flag) : Mixin(flag) { }
 
         constexpr bool isRelative() const {

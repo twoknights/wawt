@@ -61,8 +61,8 @@ class Wawt {
     // Note: fixed length encodings required. These would be: ANSI (char),
     // UCS-2 (wchar_t), and UTF-32 (char32_t).
     using Char_t       = char32_t;
-    using String_t     = std::u32string;
-    using StringView_t = std::u32string_view; // Not used in implementation
+    using String_t     = std::basic_string<Char_t>;
+    using StringView_t = std::basic_string_view<Char_t>; // Not used here
 
     // Identifiers:
     using OptInt      = std::optional<int>;
@@ -83,7 +83,6 @@ class Wawt {
     enum class TieScale { eNONE, eUL_X, eUL_Y, eLR_X, eLR_Y, eCC_X, eCC_Y };
 
     // PUBLIC CONSTANTS
-    static const WidgetId    kPARENT;
     static const WidgetId    kROOT;
 
     // PUBLIC TYPES
@@ -294,110 +293,135 @@ class Wawt {
                                 // class Layout
                                 //=============
 
-    struct Metric {
-        double              d_r;
-
-        constexpr explicit Metric(double r) : d_r(r) { }
-
-        constexpr Metric operator-() {
-            return Metric(-d_r);
-        }
+    enum class Normalize {
+              eOUTER         ///< Normalize to widget's width/2
+            , eMIDDLE        ///< Normalize to middle of border.
+            , eINNER         ///< Normalize to 1 pixel before inner edge
+            , eDEFAULT       ///< eINNER for parent, otherwise eOUTER
     };
 
-    struct Vertex {
-        double              d_sx;
-        double              d_sy;
-
-        constexpr Vertex()                     : d_sx(0.0),    d_sy(0.0)    { }
-
-        constexpr Vertex(Metric s)             : d_sx(s.d_r),  d_sy(s.d_r)  { }
-
-        constexpr Vertex(Metric sx, Metric sy) : d_sx(sx.d_r), d_sy(sy.d_r) { }
+    enum class Vertex  {
+              eUPPER_LEFT
+            , eUPPER_CENTER
+            , eUPPER_RIGHT
+            , eCENTER_LEFT
+            , eCENTER_CENTER
+            , eCENTER_RIGHT
+            , eLOWER_LEFT
+            , eLOWER_CENTER
+            , eLOWER_RIGHT
+            , eNONE
     };
 
-    enum ScaleBias : unsigned char {
-                eOUTER    = 0  ///< Vertex is on outer edge
-              , eOUTER1   = 1  ///< Vertex is 1 pixel past outer edge
-              , eINNER    = 2  ///< Vertex is on inner edge
-              , eINNER1   = 3  ///< Vertex is 1 pixel before inner edge
+    class WidgetRef {
+        WidgetId    d_widgetId{};
+        Base      **d_base  = nullptr;
+      public:
+        constexpr WidgetRef() { }
+
+        constexpr WidgetRef(WidgetId id) : d_widgetId(id) { }
+
+        template<class T>
+        constexpr WidgetRef(T **ptr)
+            : d_base(reinterpret_cast<Base**>(ptr)) { }
+
+        const Base* getBasePointer(const Panel&      parent,
+                                   const Panel&      root) const;
+
+        WidgetId getWidgetId() const;
     };
-    using BiasPair  = std::pair<ScaleBias,ScaleBias>; // x,y edge description
 
     class Position {
       public:
-        Vertex               d_vertex;
-        WidgetId             d_widgetId;
-        BiasPair             d_endPoint;
-        int                  d_x;
-        int                  d_y;
+        double                  d_sX            = -1.0;
+        double                  d_sY            = -1.0;
+        WidgetRef               d_widgetRef     = WidgetId(0, true, true);
+        Normalize               d_normalizeX    = Normalize::eDEFAULT;
+        Normalize               d_normalizeY    = Normalize::eDEFAULT;
 
-        constexpr Position(Vertex vertex=Metric(-1.0), int x=0, int y=0)
-            : d_vertex(vertex)
-            , d_widgetId(kPARENT)
-            , d_endPoint{eINNER1, eINNER1}
-            , d_x(x)
-            , d_y(y) { }
+        constexpr Position() { }
 
-        constexpr Position(Vertex vertex, WidgetId id, int x=0, int y=0)
-            : d_vertex(vertex)
-            , d_widgetId(id)
-            , d_endPoint{eOUTER, eOUTER}
-            , d_x(x)
-            , d_y(y) { }
+        constexpr Position(double x, double y) : d_sX(x) , d_sY(y) { }
 
-        constexpr Position(Vertex          vertex,
-                           BiasPair        endPoint,
-                           WidgetId        id,
-                           int             x = 0,
-                           int             y = 0)
-            : d_vertex(vertex)
-            , d_widgetId(id)
-            , d_endPoint(endPoint)
-            , d_x(x)
-            , d_y(y) { }
+        constexpr Position(double x, double y, WidgetRef&& widgetRef)
+            : d_sX(x), d_sY(y), d_widgetRef(std::move(widgetRef)) { }
+
+        constexpr Position(double      x,
+                           double      y,
+                           WidgetRef&& widgetRef,
+                           Normalize   normalizeX,
+                           Normalize   normalizeY)
+            : d_sX(x)
+            , d_sY(y)
+            , d_widgetRef(std::move(widgetRef))
+            , d_normalizeX(normalizeX)
+            , d_normalizeY(normalizeY) { }
     };
 
     struct Layout {
-        TieScale            d_tie;
-        Position            d_upperLeft;
-        Position            d_lowerRight;
-        double              d_borderThickness;
+        Position            d_upperLeft{};
+        Position            d_lowerRight{};
+        Vertex              d_pin{Vertex::eNONE};
+        OptInt              d_thickness{};
+        double              d_borderThickness = -1.0;
+
+        constexpr Layout() { }
+
+        constexpr Layout(const Position&  upperLeft,
+                         const Position&  lowerRight,
+                         const OptInt&    thickness = OptInt())
+            : d_upperLeft(upperLeft)
+            , d_lowerRight(lowerRight)
+            , d_thickness(thickness) { }
+
+        constexpr Layout(const Position&   upperLeft,
+                         const Position&   lowerRight,
+                         Vertex            pin,
+                         const OptInt&     thickness = OptInt())
+            : d_upperLeft(upperLeft)
+            , d_lowerRight(lowerRight)
+            , d_pin(pin)
+            , d_thickness(thickness) { }
+
+        constexpr Layout(Position&& upperLeft,
+                         Position&& lowerRight,
+                         OptInt     thickness = OptInt())
+            : d_upperLeft(std::move(upperLeft))
+            , d_lowerRight(std::move(lowerRight))
+            , d_thickness(thickness) { }
+
+        constexpr Layout(Position&& upperLeft,
+                         Position&& lowerRight,
+                         Vertex     pin,
+                         OptInt     thickness = OptInt())
+            : d_upperLeft(std::move(upperLeft))
+            , d_lowerRight(std::move(lowerRight))
+            , d_pin(pin)
+            , d_thickness(thickness) { }
 
         static Layout slice(bool vertical, double begin, double end);
 
-        static Layout centered(double width, double height) {
+        constexpr static Layout centered(double width, double height) {
             auto w = std::abs(width);
             auto h = std::abs(height);
-            return Layout({{Metric(-w),Metric(-h)}}, {{Metric(w),Metric(h)}});
+            return Layout({-w, -h}, {w, h});
         }
-
-        constexpr Layout(const Position& upperLeft       = {},
-                         const Position& lowerRight      = {{Metric(1.0),
-                                                             Metric(1.0)}},
-                         OptInt          borderThickness = OptInt(),
-                         TieScale        tie             = TieScale::eNONE)
-            : d_tie(tie)
-            , d_upperLeft(upperLeft)
-            , d_lowerRight(lowerRight)
-            , d_borderThickness(double(borderThickness.value_or(-1.0))) { }
 
         constexpr static Layout duplicate(WidgetId id,
                                           OptInt   thickness = OptInt()) {
-            return Layout({{Metric(-1.0),Metric(-1.0)}, {eOUTER,eOUTER}, id},
-                          {{Metric( 1.0),Metric( 1.0)}, {eOUTER,eOUTER}, id},
-                          thickness);
+            return Layout({-1.0, -1.0, id}, {1.0, 1.0, id}, thickness);
         }
 
-        Layout&& translate(double x, double y) && {
-            d_upperLeft.d_vertex.d_sx  += x;
-            d_upperLeft.d_vertex.d_sy  += y;
-            d_lowerRight.d_vertex.d_sx += x;
-            d_lowerRight.d_vertex.d_sy += y;
+        constexpr Layout&& translate(double x, double y) && {
+            d_upperLeft.d_sX  += x;
+            d_upperLeft.d_sY  += y;
+            d_lowerRight.d_sX += x;
+            d_lowerRight.d_sY += y;
             return std::move(*this);
         }
 
         Layout&& border(unsigned int thickness) && {
-            d_borderThickness = double(thickness);
+            d_thickness = thickness;
             return std::move(*this);
         }
     };
@@ -548,6 +572,7 @@ class Wawt {
         using Callback = InputHandler::Callback;
 
         // PROTECTED DATA MEMBERS
+        Base              **d_widgetLabel = nullptr;
         Layout              d_layout{};
         InputHandler        d_input{};
         TextBlock           d_text{};
@@ -561,16 +586,21 @@ class Wawt {
         WidgetId            d_widgetId{};
 
         // PUBLIC CONSTRUCTORS
-        Base()                        = default;
+        Base()                           = default;
 
-        Base(Layout&&          layout,
+        Base& operator=(const Base& rhs) = delete;
+
+        Base(const Base& copy);
+
+        Base(Base&& copy);
+
+        Base& operator=(Base&& rhs);
+
+        Base(Base            **indirect,
+             Layout&&          layout,
              InputHandler&&    input,
              TextString&&      text,
-             DrawSettings&&    options)
-            : d_layout(std::move(layout))
-            , d_input(std::move(input))
-            , d_text(std::move(text))
-            , d_draw(std::move(options)) { }
+             DrawSettings&&    options);
 
         // PUBLIC MANIPULATORS
         EventUpCb downEvent(int x, int y) { // overriden in Text
@@ -630,11 +660,23 @@ class Wawt {
     class  Canvas final : public Base {
       public:
 
-        Canvas(Layout&&          layout          = Layout(),
+        Canvas(Canvas          **indirect        = nullptr,
+               Layout&&          layout          = Layout(),
                const PaintFn&    paintFn         = PaintFn(),
                InputHandler&&    onClick         = InputHandler(),
                DrawSettings&&    options         = DrawSettings())
-            : Base(std::move(layout),
+            : Base(reinterpret_cast<Base**>(indirect),
+                   std::move(layout),
+                   std::move(onClick).defaultAction(ActionType::eCLICK),
+                   TextString(),
+                   std::move(options).paintFn(paintFn)) { }
+
+        Canvas(Layout&&          layout,
+               const PaintFn&    paintFn         = PaintFn(),
+               InputHandler&&    onClick         = InputHandler(),
+               DrawSettings&&    options         = DrawSettings())
+            : Base(nullptr,
+                   std::move(layout),
                    std::move(onClick).defaultAction(ActionType::eCLICK),
                    TextString(),
                    std::move(options).paintFn(paintFn)) { }
@@ -661,11 +703,13 @@ class Wawt {
 
         Text()                          = default;
 
-        Text(Layout&&          layout,
+        Text(Base            **indirect,
+             Layout&&          layout,
              InputHandler&&    mouse,
              TextString&&      text,
              DrawSettings&&    options)
-            : Base(std::move(layout),
+            : Base(indirect,
+                   std::move(layout),
                    std::move(mouse),
                    std::move(text),
                    std::move(options)) { }
@@ -681,12 +725,26 @@ class Wawt {
       public:
         TextEntry()                     = default;
 
+        TextEntry(TextEntry       **indirect,
+                  Layout&&          layout,
+                  unsigned int      maxChars,
+                  const EnterFn&    enterFn     = EnterFn(),
+                  TextString&&      text        = TextString(),
+                  DrawSettings&&    options     = DrawSettings())
+            : Text(reinterpret_cast<Base**>(indirect),
+                   std::move(layout),
+                   InputHandler(std::pair(enterFn,maxChars),
+                                ActionType::eENTRY),
+                   std::move(text).defaultAlignment(Align::eLEFT),
+                   std::move(options)) { }
+
         TextEntry(Layout&&          layout,
                   unsigned int      maxChars,
                   const EnterFn&    enterFn     = EnterFn(),
                   TextString&&      text        = TextString(),
                   DrawSettings&&    options     = DrawSettings())
-            : Text(std::move(layout),
+            : Text(nullptr,
+                   std::move(layout),
                    InputHandler(std::pair(enterFn,maxChars),
                                 ActionType::eENTRY),
                    std::move(text).defaultAlignment(Align::eLEFT),
@@ -699,10 +757,21 @@ class Wawt {
 
     class  Label final : public Text {
       public:
+        Label(Label           **indirect,
+              Layout&&          layout,
+              TextString&&      text,
+              DrawSettings&&    options = DrawSettings())
+            : Text(reinterpret_cast<Base**>(indirect),
+                   std::move(layout),
+                   InputHandler(),
+                   std::move(text).defaultAlignment(Align::eCENTER),
+                   std::move(options)) { }
+
         Label(Layout&&          layout,
               TextString&&      text,
               DrawSettings&&    options = DrawSettings())
-            : Text(std::move(layout),
+            : Text(nullptr,
+                   std::move(layout),
                    InputHandler(),
                    std::move(text).defaultAlignment(Align::eCENTER),
                    std::move(options)) { }
@@ -723,17 +792,30 @@ class Wawt {
         Button(TextString&&              text,
                InputHandler&&            onClick,
                DrawSettings&&            options = DrawSettings())
-            : Text(Layout(),
+            : Text(nullptr,
+                   Layout(),
                    std::move(onClick),
                    std::move(text),
                    std::move(options)) { }
 
         /// Used in push buttons:
+        Button(Button                  **indirect,
+               Layout&&                  layout,
+               InputHandler&&            onClick,
+               TextString&&              text,
+               DrawSettings&&            options = DrawSettings())
+            : Text(reinterpret_cast<Base**>(indirect),
+                   std::move(layout),
+                   std::move(onClick).defaultAction(ActionType::eCLICK),
+                   std::move(text),
+                   std::move(options)) { }
+
         Button(Layout&&                  layout,
                InputHandler&&            onClick,
                TextString&&              text,
                DrawSettings&&            options = DrawSettings())
-            : Text(std::move(layout),
+            : Text(nullptr,
+                   std::move(layout),
                    std::move(onClick).defaultAction(ActionType::eCLICK),
                    std::move(text),
                    std::move(options)) { }
@@ -751,13 +833,27 @@ class Wawt {
       public:
         std::vector<Button>        d_buttons;
 
-        ButtonBar(Layout&&                          layout,
+        ButtonBar(ButtonBar                       **indirect,
+                  Layout&&                          layout,
                   OptInt                            borderThickness,
                   std::initializer_list<Button>     buttons);
 
         ButtonBar(Layout&&                          layout,
+                  OptInt                            borderThickness,
                   std::initializer_list<Button>     buttons)
-            : ButtonBar(std::move(layout), OptInt(), buttons) { }
+            : ButtonBar(nullptr,
+                        std::move(layout),
+                        borderThickness,
+                        buttons) { }
+
+        ButtonBar(ButtonBar                       **indirect,
+                  Layout&&                          layout,
+                  std::initializer_list<Button>     buttons)
+            : ButtonBar(indirect, std::move(layout), OptInt(), buttons) { }
+
+        ButtonBar(Layout&&                          layout,
+                  std::initializer_list<Button>     buttons)
+            : ButtonBar(nullptr, std::move(layout), OptInt(), buttons) { }
 
 
         EventUpCb downEvent(int x, int y);
@@ -814,7 +910,8 @@ class Wawt {
         // PUBLIC CONSTRUCTORS
         List()             = default;
 
-        List(Layout&&                          layout,
+        List(List                            **indirect,
+             Layout&&                          layout,
              FontSizeGrp                       fontSizeGrp,
              DrawSettings&&                    options,
              ListType                          listType,
@@ -822,7 +919,8 @@ class Wawt {
              const GroupCb&                    click = GroupCb(),
              Panel                            *root  = nullptr);
 
-        List(Layout&&                          layout,
+        List(List                            **indirect,
+             Layout&&                          layout,
              FontSizeGrp                       fontSizeGrp,
              DrawSettings&&                    options,
              ListType                          listType,
@@ -830,13 +928,53 @@ class Wawt {
              const GroupCb&                    click    = GroupCb(),
              Panel                            *root     = nullptr);
 
+        List(List                            **indirect,
+             Layout&&                          layout,
+             FontSizeGrp                       fontSizeGrp,
+             ListType                          listType,
+             Labels                            labels,
+             const GroupCb&                    click = GroupCb(),
+             Panel                            *root  = nullptr)
+            : List(indirect, std::move(layout), fontSizeGrp, DrawSettings(),
+                   listType, labels, click, root) { }
+
+        List(List                            **indirect,
+             Layout&&                          layout,
+             FontSizeGrp                       fontSizeGrp,
+             ListType                          listType,
+             unsigned int                      rows,
+             const GroupCb&                    click    = GroupCb(),
+             Panel                            *root     = nullptr)
+            : List(indirect, std::move(layout), fontSizeGrp, DrawSettings(),
+                   listType, rows, click, root) { }
+
+        List(Layout&&                          layout,
+             FontSizeGrp                       fontSizeGrp,
+             DrawSettings&&                    options,
+             ListType                          listType,
+             Labels                            labels,
+             const GroupCb&                    click = GroupCb(),
+             Panel                            *root  = nullptr)
+            : List(nullptr, std::move(layout), fontSizeGrp, std::move(options),
+                   listType, labels, click, root) { }
+
+        List(Layout&&                          layout,
+             FontSizeGrp                       fontSizeGrp,
+             DrawSettings&&                    options,
+             ListType                          listType,
+             unsigned int                      rows,
+             const GroupCb&                    click    = GroupCb(),
+             Panel                            *root     = nullptr)
+            : List(nullptr, std::move(layout), fontSizeGrp, std::move(options),
+                   listType, rows, click, root) { }
+
         List(Layout&&                          layout,
              FontSizeGrp                       fontSizeGrp,
              ListType                          listType,
              Labels                            labels,
              const GroupCb&                    click = GroupCb(),
              Panel                            *root  = nullptr)
-            : List(std::move(layout), fontSizeGrp, DrawSettings(),
+            : List(nullptr, std::move(layout), fontSizeGrp, DrawSettings(),
                    listType, labels, click, root) { }
 
         List(Layout&&                          layout,
@@ -845,7 +983,7 @@ class Wawt {
              unsigned int                      rows,
              const GroupCb&                    click    = GroupCb(),
              Panel                            *root     = nullptr)
-            : List(std::move(layout), fontSizeGrp, DrawSettings(),
+            : List(nullptr, std::move(layout), fontSizeGrp, DrawSettings(),
                    listType, rows, click, root) { }
 
         List(const List& copy);
@@ -853,8 +991,6 @@ class Wawt {
         List(List&& copy);
 
         // PUBLIC MANIPULATORS
-        List& operator=(const List& rhs);
-
         List& operator=(List&& rhs);
 
         Button&       append() {
@@ -915,8 +1051,61 @@ class Wawt {
 
         Panel()                             = default;
         
+        Panel(Panel                         **indirect,
+              Layout&&                        layout,
+              DrawSettings&&                  options = DrawSettings())
+            : Base(reinterpret_cast<Base**>(indirect),
+                   std::move(layout),
+                   InputHandler().defaultAction(ActionType::eCLICK),
+                   TextString(),
+                   std::move(options))
+            , d_widgets() { }
+
+        Panel(Panel                         **indirect,
+              Layout&&                        layout,
+              std::initializer_list<Widget>   widgets)
+            : Base(reinterpret_cast<Base**>(indirect),
+                   std::move(layout),
+                   InputHandler().defaultAction(ActionType::eCLICK),
+                   TextString(),
+                   DrawSettings())
+            , d_widgets(widgets) { }
+
+        Panel(Panel                         **indirect,
+              Layout&&                        layout,
+              DrawSettings&&                  options,
+              std::initializer_list<Widget>   widgets)
+            : Base(reinterpret_cast<Base**>(indirect),
+                   std::move(layout),
+                   InputHandler().defaultAction(ActionType::eCLICK),
+                   TextString(),
+                   std::move(options))
+            , d_widgets(widgets) { }
+
+        Panel(Panel                         **indirect,
+              Layout&&                        layout,
+              const Widgets&                  widgets)
+            : Base(reinterpret_cast<Base**>(indirect),
+                   std::move(layout),
+                   InputHandler().defaultAction(ActionType::eCLICK),
+                   TextString(),
+                   DrawSettings())
+            , d_widgets(widgets.begin(), widgets.end()) { }
+
+        Panel(Panel                         **indirect,
+              Layout&&                        layout,
+              DrawSettings&&                  options,
+              const Widgets&                  widgets)
+            : Base(reinterpret_cast<Base**>(indirect),
+                   std::move(layout),
+                   InputHandler().defaultAction(ActionType::eCLICK),
+                   TextString(),
+                   std::move(options))
+            , d_widgets(widgets.begin(), widgets.end()) { }
+        
         Panel(Layout&& layout, DrawSettings&& options = DrawSettings())
-            : Base(std::move(layout),
+            : Base(nullptr,
+                   std::move(layout),
                    InputHandler().defaultAction(ActionType::eCLICK),
                    TextString(),
                    std::move(options))
@@ -924,7 +1113,8 @@ class Wawt {
 
         Panel(Layout&&                      layout,
               std::initializer_list<Widget> widgets)
-            : Base(std::move(layout),
+            : Base(nullptr,
+                   std::move(layout),
                    InputHandler().defaultAction(ActionType::eCLICK),
                    TextString(),
                    DrawSettings())
@@ -933,7 +1123,8 @@ class Wawt {
         Panel(Layout&&                      layout,
               DrawSettings&&                options,
               std::initializer_list<Widget> widgets)
-            : Base(std::move(layout),
+            : Base(nullptr,
+                   std::move(layout),
                    InputHandler().defaultAction(ActionType::eCLICK),
                    TextString(),
                    std::move(options))
@@ -941,7 +1132,8 @@ class Wawt {
 
         Panel(Layout&&                      layout,
               const Widgets&                widgets)
-            : Base(std::move(layout),
+            : Base(nullptr,
+                   std::move(layout),
                    InputHandler().defaultAction(ActionType::eCLICK),
                    TextString(),
                    DrawSettings())
@@ -950,7 +1142,8 @@ class Wawt {
         Panel(Layout&&                      layout,
               DrawSettings&&                options,
               const Widgets&                widgets)
-            : Base(std::move(layout),
+            : Base(nullptr,
+                   std::move(layout),
                    InputHandler().defaultAction(ActionType::eCLICK),
                    TextString(),
                    std::move(options))
@@ -1218,6 +1411,7 @@ class  WawtDump : public Wawt::DrawAdapter {
     std::ostream&  d_dumpOs;
 };
 
+
 // FREE OPERATORS
 
 inline
@@ -1233,14 +1427,6 @@ constexpr Wawt::WidgetId operator "" _wr(unsigned long long int n) {
 inline
 constexpr Wawt::FontSizeGrp operator "" _F(unsigned long long int n) {
     return Wawt::FontSizeGrp(n);
-}
-
-constexpr Wawt::Metric operator ""_M (long double s) {
-    return Wawt::Metric(s);
-}
-
-constexpr Wawt::Vertex operator|(Wawt::Metric lhs, Wawt::Metric rhs) {
-    return Wawt::Vertex(lhs, rhs);
 }
 
 } // end BDS namespace

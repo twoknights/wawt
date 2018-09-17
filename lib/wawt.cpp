@@ -38,16 +38,6 @@ constexpr static const std::size_t kBUTTONBAR = 4;
 constexpr static const std::size_t kLIST      = 5;
 constexpr static const std::size_t kPANEL     = 6;
 
-constexpr static const Wawt::Vertex kUPPER_LEFT   {-1.0_M,-1.0_M};
-constexpr static const Wawt::Vertex kUPPER_CENTER { 0.0_M,-1.0_M};
-constexpr static const Wawt::Vertex kUPPER_RIGHT  { 1.0_M,-1.0_M};
-constexpr static const Wawt::Vertex kLOWER_LEFT   {-1.0_M, 1.0_M};
-constexpr static const Wawt::Vertex kLOWER_CENTER { 0.0_M, 1.0_M};
-constexpr static const Wawt::Vertex kLOWER_RIGHT  { 1.0_M, 1.0_M};
-constexpr static const Wawt::Vertex kCENTER_LEFT  {-1.0_M, 0.0_M};
-constexpr static const Wawt::Vertex kCENTER_CENTER{ 0.0_M, 0.0_M};
-constexpr static const Wawt::Vertex kCENTER_RIGHT { 1.0_M, 0.0_M};
-
 using FontIdMap  = std::map<Wawt::FontSizeGrp, uint16_t>;
 
 WawtDump s_defaultAdapter(std::cout);
@@ -61,18 +51,18 @@ std::ostream& operator<<(std::ostream& os, WawtDump::Indent indent) {
 }
 
 inline
-std::ostream& operator<<(std::ostream& os, Wawt::WidgetId id) {
+std::ostream& operator<<(std::ostream& os, const Wawt::WidgetId id) {
     if (id.isSet()) {
-        os << '\'' << id.value();
+        os << id.value();
         if (id.isRelative()) {
-            os << "_wr'";
+            os << "_wr";
         }
         else {
-            os << "_w'";
+            os << "_w";
         }
     }
     else {
-        os << "'unset'";
+        os << "unset";
     }
     return os;
 }
@@ -94,7 +84,7 @@ void outputString(std::ostream& os, const Wawt::String_t& text) {
 }
 
 Wawt::FocusCb eatMouseUp(int, int, bool) {
-    return Wawt::FocusCb();                                            // RETURN
+    return Wawt::FocusCb();                                           // RETURN
 }
 
 inline
@@ -102,14 +92,14 @@ int Int(double value) {
     return int(std::round(value));
 }
 
-bool findBox(const Wawt::DrawDirective **box,
-             const Wawt::Panel&          panel,
-             Wawt::WidgetId              id) {
+bool findBase(const Wawt::Base          **base,
+              const Wawt::Panel&          panel,
+              Wawt::WidgetId              id) {
     for (auto& nextWidget : panel.widgets()) {
         if (std::holds_alternative<Wawt::Panel>(nextWidget)) {
             auto& next = std::get<Wawt::Panel>(nextWidget);
 
-            if (findBox(box, next, id)) {
+            if (findBase(base, next, id)) {
                 return true;                                          // RETURN
             }
 
@@ -118,22 +108,22 @@ bool findBox(const Wawt::DrawDirective **box,
             }
 
             if (id == next.d_widgetId) {
-                *box = &next.adapterView();
+                *base = &next;
                 return true;                                          // RETURN
             }
         }
         else {
-            auto& base
+            auto& tmp
                 = std::visit([](const Wawt::Base& r)-> const Wawt::Base& {
                                         return r;
                                     }, nextWidget);
 
-            if (base.d_widgetId == id) {
-                *box = &base.adapterView();
+            if (tmp.d_widgetId == id) {
+                *base = &tmp;
                 return true;                                          // RETURN
             }
 
-            if (base.d_widgetId > id) {
+            if (tmp.d_widgetId > id) {
                 return false;                                         // RETURN
             }
         }
@@ -141,45 +131,8 @@ bool findBox(const Wawt::DrawDirective **box,
     return false;                                                     // RETURN
 }
 
-const Wawt::DrawDirective *getAdapterView(const Wawt::Panel& parent,
-                                          const Wawt::Panel& root,
-                                          Wawt::WidgetId     id) {
-    const Wawt::DrawDirective *view = nullptr;
-
-    if (id.isSet()) {
-        if (id.isRelative()) {
-            if (id.value() == UINT16_MAX) { // see: kPARENT
-                view = &parent.adapterView();
-            }
-            else if (id.value() == UINT16_MAX-1) { // see: kROOT
-                view = &root.adapterView();
-            }
-            else if (id.value() > 0) {
-                uint16_t offset = id.value();
-
-                for (auto const& nextWidget : parent.widgets()) {
-                    if (--offset == 0) {
-                        view = std::visit([](const Wawt::Base& r) {
-                                             return &r.adapterView();
-                                          }, nextWidget);
-                        break;                                         // BREAK
-                    }
-                }
-            }
-        }
-        else {
-            findBox(&view, root, id);
-        }
-    }
-
-    if (!view) {
-        throw Wawt::Exception("Context of widget not found.", id);      // THROW
-    }
-    return view;                                                      // RETURN
-}
-
-bool handleChar(Wawt::Base            *base,
-                Wawt::EnterFn         *enterFn,
+bool handleChar(Wawt::Base           *base,
+                Wawt::EnterFn        *enterFn,
                 uint16_t              maxChars,
                 Wawt::Char_t          pressed)
 {
@@ -218,58 +171,60 @@ bool handleChar(Wawt::Base            *base,
 }
 
 Wawt::DrawPosition makeAbsolute(const Wawt::Position& position,
-                               const Wawt::Panel&    parent,
-                               const Wawt::Panel&    root) {
-    auto        view       = getAdapterView(parent, root, position.d_widgetId);
-    auto&       upperLeft  = view->d_upperLeft;
-    auto&       lowerRight = view->d_lowerRight;
-    auto        thickness  = view->d_borderThickness;
+                                const Wawt::Panel&    parent,
+                                const Wawt::Panel&    root) {
+    auto       base       = position.d_widgetRef.getBasePointer(parent, root);
+    auto&      view       = base->adapterView();
+    auto&      upperLeft  = view.d_upperLeft;
+    auto&      lowerRight = view.d_lowerRight;
+    auto       thickness  = view.d_borderThickness;
 
     auto xorigin = (upperLeft.d_x  + lowerRight.d_x)/2.0;
     auto yorigin = (upperLeft.d_y  + lowerRight.d_y)/2.0;
     auto xradius = lowerRight.d_x - xorigin;
     auto yradius = lowerRight.d_y - yorigin;
 
-    switch (position.d_endPoint.first) {
-      case Wawt::eOUTER:  { // Already have this.
+    switch (position.d_normalizeX) {
+      case Wawt::Normalize::eOUTER:  { // Already have this.
         } break;
-      case Wawt::eOUTER1: {
-            xradius += 1;
+      case Wawt::Normalize::eMIDDLE: {
+            xradius -= thickness/2;
         } break;
-      case Wawt::eINNER:  { // if border thickness == 1, then same as eX_OUTER
-            xradius -= thickness - 1;
-        } break;
-      case Wawt::eINNER1: {
+      case Wawt::Normalize::eINNER: {
             xradius -= thickness;
         } break;
+      case Wawt::Normalize::eDEFAULT: {
+            if (position.d_widgetRef.getWidgetId() == 0_wr) {
+                xradius -= thickness; // eINNER
+            }
+        } break;
     };
 
-    switch (position.d_endPoint.second) {
-      case Wawt::eOUTER:  { // Already have this.
+    switch (position.d_normalizeY) {
+      case Wawt::Normalize::eOUTER:  { // Already have this.
         } break;
-      case Wawt::eOUTER1: {
-            yradius += 1;
+      case Wawt::Normalize::eMIDDLE: {
+            yradius -= thickness/2;
         } break;
-      case Wawt::eINNER:  { // if border thickness == 1, then same as eX_OUTER
-            yradius -= thickness - 1;
-        } break;
-      case Wawt::eINNER1: {
+      case Wawt::Normalize::eINNER: {
             yradius -= thickness;
         } break;
+      case Wawt::Normalize::eDEFAULT: {
+            if (position.d_widgetRef.getWidgetId() == 0_wr) {
+                yradius -= thickness; // eINNER
+            }
+        } break;
     };
 
-    auto x = xorigin + position.d_vertex.d_sx*xradius;
-    auto y = yorigin + position.d_vertex.d_sy*yradius;
-
-    x += position.d_x;
-    y += position.d_y;
+    auto x = xorigin + position.d_sX*xradius;
+    auto y = yorigin + position.d_sY*yradius;
 
     return Wawt::DrawPosition{x,y};                                 // RETURN
 }
 
-void refreshTextMetric(Wawt::DrawDirective            *args,
-                       Wawt::TextBlock                *block,
-                       Wawt::DrawAdapter              *adapter_p,
+void refreshTextMetric(Wawt::DrawDirective           *args,
+                       Wawt::TextBlock               *block,
+                       Wawt::DrawAdapter             *adapter_p,
                        FontIdMap&                     fontIdToSize,
                        const Wawt::TextMapper&        textLookup) {
     auto  id         = block->fontSizeGrp();
@@ -341,52 +296,66 @@ void setAdapterValues(Wawt::DrawDirective      *args,
         = layout->d_borderThickness
         = scaleBorder(borderScale, layout->d_borderThickness);
 
-    layout->d_upperLeft.d_x  *= scale.first;
-    layout->d_upperLeft.d_y  *= scale.second;
-    layout->d_lowerRight.d_x *= scale.first;
-    layout->d_lowerRight.d_y *= scale.second;
+    layout->d_upperLeft.d_sX  *= scale.first;
+    layout->d_upperLeft.d_sY  *= scale.second;
+    layout->d_lowerRight.d_sX *= scale.first;
+    layout->d_lowerRight.d_sY *= scale.second;
 
     args->d_upperLeft  = makeAbsolute(layout->d_upperLeft,  parent, root);
     args->d_lowerRight = makeAbsolute(layout->d_lowerRight, parent, root);
 
-    // "tie" is used to create a square widgets.
-    if (layout->d_tie == Wawt::TieScale::eUL_X) {
-        auto ux     = args->d_upperLeft.d_x;
-        auto uy     = args->d_upperLeft.d_y;
-        auto offset = args->d_lowerRight.d_y - uy;
-        args->d_lowerRight.d_x = ux + offset;
-    }
-    else if (layout->d_tie == Wawt::TieScale::eUL_Y) {
-        auto ux     = args->d_upperLeft.d_x;
-        auto uy     = args->d_upperLeft.d_y;
-        auto offset = args->d_lowerRight.d_x - ux;
-        args->d_lowerRight.d_y = uy + offset;
-    }
-    else if (layout->d_tie == Wawt::TieScale::eLR_X) {
-        auto lx     = args->d_lowerRight.d_x;
-        auto ly     = args->d_lowerRight.d_y;
-        auto offset = args->d_upperLeft.d_y - ly;
-        args->d_upperLeft.d_x = lx + offset;
-    }
-    else if (layout->d_tie == Wawt::TieScale::eLR_Y) {
-        auto lx     = args->d_lowerRight.d_x;
-        auto ly     = args->d_lowerRight.d_y;
-        auto offset = args->d_upperLeft.d_x - lx;
-        args->d_upperLeft.d_y = ly + offset;
-    }
-    else if (layout->d_tie == Wawt::TieScale::eCC_X) {
-        auto h      = args->height();
-        auto w      = args->width();
-        auto offset = (h - w)/2.0;
-        args->d_upperLeft.d_x  -= offset;
-        args->d_lowerRight.d_x += offset;
-    }
-    else if (layout->d_tie == Wawt::TieScale::eCC_Y) {
-        auto h      = args->height();
-        auto w      = args->width();
-        auto offset = (w - h)/2.0;
-        args->d_upperLeft.d_y  -= offset;
-        args->d_lowerRight.d_y += offset;
+    if (layout->d_pin != Wawt::Vertex::eNONE) {
+        auto  square = (args->width() + args->height())/2.0;
+        auto& ux     = args->d_upperLeft.d_x;
+        auto& uy     = args->d_upperLeft.d_y;
+        auto& lx     = args->d_lowerRight.d_x;
+        auto& ly     = args->d_lowerRight.d_y;
+        
+        switch (layout->d_pin) {
+          case Wawt::Vertex::eUPPER_LEFT: {
+                ly  = uy + square;
+                lx  = ux + square;
+            } break;
+          case Wawt::Vertex::eUPPER_CENTER: {
+                ly  = uy + square;
+                ux -= square/2.0;
+                lx += square/2.0;
+            } break;
+          case Wawt::Vertex::eUPPER_RIGHT: {
+                ly  = uy + square;
+                ux  = lx - square;
+            } break;
+          case Wawt::Vertex::eCENTER_LEFT: {
+                uy -= square/2.0;
+                ly += square/2.0;
+                lx  = ux + square;
+            } break;
+          case Wawt::Vertex::eCENTER_CENTER: {
+                uy -= square/2.0;
+                ly += square/2.0;
+                ux -= square/2.0;
+                lx += square/2.0;
+            } break;
+          case Wawt::Vertex::eCENTER_RIGHT: {
+                uy -= square/2.0;
+                ly += square/2.0;
+                ux  = lx - square;
+            } break;
+          case Wawt::Vertex::eLOWER_LEFT: {
+                uy  = ly - square;
+                lx  = ux + square;
+            } break;
+          case Wawt::Vertex::eLOWER_CENTER: {
+                uy  = ly - square;
+                ux -= square/2.0;
+                lx += square/2.0;
+            } break;
+          case Wawt::Vertex::eLOWER_RIGHT: {
+                uy  = ly - square;
+                ux  = lx - square;
+            } break;
+          default: break;
+        }
     }
 }
 
@@ -395,6 +364,62 @@ void setAdapterValues(Wawt::DrawDirective      *args,
                             //-----------------
                             // class  Wawt::Base
                             //-----------------
+
+Wawt::Base::Base(const Base& copy)
+: d_widgetLabel(copy.d_widgetLabel)
+, d_layout(copy.d_layout)
+, d_input(copy.d_input)
+, d_text(copy.d_text)
+, d_draw(copy.d_draw)
+{
+    if (d_widgetLabel) {
+        *d_widgetLabel = this;
+    }
+}
+
+
+Wawt::Base::Base(Base&& copy)
+: d_widgetLabel(copy.d_widgetLabel)
+, d_layout(std::move(copy.d_layout))
+, d_input(std::move(copy.d_input))
+, d_text(std::move(copy.d_text))
+, d_draw(std::move(copy.d_draw))
+{
+    if (d_widgetLabel) {
+        *d_widgetLabel = this;
+    }
+}
+
+Wawt::Base::Base(Base            **widgetLabel,
+                 Layout&&          layout,
+                 InputHandler&&    input,
+                 TextString&&      text,
+                 DrawSettings&&    options)
+: d_widgetLabel(widgetLabel)
+, d_layout(std::move(layout))
+, d_input(std::move(input))
+, d_text(std::move(text))
+, d_draw(std::move(options))
+{
+    if (d_widgetLabel) {
+        *d_widgetLabel = this;
+    }
+}
+
+Wawt::Base&
+Wawt::Base::operator=(Base&& rhs)
+{
+    d_widgetLabel = std::move(rhs.d_widgetLabel);
+    d_layout      = std::move(rhs.d_layout);
+    d_input       = std::move(rhs.d_input);
+    d_text        = std::move(rhs.d_text);
+    d_draw        = std::move(rhs.d_draw);
+
+    if (d_widgetLabel) {
+        *d_widgetLabel = this;
+    }
+    return *this;
+}
 
 void
 Wawt::Base::setEnablement(Enablement newSetting)
@@ -435,30 +460,38 @@ Wawt::Base::serialize(std::ostream&  os,
                       unsigned int   indent) const
 {
     WawtDump::Indent spaces(indent);
-    os << spaces << "<" << widgetName << " id=" << d_widgetId << ">\n";
+    os << spaces << "<" << widgetName << " id='" << d_widgetId;
+
+    if (d_widgetLabel) {
+        os << "' label='" << *d_widgetLabel;
+    }
+    os << "'>\n";
 
     spaces += 2;
-    os << spaces
-       << "<layout border='" << d_layout.d_borderThickness
-       << "' tie='" << int(d_layout.d_tie) << "'>\n";
+    os << spaces << "<layout border='";
+
+    if (d_layout.d_thickness.has_value()) {
+        os << d_layout.d_thickness.value();
+    }
+
+    if (d_layout.d_pin != Vertex::eNONE) {
+        os << "' pin='" << int(d_layout.d_pin);
+    }
+    os << "'>\n";
     spaces += 2;
     os << spaces
-       <<     "<ul sx='" << d_layout.d_upperLeft.d_vertex.d_sx
-       <<       "' sy='" << d_layout.d_upperLeft.d_vertex.d_sy
-       <<   "' widget="  << d_layout.d_upperLeft.d_widgetId
-       <<    " bias_x='" << int(d_layout.d_upperLeft.d_endPoint.first)
-       <<   "' bias_y='" << int(d_layout.d_upperLeft.d_endPoint.second)
-       << "' offset_x='" << d_layout.d_upperLeft.d_x
-       << "' offset_y='" << d_layout.d_upperLeft.d_y
+       <<     "<ul sx='" << d_layout.d_upperLeft.d_sX
+       <<       "' sy='" << d_layout.d_upperLeft.d_sY
+       <<   "' widget="  << d_layout.d_upperLeft.d_widgetRef.getWidgetId()
+       <<    " norm_x='" << int(d_layout.d_upperLeft.d_normalizeX)
+       <<   "' norm_y='" << int(d_layout.d_upperLeft.d_normalizeX)
        << "'>\n";
     os << spaces
-       <<     "<lr sx='" << d_layout.d_lowerRight.d_vertex.d_sx
-       <<       "' sy='" << d_layout.d_lowerRight.d_vertex.d_sy
-       <<   "' widget="  << d_layout.d_lowerRight.d_widgetId
-       <<    " bias_x='" << int(d_layout.d_lowerRight.d_endPoint.first)
-       <<   "' bias_y='" << int(d_layout.d_lowerRight.d_endPoint.second)
-       << "' offset_x='" << d_layout.d_lowerRight.d_x
-       << "' offset_y='" << d_layout.d_lowerRight.d_y
+       <<     "<lr sx='" << d_layout.d_lowerRight.d_sX
+       <<       "' sy='" << d_layout.d_lowerRight.d_sY
+       <<   "' widget="  << d_layout.d_lowerRight.d_widgetRef.getWidgetId()
+       <<    " norm_x='" << int(d_layout.d_lowerRight.d_normalizeX)
+       <<   "' norm_y='" << int(d_layout.d_lowerRight.d_normalizeX)
        << "'>\n";
     spaces -= 2;
     os << spaces << "</layout>\n";
@@ -513,10 +546,12 @@ Wawt::ButtonBar::draw(DrawAdapter *adapter) const
     }
 }
 
-Wawt::ButtonBar::ButtonBar(Layout&&                          layout,
+Wawt::ButtonBar::ButtonBar(ButtonBar                       **indirect,
+                           Layout&&                          layout,
                            OptInt                            borderThickness,
                            std::initializer_list<Button>     buttons)
-: Base(std::move(layout),
+: Base(reinterpret_cast<Base**>(indirect),
+       std::move(layout),
        InputHandler().defaultAction(ActionType::eCLICK),
        TextString(),
        DrawSettings())
@@ -524,7 +559,7 @@ Wawt::ButtonBar::ButtonBar(Layout&&                          layout,
 {
     for (auto& btn : d_buttons) {
         btn.d_input.defaultAction(ActionType::eCLICK);
-        btn.d_layout.d_borderThickness = borderThickness.value_or(-1.0);
+        btn.d_layout.d_thickness = borderThickness;
     }
 }
 
@@ -818,76 +853,19 @@ Wawt::Layout::slice(bool vertical, double begin, double end)
                                                                        : -1.0;
 
     if (vertical) {
-        layout.d_upperLeft.d_vertex.d_sx  =  2.0*begin + begin_offset;
-        layout.d_upperLeft.d_vertex.d_sy  = -1.0;
-        layout.d_lowerRight.d_vertex.d_sx =  2.0*end   +   end_offset;
-        layout.d_lowerRight.d_vertex.d_sy =  1.0;
+        layout.d_upperLeft.d_sX  =  2.0*begin + begin_offset;
+        layout.d_upperLeft.d_sY  = -1.0;
+        layout.d_lowerRight.d_sX =  2.0*end   +   end_offset;
+        layout.d_lowerRight.d_sY =  1.0;
     }
     else {
-        layout.d_upperLeft.d_vertex.d_sx  = -1.0;
-        layout.d_upperLeft.d_vertex.d_sy  =  2.0*begin + begin_offset;
-        layout.d_lowerRight.d_vertex.d_sx =  1.0;
-        layout.d_lowerRight.d_vertex.d_sy =  2.0*end   +   end_offset;
+        layout.d_upperLeft.d_sX  = -1.0;
+        layout.d_upperLeft.d_sY  =  2.0*begin + begin_offset;
+        layout.d_lowerRight.d_sX =  1.0;
+        layout.d_lowerRight.d_sY =  2.0*end   +   end_offset;
     }
     return layout;                                                    // RETURN
 }
-
-                            //----------------------
-                            // class  Wawt::TextBlock
-                            //----------------------
-
-void
-Wawt::TextBlock::initTextMetricValues(Wawt::DrawDirective      *args,
-                                      Wawt::DrawAdapter        *adapter,
-                                      uint16_t                  upperLimit)
-{
-    int  width  = args->interiorWidth();
-    int  height = args->interiorHeight();
-
-    d_metrics.d_textWidth  = width  - 2;  // these are upper limits
-    d_metrics.d_textHeight = height - 2;  // 1 pixel spacing around border.
-
-    auto charSizeLimit
-        = (upperLimit > 0 && upperLimit < height) ? upperLimit+1 : height;
-
-    // Note: adapter will factor in the size of any "bullet" if needed.
-    adapter->getTextMetrics(args,
-                            &d_metrics,
-                            d_block.d_string,
-                            charSizeLimit);
-    return;                                                           // RETURN
-}
-void
-Wawt::TextBlock::setText(TextId id)
-{
-    d_needRefresh = true;
-    d_block.d_id = id;
-
-    if (id != kNOID) {
-        d_block.d_string.clear();
-    }
-}
-
-void
-Wawt::TextBlock::setText(Wawt::String_t string)
-{
-    d_needRefresh = true;
-    d_block.d_string = std::move(string);
-    d_block.d_id     = kNOID;
-}
-
-void
-Wawt::TextBlock::setText(const TextMapper& mappingFn)
-{
-    if (d_block.d_id != kNOID && mappingFn) {
-        d_block.d_string      = mappingFn(d_block.d_id);
-    }
-    d_needRefresh = false; // since refresh ALWAYS follows remap
-}
-
-                            //----------------------
-                            // class  Wawt::TextEntry
-                            //----------------------
 
 
                             //-----------------
@@ -904,14 +882,16 @@ Wawt::List::draw(DrawAdapter *adapter) const
     }
 }
 
-Wawt::List::List(Layout&&                          layout,
+Wawt::List::List(List                            **indirect,
+                 Layout&&                          layout,
                  FontSizeGrp                       fontSizeGrp,
                  DrawSettings&&                    options,
                  ListType                          listType,
                  Labels                            labels,
                  const GroupCb&                    click,
                  Panel                            *root)
-: Base(std::move(layout),
+: Base(reinterpret_cast<Base**>(indirect),
+       std::move(layout),
        InputHandler().defaultAction(ActionType::eCLICK),
        TextString(),
        std::move(options))
@@ -944,14 +924,16 @@ Wawt::List::List(Layout&&                          layout,
     }
 }
 
-Wawt::List::List(Layout&&                          layout,
+Wawt::List::List(List                            **indirect,
+                 Layout&&                          layout,
                  FontSizeGrp                       fontSizeGrp,
                  DrawSettings&&                    options,
                  ListType                          listType,
                  unsigned int                      rows,
                  const GroupCb&                    click,
                  Panel                            *root)
-: Base(std::move(layout),
+: Base(reinterpret_cast<Base**>(indirect),
+       std::move(layout),
        InputHandler().defaultAction(ActionType::eCLICK),
        TextString(),
        std::move(options))
@@ -1019,28 +1001,6 @@ Wawt::List::operator=(List&& rhs)
         d_fontSizeGrp   = rhs.d_fontSizeGrp;
         d_rowHeight     = rhs.d_rowHeight;
         Base::operator=(std::move(rhs));
-
-        for (auto i = 0u; i < d_buttons.size(); ++i) {
-            // since callbacks capture 'this'
-            initButton(i, i == d_buttons.size()-1);
-        }
-    }
-    return *this;
-}
-
-Wawt::List&
-Wawt::List::operator=(const List& rhs)
-{
-    if (this != &rhs) {
-        d_buttons       = rhs.d_buttons;
-        d_root          = rhs.d_root;
-        d_rows          = rhs.d_rows;
-        d_startRow      = rhs.d_startRow;
-        d_buttonClick   = rhs.d_buttonClick;
-        d_type          = rhs.d_type;
-        d_fontSizeGrp   = rhs.d_fontSizeGrp;
-        d_rowHeight     = rhs.d_rowHeight;
-        Base::operator=(rhs);
 
         for (auto i = 0u; i < d_buttons.size(); ++i) {
             // since callbacks capture 'this'
@@ -1128,7 +1088,7 @@ Wawt::List::popUpDropDown()
     };
     auto   nextId  = d_root->d_widgetId;
     auto&  widgets = d_root->d_widgets;
-    Canvas canvas({d_root->d_layout.d_upperLeft,d_root->d_layout.d_lowerRight},
+    Canvas canvas({{-1.0, -1.0, 0_wr},{1.0, 1.0, 0_wr}},
                   PaintFn(),
                   {clickCb});
     canvas.d_draw.d_upperLeft  = d_root->d_draw.d_upperLeft;
@@ -1170,14 +1130,19 @@ Wawt::List::popUpDropDown()
     dropDown.d_draw.d_upperLeft.d_y = dropDown.d_draw.d_lowerRight.d_y;
     dropDown.setButtonPositions(true);
 
+    auto width  = d_root->d_draw.width();
+    auto height = d_root->d_draw.height();
     auto ul = dropDown.adapterView().d_upperLeft;
     auto lr = dropDown.adapterView().d_lowerRight;
 
-    // The parent has changed so redefine the relative positions
-    // so it lies below the visible list (for resizing).
-    int y = lr.d_y - ul.d_y;
-    dropDown.d_layout.d_upperLeft  = { kUPPER_LEFT,  d_widgetId };
-    dropDown.d_layout.d_lowerRight = { kLOWER_RIGHT, d_widgetId, 0, y };
+    // The parent has changed so redefine the relative positions.
+
+    dropDown.d_layout.d_upperLeft  = { 2.0*ul.d_x/width  - 1.0,
+                                       2.0*ul.d_y/height - 1.0,
+                                       0_wr };
+    dropDown.d_layout.d_lowerRight = { 2.0*lr.d_x/width  - 1.0,
+                                       2.0*lr.d_y/height - 1.0,
+                                       0_wr };
 
     d_root->d_widgetId = nextId;
     return;                                                           // RETURN
@@ -1351,7 +1316,7 @@ Wawt::List::setButtonPositions(bool resizeListBox)
     auto left_x  = d_draw.d_upperLeft.d_x  + d_draw.d_borderThickness;
     auto right_x = d_draw.d_lowerRight.d_x - d_draw.d_borderThickness;
 
-    auto y       = d_draw.d_upperLeft.d_y + d_draw.d_borderThickness;
+    auto y       = d_draw.d_upperLeft.d_y  + d_draw.d_borderThickness;
     auto rows    = 0u;
 
     for (auto& button : d_buttons) {
@@ -1394,6 +1359,64 @@ Wawt::List::serialize(std::ostream& os, unsigned int indent) const
     os << spaces << "</list>\n";
     return;                                                           // RETURN
 }
+
+
+                            //----------------------
+                            // class  Wawt::TextBlock
+                            //----------------------
+
+void
+Wawt::TextBlock::initTextMetricValues(Wawt::DrawDirective      *args,
+                                      Wawt::DrawAdapter        *adapter,
+                                      uint16_t                  upperLimit)
+{
+    int  width  = args->interiorWidth();
+    int  height = args->interiorHeight();
+
+    d_metrics.d_textWidth  = width  - 2;  // these are upper limits
+    d_metrics.d_textHeight = height - 2;  // 1 pixel spacing around border.
+
+    auto charSizeLimit
+        = (upperLimit > 0 && upperLimit < height) ? upperLimit+1 : height;
+
+    // Note: adapter will factor in the size of any "bullet" if needed.
+    adapter->getTextMetrics(args,
+                            &d_metrics,
+                            d_block.d_string,
+                            charSizeLimit);
+    return;                                                           // RETURN
+}
+void
+Wawt::TextBlock::setText(TextId id)
+{
+    d_needRefresh = true;
+    d_block.d_id = id;
+
+    if (id != kNOID) {
+        d_block.d_string.clear();
+    }
+}
+
+void
+Wawt::TextBlock::setText(Wawt::String_t string)
+{
+    d_needRefresh = true;
+    d_block.d_string = std::move(string);
+    d_block.d_id     = kNOID;
+}
+
+void
+Wawt::TextBlock::setText(const TextMapper& mappingFn)
+{
+    if (d_block.d_id != kNOID && mappingFn) {
+        d_block.d_string      = mappingFn(d_block.d_id);
+    }
+    d_needRefresh = false; // since refresh ALWAYS follows remap
+}
+
+                            //----------------------
+                            // class  Wawt::TextEntry
+                            //----------------------
 
                             //------------------
                             // class  Wawt::Panel
@@ -1539,6 +1562,66 @@ Wawt::Panel::serialize(std::ostream& os, unsigned int indent) const
     return;                                                           // RETURN
 }
 
+                            //-----------------------
+                            // class  Wawt::WidgetRef
+                            //-----------------------
+
+
+const Wawt::Base*
+Wawt::WidgetRef::getBasePointer(const Panel&      parent,
+                                const Panel&      root) const
+{
+    if (d_base != nullptr) {
+        assert(*d_base);
+        return *d_base;                                               // RETURN
+    }
+    const Wawt::Base *base = nullptr;
+
+    if (d_widgetId.isSet()) {
+        if (d_widgetId.isRelative()) {
+            if (d_widgetId.value() == 0) { // PARENT
+                base = &parent;
+            }
+            else if (d_widgetId.value() == UINT16_MAX-1) { // see: kROOT
+                base = &root;
+            }
+            else {
+                uint16_t offset = d_widgetId.value();
+
+                for (auto const& nextWidget : parent.widgets()) {
+                    if (--offset == 0) {
+                        base = std::visit([](const Wawt::Base& r) {
+                                             return &r;
+                                          }, nextWidget);
+                        break;                                         // BREAK
+                    }
+                }
+            }
+        }
+        else {
+            findBase(&base, root, d_widgetId);
+        }
+    }
+
+    if (!base) {
+        throw Wawt::Exception("Context of widget not found.", d_widgetId);
+    }
+    return base;                                                      // RETURN
+}
+
+Wawt::WidgetId
+Wawt::WidgetRef::getWidgetId() const
+{
+    WidgetId ret = d_widgetId;
+
+    if (!ret.isSet()) {
+        if (d_base != nullptr) {
+            ret = (*d_base)->d_widgetId;
+        }
+    }
+    return ret;                                                       // RETURN
+}
+
                                 //-----------
                                 // class  Wawt
                                 //-----------
@@ -1670,11 +1753,11 @@ Wawt::setIds(Panel::Widget *widget, Wawt::WidgetId& id)
 
 void
 Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
-                               Panel                          *root,
-                               const Panel&                    panel,
-                               const Scale&                    scale,
-                               const BorderThicknessDefaults&  border,
-                               const WidgetOptionDefaults&     option)
+                                Panel                          *root,
+                                const Panel&                    panel,
+                                const Scale&                    scale,
+                                const BorderThicknessDefaults&  border,
+                                const WidgetOptionDefaults&     option)
 {
     switch (widget->index()) {
         case kCANVAS: { // Canvas
@@ -1683,9 +1766,8 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
             auto& layout = base.d_layout;
             auto& draw   = base.d_draw;
 
-            if (layout.d_borderThickness < 0) {
-                layout.d_borderThickness = double(border.d_canvasThickness);
-            }
+            layout.d_borderThickness
+               = double(layout.d_thickness.value_or(border.d_canvasThickness));
 
             if (!draw.d_options.has_value()) {
                 draw.d_options = option.d_canvasOptions;
@@ -1704,9 +1786,9 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
             auto& layout = base.d_layout;
             auto& draw   = base.d_draw;
 
-            if (layout.d_borderThickness < 0) {
-                layout.d_borderThickness = double(border.d_textEntryThickness);
-            }
+            layout.d_borderThickness
+                = double(layout.d_thickness
+                               .value_or(border.d_textEntryThickness));
 
             if (!draw.d_options.has_value()) {
                 draw.d_options = option.d_textEntryOptions;
@@ -1725,9 +1807,8 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
             auto& layout = base.d_layout;
             auto& draw   = base.d_draw;
 
-            if (layout.d_borderThickness < 0) {
-                layout.d_borderThickness = double(border.d_labelThickness);
-            }
+            layout.d_borderThickness
+                = double(layout.d_thickness.value_or(border.d_labelThickness));
 
             if (!draw.d_options.has_value()) {
                 draw.d_options = option.d_labelOptions;
@@ -1746,9 +1827,8 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
             auto& layout = base.d_layout;
             auto& draw   = base.d_draw;
 
-            if (layout.d_borderThickness < 0) {
-                layout.d_borderThickness = double(border.d_buttonThickness);
-            }
+            layout.d_borderThickness
+               = double(layout.d_thickness.value_or(border.d_buttonThickness));
 
             if (!draw.d_options.has_value()) {
                 draw.d_options = option.d_buttonOptions;
@@ -1767,9 +1847,9 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
             auto& layout = base.d_layout;
             auto& draw   = base.d_draw;
 
-            if (layout.d_borderThickness < 0) {
-                layout.d_borderThickness =  double(border.d_buttonBarThickness);
-            }
+            layout.d_borderThickness
+                = double(layout.d_thickness
+                               .value_or(border.d_buttonBarThickness));
 
             if (!draw.d_options.has_value()) {
                 draw.d_options = option.d_buttonBarOptions;
@@ -1844,7 +1924,10 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
             auto  usePanel = (list.d_type == ListType::eCHECKLIST
                            || list.d_type == ListType::eRADIOLIST);
 
-            if (layout.d_borderThickness < 0) {
+            if (layout.d_thickness.has_value()) {
+                layout.d_borderThickness = double(layout.d_thickness.value());
+            }
+            else {
                 layout.d_borderThickness
                     = double(usePanel ? border.d_panelThickness
                                       : border.d_listThickness);
@@ -1871,9 +1954,9 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
             auto& layout = base.d_layout;
             auto& draw   = base.d_draw;
 
-            if (layout.d_borderThickness < 0) {
-                layout.d_borderThickness = double(border.d_panelThickness);
-            }
+            layout.d_borderThickness
+                = double(layout.d_thickness.value_or(border.d_panelThickness));
+
 
             if (!draw.d_options.has_value()) {
                 draw.d_options = option.d_panelOptions;
@@ -1910,6 +1993,7 @@ Wawt::scrollableList(List          list,
         throw
             Wawt::Exception("Scrollable list does not have 'root' set.");//THROW
     }
+    // Copy over only the positioning, not border or options.
     Panel container({list.d_layout.d_upperLeft, list.d_layout.d_lowerRight});
     auto  border = unsigned(std::round(list.d_layout.d_borderThickness));
 
@@ -1923,46 +2007,41 @@ Wawt::scrollableList(List          list,
     };
     auto&     listView  = list.adapterView();
     auto&     options   = listView.d_options;
-    Button    scrollUp({{},{}, border, TieScale::eUL_X},
+    Button    scrollUp({{},{},   Vertex::eUPPER_LEFT,  border},
                        {scrollUpCb},
                        {String_t(1, s_upArrow)},
                        {options});
-    Button    scrollDown({{},{}, border, TieScale::eLR_X},
-                         {scrollDownCb},
-                         {String_t(1, s_downArrow)},
-                         {options});
+    Button  scrollDown({{},{}, Vertex::eLOWER_RIGHT, border},
+                       {scrollDownCb},
+                       {String_t(1, s_downArrow)},
+                       {options});
 
     auto rowHeight  = 2.0/double(list.windowSize()); // as a scale factor
-    auto scale      = Metric(1.0 - rowHeight);
-    auto any_M      = Metric(0); // value is just a placeholder
+    auto scale      = 1.0 - rowHeight;
 
     if (buttonsOnLeft) {
-        scrollDown.d_layout.d_tie        = TieScale::eUL_X;
+        scrollDown.d_layout.d_pin        = Vertex::eLOWER_LEFT;
 
-        scrollUp.d_layout.d_upperLeft    = Position(kUPPER_LEFT);
-        scrollUp.d_layout.d_lowerRight   = Position({ any_M,-scale});
+        scrollUp.d_layout.d_upperLeft    = Position(-1.0,    -1.0);
+        scrollUp.d_layout.d_lowerRight   = Position(-scale,-scale);
 
-        scrollDown.d_layout.d_upperLeft  = Position({-1.0_M, scale});
-        scrollDown.d_layout.d_lowerRight = Position({ any_M, 1.0_M});
+        scrollDown.d_layout.d_upperLeft  = Position(-1.0,   scale);
+        scrollDown.d_layout.d_lowerRight = Position(-scale,   1.0);
 
-        list.d_layout.d_upperLeft        = Position(kUPPER_RIGHT,
-                                           {eINNER,eOUTER},
-                                           1_wr);
-        list.d_layout.d_lowerRight       = Position(kLOWER_RIGHT); // panel
+        list.d_layout.d_upperLeft        = Position(-1.0, 1.0, 1_wr);
+        list.d_layout.d_lowerRight       = Position( 1.0, 1.0);
     }
     else {
-        scrollUp.d_layout.d_tie          = TieScale::eLR_X;
+        scrollUp.d_layout.d_pin          = Vertex::eUPPER_RIGHT;
 
-        scrollUp.d_layout.d_upperLeft    = Position({ any_M, -1.0_M});
-        scrollUp.d_layout.d_lowerRight   = Position({ 1.0_M, -scale});
+        scrollUp.d_layout.d_upperLeft    = Position( scale, -1.0  );
+        scrollUp.d_layout.d_lowerRight   = Position( 1.0,   -scale);
 
-        scrollDown.d_layout.d_upperLeft  = Position({ any_M,  scale});
-        scrollDown.d_layout.d_lowerRight = Position(kLOWER_RIGHT);
+        scrollDown.d_layout.d_upperLeft  = Position( scale,  scale);
+        scrollDown.d_layout.d_lowerRight = Position( 1.0,    1.0  );
 
-        list.d_layout.d_upperLeft        = Position(kUPPER_LEFT); // panel
-        list.d_layout.d_lowerRight       = Position(kLOWER_LEFT,
-                                           {eINNER,eOUTER},
-                                           2_wr);
+        list.d_layout.d_upperLeft        = Position(-1.0, -1.0);
+        list.d_layout.d_lowerRight       = Position(-1.0,  1.0, 2_wr);
     }
     container.d_widgets.emplace_back(std::move(scrollUp));
     container.d_widgets.emplace_back(std::move(scrollDown));
@@ -1992,7 +2071,6 @@ Wawt::setScrollableListStartingRow(Wawt::List *list, unsigned int row)
 }
 
 // PUBLIC DATA MEMBERS
-const Wawt::WidgetId   Wawt::kPARENT(UINT16_MAX, true, true);
 const Wawt::WidgetId   Wawt::kROOT(UINT16_MAX-1, true, true);
 
 const std::any        Wawt::s_noOptions;
@@ -2037,15 +2115,9 @@ Wawt::draw(const Panel& panel)
 void
 Wawt::popUpModalDialogBox(Panel *root, Panel&& dialogBox)
 {
-    auto& layout = dialogBox.d_layout;
-
-    if (layout.d_upperLeft.d_x != 0 || layout.d_upperLeft.d_y != 0) {
-        throw
-            Exception("Dialog 'Panel' upper left offsets are NOT zero.");
-    }
     auto   nextId  = root->d_widgetId;
     auto&  widgets = root->d_widgets;
-    Canvas canvas({root->d_layout.d_upperLeft, root->d_layout.d_lowerRight},
+    Canvas canvas({{-1.0, -1.0, 0_wr},{1.0, 1.0, 0_wr}},
                   PaintFn(),
                   {OnClickCb()}); // transparent
     canvas.d_widgetId          = inc(nextId);
@@ -2054,14 +2126,6 @@ Wawt::popUpModalDialogBox(Panel *root, Panel&& dialogBox)
     widgets.emplace_back(canvas);
 
     Scale scale(1.0, 1.0);
-
-    if (layout.d_lowerRight.d_x > 0) {
-        scale.first = root->d_draw.width()/layout.d_lowerRight.d_x;
-    }
-
-    if (layout.d_lowerRight.d_y > 0) {
-        scale.second = root->d_draw.height()/layout.d_lowerRight.d_y;
-    }
 
     auto& dialog = widgets.emplace_back(std::move(dialogBox));
     setIds(&dialog, nextId);
@@ -2182,19 +2246,12 @@ Wawt::resizeRootPanel(Panel *root, double width, double  height)
     if (!root->d_widgetId.isSet()) {
         throw Exception("Root 'Panel' widget IDs not resolved.");      // THROW
     }
+    // The last values of 'width' and 'height' used when the layout was
+    // last interpreted (to create 'draw' coordinates) is saved in the
+    // root panel's lower right position.
 
-    if (root->d_layout.d_upperLeft.d_x != 0
-     || root->d_layout.d_upperLeft.d_y != 0) {
-        throw
-            Exception("Root 'Panel' upper left offsets are NOT zero.");// THROW
-    }
-    auto baseWidth  = root->d_layout.d_lowerRight.d_x + 1;
-    auto baseHeight = root->d_layout.d_lowerRight.d_y + 1;
-
-    if (baseWidth < 1 || baseHeight < 1) {
-        throw                                                          // THROW
-            Exception("Root 'Panel' lower right offsets are bad (not set?).");
-    }
+    auto baseWidth  = root->d_layout.d_lowerRight.d_sX;
+    auto baseHeight = root->d_layout.d_lowerRight.d_sY;
 
     if (!root->drawView().options().has_value()) {
          root->drawView().options() = d_optionDefaults.d_screenOptions;
@@ -2202,7 +2259,7 @@ Wawt::resizeRootPanel(Panel *root, double width, double  height)
     // Optimization: instead of interpreting the layout on each call, do it
     // when the new size is about 25% larger than the old size (improves
     // drag resizing performance).
-    bool interpretLayout = root->d_draw.width() == 1
+    bool interpretLayout = root->d_draw.width() == 1 // first time then...
                         || std::abs(width-baseWidth)/baseWidth    > 0.25
                         || std::abs(height-baseHeight)/baseHeight > 0.25;
 
@@ -2211,11 +2268,12 @@ Wawt::resizeRootPanel(Panel *root, double width, double  height)
         root->d_draw.d_lowerRight.d_x           = width  - 1;
         root->d_draw.d_lowerRight.d_y           = height - 1;
         root->d_draw.d_borderThickness          = 0.0;
-        root->d_layout.d_lowerRight.d_x         = width  - 1;
-        root->d_layout.d_lowerRight.d_y         = height - 1;
+        root->d_layout.d_lowerRight.d_sX        = width;
+        root->d_layout.d_lowerRight.d_sY        = height;
         root->d_layout.d_borderThickness        = 0.0;
 
-        Scale scale{ width/baseWidth, height/baseHeight };
+        Scale scale{ baseWidth  > 1 ? width/baseWidth : 1.0,
+                     baseHeight > 1 ? height/baseHeight : 1.0 };
 
         for (auto& widget : root->d_widgets) {
             setWidgetAdapterPositions(&widget,
@@ -2236,8 +2294,7 @@ Wawt::resizeRootPanel(Panel *root, double width, double  height)
         root->d_draw.d_lowerRight.d_x = width-1;
         root->d_draw.d_lowerRight.d_y = height-1;
 
-        auto borderScale = std::min(width/(root->d_layout.d_lowerRight.d_x+1),
-                                    height/(root->d_layout.d_lowerRight.d_y+1));
+        auto borderScale = std::min(width/baseWidth, height/baseHeight);
 
         for (auto& nextWidget : root->d_widgets) {
             scalePosition(&nextWidget, scale, borderScale);
@@ -2334,7 +2391,7 @@ WawtDump::draw(const Wawt::DrawDirective&  widget,
                const Wawt::String_t&       text)
 {
     auto [type, id, row] = widget.d_tracking;
-    d_dumpOs << std::boolalpha << d_indent << "<widget id=" << type
+    d_dumpOs << std::boolalpha << d_indent << "<widget id='" << type
              << "," << id;
 
     if (row >= 0) {
