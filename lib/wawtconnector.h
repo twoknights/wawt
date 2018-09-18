@@ -31,6 +31,12 @@
 namespace BDS {
 
 class WawtConnector {
+  public:
+    // PUBLIC TYPES
+    template <typename IF, typename... Args>
+    using RetType = typename std::invoke_result_t<IF, Args...>;
+
+  private:
     // PRIVATE TYPES
     struct FifoMutex {
         std::mutex                  d_lock;
@@ -44,14 +50,29 @@ class WawtConnector {
         void unlock();
     };
 
-    using ControllerCallback = std::function<void(int,const std::any&)>;
+    template <typename IF, typename... Args>
+    using IsVoid = typename std::is_void<RetType<IF,Args...>>::type;
 
     // PRIVATE CLASS MEMBERS
-    void            forwardToController(int id, const std::any& message);
-
     Wawt::FocusCb   wrap(Wawt::FocusCb&& unwrapped);
 
     Wawt::EventUpCb wrap(Wawt::EventUpCb&& unwrapped);
+
+    // PRIVATE MANIPULATORS
+    template <typename IF, typename... Args>
+    RetType<IF,Args...> callProcedure(std::false_type,
+                                      IF&&             func,
+                                      Args&&...        args) {
+        std::unique_mutex<FifoMutex> d_guard(d_lock);
+        return std::invoke(std::forward<IF>(func),
+                           std::forward<Args>(args)...);
+    }
+
+    template <typename IF, typename... Args>
+    void callProcedure(std::true_type, IF&& func, Args&&... args) {
+        std::unique_mutex<FifoMutex> d_guard(d_lock);
+        std::invoke(std::forward<IF>(func), std::forward<Args>(args)...);
+    }
 
     // PRIVATE DATA MEMBERS
     FifoMutex                 d_lock;
@@ -61,8 +82,6 @@ class WawtConnector {
     unsigned int              d_loadCount;
     int                       d_screenWidth;
     int                       d_screenHeight;
-    bool                      d_asyncController;
-    ControllerCallback        d_controller;
 
   public:
     // PUBLIC CONSTRUCTORS
@@ -83,31 +102,26 @@ class WawtConnector {
                          defaults) { }
 
     // PUBLIC MANIPULATORS
+    template <typename IF, typename... Args>
+    RetType<IF,Args...> callProcedure(IF&& func, Args&&... args) {
+        return callProcedure(IsVoid<IF,Args...>{},
+                             std::forward<IF>(func),
+                             std::forward<Args>(args...));
+    }
     Wawt::EventUpCb downEvent(int x, int y);
     
     void draw();
 
-    template<typename Func, typename... Args>
-    decltype(auto) call(Func&& func, Args&&... args) {
-        std::unique_lock<FifoMutex> guard(d_lock);
-        decltype(auto) ret{std::invoke(std::forward<Func>(func),
-                                       std::forward<Args>(args)...)};
-        return ret;
-    }
-
-    template<typename Func, typename... Args>
-    void voidCall(Func&& func, Args&&... args) {
-        std::unique_lock<FifoMutex> guard(d_lock);
-        std::invoke(std::forward<Func>(func), std::forward<Args>(args)...);
+    template <class Request>
+    void installController(const std::function<void(const Request&)>& callback,
+                           bool                      async = false) {
+        d_controller      = [callback](const std::any& request) {
+                                callback(std::any_cast<Request>(request));
+                            };
+        d_asyncController = async;
     }
 
     void resize(int width, int height);
-
-    void setControllerCallback(const ControllerCallback& callback,
-                               bool                      async = false) {
-        d_controller      = callback;
-        d_asyncController = async;
-    }
 
     template <class Screen, typename... Args>
     void setCurrentScreen(Screen                     *screen,

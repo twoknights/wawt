@@ -58,6 +58,7 @@ namespace BDS {
 class WawtScreen {
     // PRIVATE TYPES
 
+    bool                    d_modalActive = false;
   public:
     // PUBLIC TYPES
     using ControllerCallback = std::function<void(const std::any&)>;
@@ -103,11 +104,11 @@ class WawtScreen {
     // PROTECTED MANIPULATOR
 
     // PROTECTED DATA MEMBERS
-    Wawt                  *d_wawt;           ///< Holder of the WAWT adapters.
-    std::string            d_name;           ///< Identifier for the screen.
-    ControllerCallback     d_controlCb;      ///< Forward messages to control.
-    Wawt::Panel            d_screen;         ///< Root WAWT element.
-    CloseFn                d_close;          ///< Call into Impl close method.
+    Wawt                   *d_wawt;        ///< Holder of the WAWT adapters.
+    std::string             d_name;        ///< Identifier for the screen.
+    ControllerCallback      d_controlCb;   ///< Forward messages to control.
+    Wawt::Panel             d_screen;      ///< Root WAWT element.
+    CloseFn                 d_close;       ///< Call into Impl close method.
 
   public:
 
@@ -133,11 +134,14 @@ class WawtScreen {
      * than 'panel' from receiving any mouse event.
      */
     void addModalDialogBox(Wawt::Panel panel) {
-        if (!panel.drawView().options().has_value()) {
-            panel.drawView().options() = d_wawt->getWidgetOptionDefaults()
-                                               .d_screenOptions;
+        if (!d_modalActive) {
+            if (!panel.drawView().options().has_value()) {
+                panel.drawView().options() = d_wawt->getWidgetOptionDefaults()
+                                                   .d_screenOptions;
+            }
+            d_wawt->popUpModalDialogBox(&d_screen, std::move(panel));
+            d_modalActive = true;
         }
-        d_wawt->popUpModalDialogBox(&d_screen, std::move(panel));
     }
 
     /**
@@ -191,7 +195,10 @@ class WawtScreen {
      * is called).
      */
     void dropModalDialogBox() {
-        Wawt::removePopUp(&d_screen);
+        if (d_modalActive) {
+            Wawt::removePopUp(&d_screen);
+            d_modalActive = false;
+        }
     }
 
     /**
