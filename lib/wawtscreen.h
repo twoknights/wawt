@@ -58,7 +58,9 @@ namespace BDS {
 class WawtScreen {
     // PRIVATE TYPES
 
+    // PRIVATE DATA MEMBERS
     bool                    d_modalActive = false;
+
   public:
     // PUBLIC TYPES
     using ControllerCallback = std::function<void(const std::any&)>;
@@ -87,19 +89,16 @@ class WawtScreen {
     using Vertex        = Wawt::Vertex;
     using WidgetId      = Wawt::WidgetId;
 
-    using CloseFn       = std::function<void(const std::function<void()>&)>;
-
     // PROTECTED CONSTRUCTOR
     /**
      * @brief Initialize protected data members of the derived object.
      *
      * @param closeFn Call into "impl" 'closeWindow' with bound callback.
      */
-    WawtScreen(CloseFn&& closeFn)
+    WawtScreen()
         : d_wawt()
         , d_name()
-        , d_screen()
-        , d_close(std::move(closeFn)) { }
+        , d_screen() { }
 
     // PROTECTED MANIPULATOR
 
@@ -108,7 +107,6 @@ class WawtScreen {
     std::string             d_name;        ///< Identifier for the screen.
     ControllerCallback      d_controlCb;   ///< Forward messages to control.
     Wawt::Panel             d_screen;      ///< Root WAWT element.
-    CloseFn                 d_close;       ///< Call into Impl close method.
 
   public:
 
@@ -126,41 +124,29 @@ class WawtScreen {
 
     /**
      * @brief Extend the screen definition with an element which is drawn last.
+     *
+     * @param width The width of the panel where 1.0 is the screen width.
+     * @param height The height of the panel where 1.0 is the screen height.
      * @param panel Contains user interface elements to "pop-up".
      * 
-     * Note that panel should only reference the "parent" widget which is the
-     * screen in its layout directive.  Note that the screen is overlayed with
-     * a transparent widget which prevents any user interface element other
-     * than 'panel' from receiving any mouse event.
+     * The 'width' and 'height' will be used to create a centered panel with
+     * those dimensions (see: 'Wawt::Lahyout::centered'). Their values must
+     * be in the range of 0.1 and 1.0.
+     * Note that the screen is overlayed with a transparent canvas which
+     * prevents any user interface element other than the pop-up 'panel'
+     * from receiving events.
      */
-    void addModalDialogBox(Wawt::Panel panel) {
-        if (!d_modalActive) {
+    void addModalDialogBox(double width, double height, Wawt::Panel panel) {
+        if (!d_modalActive && width <= 1.0 && height <= 1.0
+                           && width >  0.1 && height >  0.1) {
             if (!panel.drawView().options().has_value()) {
                 panel.drawView().options() = d_wawt->getWidgetOptionDefaults()
                                                    .d_screenOptions;
             }
+            panel.layout() = Wawt::Layout::centered(width, height);
             d_wawt->popUpModalDialogBox(&d_screen, std::move(panel));
             d_modalActive = true;
         }
-    }
-
-    /**
-     * @brief Pass on the window close request to the application.
-     *
-     * @param completeClose Callback invoked to close the native window.
-     *
-     * This method calls the screen's 'shutdown' method if defined, otherwise
-     * it calls 'completeClose' and returns.  The shutdown method will be
-     * passed the 'completeClose' callback which it must call when it is
-     * ready to complete the close of the window. Note that if 'shutdown'
-     * creates a modal dialog box requiring user input, the 'shutdown' method
-     * should return without calling 'completeClose'.  But when user
-     * interaction is finished, the method should be callsed (the dialog box
-     * might hold a copy of the callback in the input event handler for this
-     * purpose).
-     */
-    void close(const std::function<void()>& completeClose) {
-        d_close(completeClose);
     }
 
     /**
@@ -252,12 +238,13 @@ class WawtScreen {
      * @param newHeight The new height value (optionally the current height).
      *
      * This method should also be called if the mapping of 'TextId' values
-     * to strings change (e.g. a language change).
+     * to strings change (e.g. a language change). The 'activate' method
+     * must be called before this method can be used.
      */
-    void resize(int newWidth = 0, int newHeight = 0) {
+    void resize(double newWidth = 0, double newHeight = 0) {
         d_wawt->resizeRootPanel(&d_screen,
-                                double(newWidth  ? newWidth  : width()),
-                                double(newHeight ? newHeight : height()));
+                                newWidth  ? newWidth  : width(),
+                                newHeight ? newHeight : height());
     }
 
     /**
@@ -269,38 +256,16 @@ class WawtScreen {
      * This method should be called immediately after the screen is created.
      */
     void wawtScreenSetup(Wawt             *wawt,
-                         std::string_view  name,
-                         const ControllerCallback& callback
-                                                    = ControllerCallback()) {
+                         std::string_view  name) {
         d_wawt = wawt;
         d_name.assign(name.data(), name.length());
-        d_controlCb = callback;
     }
 
     // PUBLIC ACCESSSOR
-    /**
-     * @brief Update controller with information it needs to act on.
-     *
-     * @param message An application specific message type.
-     * @returns 'true' if controller has been established, 'false' otherwise.
-     *
-     * CAUTION: this method must only be called from the event loop
-     * thread (i.e. from a widget input event handler) so that the
-     * the callback can assume no other thread is calling it.
-     * It is recommended that a 'std::variant' be the message type used by
-     * the application in order to simplify the controller implementation.
-     */
-    bool forwardToControl(const std::any& message) const {
-        if (d_controlCb) {
-            d_controlCb(message);
-            return true;
-        }
-        return false;
-    }
 
-    //! Access the screen's height (requires 'setup' to have been performed).
+    //! Access the screen's height (requires 'activate' to have been performed).
     int height() const {
-        return int(std::round(d_screen.adapterView().height()));
+        return d_screen.adapterView().height();
     }
 
     //! Access the screen's "name" (requires 'setup' to have been performed).
@@ -313,9 +278,9 @@ class WawtScreen {
         d_screen.serialize(os);
     }
 
-    //! Access the screen's width (requires 'setup' to have been performed).
-    int width() const {
-        return int(std::round(d_screen.adapterView().width()));
+    //! Access the screen's width (requires 'activate' to have been performed).
+    double width() const {
+        return d_screen.adapterView().width();
     }
 };
 
@@ -360,11 +325,11 @@ class WawtScreenImpl : public WawtScreen {
                      = std::experimental::is_detected_v<initialize_t,T>;
 
     template<class T>
-    using shutdown_t = decltype(std::declval<T>().shutdown());
+    using notify_t = decltype(std::declval<T>().notify());
 
     template<class T>
-    constexpr static bool has_shutdown
-                     = std::experimental::is_detected_v<shutdown_t,T>;
+    constexpr static bool has_notify
+                     = std::experimental::is_detected_v<notify_t,T>;
 
     // PRIVATE CLASS MEMBERS
     static Option optionCast(const std::any& option) {
@@ -375,14 +340,6 @@ class WawtScreenImpl : public WawtScreen {
     }
 
     // PRIVATE MANIPULATORS
-    void closeWindow(const std::function<void()>& completeClose) {
-        if constexpr (has_shutdown<Derived>) {
-            reinterpret_cast<Derived*>(this)->shutdown(completeClose);
-        }
-        else {
-            completeClose();
-        }
-    }
 
   public:
     // PUBLIC TYPES
@@ -415,22 +372,16 @@ class WawtScreenImpl : public WawtScreen {
     /**
      * @brief Activate a screen so its 'draw' and other methods can be called.
      *
-     * @param current The screen currently "drawn" and handling "events".
+     * @param width The screen width.
+     * @param height The screen height.
      * @param args The parameters to be passed to the 'resetWidgets' method.
-     *
-     * Note that for the first screen drawn by the application, the 'current'
-     * screen should be the 'nullptr'.  The application screen being activated
-     * will be resized to the dimensions of the 'current' screen before this
-     * method returns.
      */
     template<typename... Types>
-    void activate(const WawtScreen *current, Types&... args);
+    void activate(double width, double hieght, Types&... args);
 
     /**
      * @brief Initialize the screen's definition.
      *
-     * @param initialWidth  The screen width.
-     * @param initialHeight The screen height.
      * @param args The parameters the application needs to define the screen.
      *
      * This method calls the application's 'createScreenPanel', and (if
@@ -438,7 +389,7 @@ class WawtScreenImpl : public WawtScreen {
      * activated on return.
      */
     template<typename... Types>
-    void setup(int initialWidth, int initialHeight, Types&... args);
+    void setup(Types&... args);
 
   protected:
     // PROTECTED CONSTRUCTORS
@@ -511,24 +462,22 @@ class WawtScreenImpl : public WawtScreen {
 
 template<class Derived,class Option>
 inline
-WawtScreenImpl<Derived,Option>::WawtScreenImpl()
-: WawtScreen([this](auto completeClose) { closeWindow(completeClose); })
+WawtScreenImpl<Derived,Option>::WawtScreenImpl() : WawtScreen()
 {
 }
 
 template<class Derived,class Option>
 template<typename... Types>
 inline void
-WawtScreenImpl<Derived,Option>::activate(const WawtScreen *current,
-                                        Types&...        args)
+WawtScreenImpl<Derived,Option>::activate(double         width,
+                                         double         height,
+                                         Types&...      args)
 {
     try {
         reinterpret_cast<Derived*>(this)->resetWidgets(args...);
 
         if (current) {
-            d_wawt->resizeRootPanel(&d_screen,
-                                    double(current->width()),
-                                    double(current->height()));
+            d_wawt->resizeRootPanel(&d_screen, width, height);
         }
     }
     catch (Wawt::Exception caught) {
@@ -555,17 +504,12 @@ WawtScreenImpl<Derived,Option>::lookup(WidgetId id)
 template<class Derived,class Option>
 template<typename... Types>
 void
-WawtScreenImpl<Derived,Option>::setup(int        initialWidth,
-                                      int        initialHeight,
-                                      Types&...  args)
+WawtScreenImpl<Derived,Option>::setup(Types&...  args)
 {
-    d_screen = reinterpret_cast<Derived*>(this)->createScreenPanel(args...);
 
     try {
+        d_screen=reinterpret_cast<Derived*>(this)->createScreenPanel(args...);
         d_wawt->resolveWidgetIds(&d_screen);
-        d_wawt->resizeRootPanel(&d_screen,
-                                double(initialWidth),
-                                double(initialHeight));
     }
     catch (Wawt::Exception caught) {
         std::ostringstream os;
