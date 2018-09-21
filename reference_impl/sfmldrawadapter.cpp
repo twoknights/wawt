@@ -45,7 +45,7 @@ void drawBox(sf::RenderWindow  *window,
              float              height,
              sf::Color          lineColor,
              sf::Color          fillColor,
-             int                borderThickness) {
+             float              borderThickness) {
     sf::RectangleShape rectangle({width, height});
 
     if (lineColor.a > 0 && borderThickness > 0) {
@@ -63,7 +63,7 @@ void drawCircle(sf::RenderWindow  *window,
                 float              radius,
                 sf::Color          lineColor,
                 sf::Color          fillColor,
-                int                borderThickness) {
+                float              borderThickness) {
     sf::CircleShape circle(radius, 4+int(radius));
     circle.setOrigin(radius, radius);
 
@@ -200,15 +200,16 @@ SfmlDrawAdapter::draw(const Wawt::DrawDirective&  widget,
             textColor.a = options.d_greyedEffect;
         }
     }
+    float borderThickness = float(std::ceil(widget.d_borderThickness));
     drawBox(&d_window,
             float(widget.d_upperLeft.d_x),
             float(widget.d_upperLeft.d_y),
-            float(widget.width()+1),
-            float(widget.height()+1),
+            float(widget.width()),
+            float(widget.height()),
             lineColor,
             (widget.d_selected && widget.d_bulletType==Wawt::BulletType::eNONE)
                 ? selectColor : fillColor,
-            widget.d_borderThickness);
+            borderThickness);
 
     if (!text.empty()) {
         sf::Font&  font = getFont(options.d_fontIndex);
@@ -244,7 +245,7 @@ SfmlDrawAdapter::draw(const Wawt::DrawDirective&  widget,
             auto lineSpacing= font.getLineSpacing(widget.d_charSize);
             auto size       = float(widget.d_charSize);
             auto height     = float(widget.height()) - (lineSpacing - size);
-            auto xcenter    = float(widget.d_borderThickness + size/2.0);
+            auto xcenter    = float(borderThickness + size/2.0);
             auto ycenter    = float(height/2.0);
             auto radius     = 0.2*size;
             auto ul_x       = float(widget.d_upperLeft.d_x + xcenter - radius);

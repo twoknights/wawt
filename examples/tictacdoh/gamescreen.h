@@ -20,9 +20,9 @@
 #define BDS_TICTACDOH_GAMESCREEN_H
 
 #include "stringid.h"
-#include "drawoptions.h"
 
-#include "wawtscreen.h"
+#include <drawoptions.h>
+#include <wawtscreen.h>
 
 #include <iostream>
 
@@ -40,12 +40,14 @@ namespace BDS {
 class GameScreen : public WawtScreenImpl<GameScreen,DrawOptions> {
     
     // PRIVATE DATA MEMBERS
+    std::function<void()> d_notify;
 
   public:
     // PUBLIC TYPES
 
     // PUBLIC CONSTRUCTORS
-    GameScreen() : WawtScreenImpl() { }
+    GameScreen(std::function<void()> doSetup)
+        : WawtScreenImpl(), d_notify(doSetup) {}
 
     // PUBLIC MANIPULATORS
     // Called by 'WawtScreenImpl::setup()':

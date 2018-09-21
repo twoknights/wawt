@@ -38,12 +38,19 @@ namespace {
 void
 Controller::startup()
 {
+    auto doSetup = [this]() { setupScreen(); };
     d_setupScreen = d_router.create<SetupScreen>("Setup Screen", d_mapper);
-    d_gameScreen  = d_router.create<GameScreen>("Game Screen");
+    d_gameScreen  = d_router.create<GameScreen>("Game Screen", doSetup);
     /* ... additional screens here ...*/
 
     d_router.activate<GameScreen>(d_gameScreen);
     // Ready for events to be processed.
+}
+
+void
+Controller::setupScreen()
+{
+    d_router.activate<SetupScreen>(d_setupScreen);
 }
 
 }  // namespace BDS

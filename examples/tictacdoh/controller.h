@@ -47,6 +47,8 @@ class Controller {
 
     // PUBLIC MANIPULATORS
     void startup();
+
+    void setupScreen();
 };
 
 } // end BDS namespace

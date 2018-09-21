@@ -65,8 +65,6 @@ class Wawt {
     using StringView_t = std::basic_string_view<Char_t>; // Not used here
 
     // Identifiers:
-    using OptInt      = std::optional<int>;
-
     using WidgetId   = WawtId::Id<WawtId::IntId<uint16_t>,
                                   WawtId::IsSet,
                                   WawtId::IsRelative>;
@@ -189,6 +187,10 @@ class Wawt {
             return d_bulletType;
         }
 
+        double height() const {
+            return DrawDirective::height();
+        }
+
         bool hidden() const {
             return d_hidden;
         }
@@ -199,6 +201,10 @@ class Wawt {
 
         bool selected() const {
             return d_selected;
+        }
+
+        double width() const {
+            return DrawDirective::width();
         }
     };
 
@@ -365,14 +371,13 @@ class Wawt {
         Position            d_upperLeft{};
         Position            d_lowerRight{};
         Vertex              d_pin{Vertex::eNONE};
-        OptInt              d_thickness{};
-        double              d_borderThickness = -1.0;
+        double              d_thickness = -1.0;
 
         constexpr Layout() { }
 
         constexpr Layout(const Position&  upperLeft,
                          const Position&  lowerRight,
-                         const OptInt&    thickness = OptInt())
+                         double           thickness = -1.0)
             : d_upperLeft(upperLeft)
             , d_lowerRight(lowerRight)
             , d_thickness(thickness) { }
@@ -380,7 +385,7 @@ class Wawt {
         constexpr Layout(const Position&   upperLeft,
                          const Position&   lowerRight,
                          Vertex            pin,
-                         const OptInt&     thickness = OptInt())
+                         double            thickness = -1.0)
             : d_upperLeft(upperLeft)
             , d_lowerRight(lowerRight)
             , d_pin(pin)
@@ -388,7 +393,7 @@ class Wawt {
 
         constexpr Layout(Position&& upperLeft,
                          Position&& lowerRight,
-                         OptInt     thickness = OptInt())
+                         double     thickness = -1.0)
             : d_upperLeft(std::move(upperLeft))
             , d_lowerRight(std::move(lowerRight))
             , d_thickness(thickness) { }
@@ -396,7 +401,7 @@ class Wawt {
         constexpr Layout(Position&& upperLeft,
                          Position&& lowerRight,
                          Vertex     pin,
-                         OptInt     thickness = OptInt())
+                         double     thickness = -1.0)
             : d_upperLeft(std::move(upperLeft))
             , d_lowerRight(std::move(lowerRight))
             , d_pin(pin)
@@ -411,7 +416,7 @@ class Wawt {
         }
 
         constexpr static Layout duplicate(WidgetId id,
-                                          OptInt   thickness = OptInt()) {
+                                          double   thickness = -1.0) {
             return Layout({-1.0, -1.0, id}, {1.0, 1.0, id}, thickness);
         }
 
@@ -428,7 +433,7 @@ class Wawt {
             return std::move(*this);
         }
 
-        Layout&& border(unsigned int thickness) && {
+        Layout&& border(double thickness) && {
             d_thickness = thickness;
             return std::move(*this);
         }
@@ -843,11 +848,11 @@ class Wawt {
 
         ButtonBar(ButtonBar                       **indirect,
                   Layout&&                          layout,
-                  OptInt                            borderThickness,
+                  double                            borderThickness,
                   std::initializer_list<Button>     buttons);
 
         ButtonBar(Layout&&                          layout,
-                  OptInt                            borderThickness,
+                  double                            borderThickness,
                   std::initializer_list<Button>     buttons)
             : ButtonBar(nullptr,
                         std::move(layout),
@@ -857,11 +862,11 @@ class Wawt {
         ButtonBar(ButtonBar                       **indirect,
                   Layout&&                          layout,
                   std::initializer_list<Button>     buttons)
-            : ButtonBar(indirect, std::move(layout), OptInt(), buttons) { }
+            : ButtonBar(indirect, std::move(layout), -1.0, buttons) { }
 
         ButtonBar(Layout&&                          layout,
                   std::initializer_list<Button>     buttons)
-            : ButtonBar(nullptr, std::move(layout), OptInt(), buttons) { }
+            : ButtonBar(nullptr, std::move(layout), -1.0, buttons) { }
 
 
         EventUpCb downEvent(int x, int y);
@@ -1230,13 +1235,13 @@ class Wawt {
     };
 
     struct  BorderThicknessDefaults {
-        unsigned int d_canvasThickness    = 1u;
-        unsigned int d_textEntryThickness = 0u;
-        unsigned int d_labelThickness     = 0u;
-        unsigned int d_buttonThickness    = 2u;
-        unsigned int d_buttonBarThickness = 1u;
-        unsigned int d_listThickness      = 2u;
-        unsigned int d_panelThickness     = 0u;
+        double d_canvasThickness    = 1.0;
+        double d_textEntryThickness = 0.0;
+        double d_labelThickness     = 0.0;
+        double d_buttonThickness    = 2.0;
+        double d_buttonBarThickness = 1.0;
+        double d_listThickness      = 2.0;
+        double d_panelThickness     = 0.0;
     };
 
     struct  WidgetOptionDefaults {
@@ -1347,7 +1352,6 @@ class Wawt {
             Panel::Widget                  *widget,
             Panel                          *root,
             const Panel&                    panel,
-            const Scale&                    scale,
             const BorderThicknessDefaults&  border,
             const WidgetOptionDefaults&     option);
 

@@ -279,13 +279,10 @@ void refreshTextMetric(Wawt::DrawDirective           *args,
     return;                                                           // RETURN
 }
 
-double scaleBorder(double borderScale, double thickness) {
-    auto scaled = borderScale * thickness;
-
-    if (int(scaled) == 0 && thickness > 0.0) {
-        scaled = 1.0; // should always show a border
-    }
-    return scaled;
+double scaleBorder(const Wawt::Panel& root, double thickness) {
+    auto scalex = thickness * root.drawView().width()  / 1000.0;
+    auto scaley = thickness * root.drawView().height() / 1000.0;
+    return std::ceil(std::max(scalex, scaley));
 }
 
 Wawt::FocusCb scroll(Wawt::Panel *root, Wawt::WidgetId id, unsigned int delta)
@@ -301,13 +298,8 @@ Wawt::FocusCb scroll(Wawt::Panel *root, Wawt::WidgetId id, unsigned int delta)
 void setAdapterValues(Wawt::DrawDirective      *args,
                       Wawt::Layout             *layout,
                       const Wawt::Panel&        parent,
-                      const Wawt::Panel&        root,
-                      const Wawt::Scale&        scale) {
-    auto borderScale = std::min(scale.first, scale.second);
-
-    args->d_borderThickness
-        = layout->d_borderThickness
-        = scaleBorder(borderScale, layout->d_borderThickness);
+                      const Wawt::Panel&        root) {
+    args->d_borderThickness = scaleBorder(root, layout->d_thickness);
 
     args->d_upperLeft  = makeAbsolute(layout->d_upperLeft,  parent, root);
     args->d_lowerRight = makeAbsolute(layout->d_lowerRight, parent, root);
@@ -475,8 +467,8 @@ Wawt::Base::serialize(std::ostream&  os,
     spaces += 2;
     os << spaces << "<layout border='";
 
-    if (d_layout.d_thickness.has_value()) {
-        os << d_layout.d_thickness.value();
+    if (d_layout.d_thickness >= 0.0) {
+        os << d_layout.d_thickness;
     }
 
     if (d_layout.d_pin != Vertex::eNONE) {
@@ -523,7 +515,19 @@ Wawt::Base::serialize(std::ostream&  os,
        << "' hidden='"      << int(d_draw.d_hidden)
        << "' paint='"       << (d_draw.d_paintFn ? "set" : "unset")
        << "' bullet='"      << int(d_draw.d_bulletType)
+       << "' border='"      << d_draw.d_borderThickness
+       << "'>\n";
+    spaces += 2;
+    os << spaces
+       <<     "<ul x='" << d_draw.d_upperLeft.d_x
+       <<       "' y='" << d_draw.d_upperLeft.d_y
        << "'/>\n";
+    os << spaces
+       <<     "<lr x='" << d_draw.d_upperLeft.d_x
+       <<       "' y='" << d_draw.d_upperLeft.d_y
+       << "'/>\n";
+    spaces -= 2;
+    os << spaces << "</draw>\n";
 
     if (!container) {
         spaces -= 2;
@@ -553,7 +557,7 @@ Wawt::ButtonBar::draw(DrawAdapter *adapter) const
 
 Wawt::ButtonBar::ButtonBar(ButtonBar                       **indirect,
                            Layout&&                          layout,
-                           OptInt                            borderThickness,
+                           double                            borderThickness,
                            std::initializer_list<Button>     buttons)
 : Base(reinterpret_cast<Base**>(indirect),
        std::move(layout),
@@ -752,8 +756,7 @@ Wawt::InputHandler::contains(int x, int y, const Base *base) const
 bool
 Wawt::InputHandler::textcontains(int x, int y, const Text *text) const
 {
-    if (d_action == ActionType::eENTRY
-     || text->d_layout.d_borderThickness > 0) {
+    if (d_action == ActionType::eENTRY || text->d_layout.d_thickness > 0) {
         return contains(x, y, text);                                  // RETURN
     }
     auto& view = text->adapterView();
@@ -1199,19 +1202,19 @@ Wawt::List::initButton(unsigned int index, bool lastButton)
         };
     }
     button.d_text.fontSizeGrp()       = d_fontSizeGrp;
-    button.d_layout.d_borderThickness = 1; // for click box - do not scale
+    button.d_layout.d_thickness       = 1.0; // for click box - do not scale
     button.d_draw.d_bulletType        = BulletType::eNONE;
 
     switch (d_type) {
         case ListType::eCHECKLIST:   {
-            button.d_layout.d_borderThickness = 0;
+            button.d_layout.d_thickness       = 0.0;
             button.d_input.d_action           = ActionType::eTOGGLE;
             button.d_input.d_disabled         = false;
             button.d_text.alignment()         = Align::eLEFT;
             button.d_draw.d_bulletType        = BulletType::eCHECK;
         } break;
         case ListType::eRADIOLIST:   {
-            button.d_layout.d_borderThickness = 0;
+            button.d_layout.d_thickness       = 0.0;
             button.d_input.d_action           = ActionType::eBULLET;
             button.d_input.d_disabled         = false;
             button.d_text.alignment()         = Align::eLEFT;
@@ -1332,7 +1335,7 @@ Wawt::List::setButtonPositions(bool resizeListBox)
         button.d_draw.d_lowerRight.d_y  = y + d_rowHeight;
 
         // The List's button borders are not scaled.
-        button.d_draw.d_borderThickness = button.d_layout.d_borderThickness;
+        button.d_draw.d_borderThickness = button.d_layout.d_thickness;
 
         assert(button.adapterView().verify());
 
@@ -1695,7 +1698,6 @@ void
 Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
                                 Panel                          *root,
                                 const Panel&                    panel,
-                                const Scale&                    scale,
                                 const BorderThicknessDefaults&  border,
                                 const WidgetOptionDefaults&     option)
 {
@@ -1706,14 +1708,15 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
             auto& layout = base.d_layout;
             auto& draw   = base.d_draw;
 
-            layout.d_borderThickness
-               = double(layout.d_thickness.value_or(border.d_canvasThickness));
+            if (layout.d_thickness < 0.0) {
+                layout.d_thickness = border.d_canvasThickness;
+            }
 
             if (!draw.d_options.has_value()) {
                 draw.d_options = option.d_canvasOptions;
             }
 
-            setAdapterValues(&draw, &layout, panel, *root, scale);
+            setAdapterValues(&draw, &layout, panel, *root);
 
             if (!canvas.adapterView().verify()) {
                 throw Wawt::Exception("'Canvas' corners are inverted.",
@@ -1726,15 +1729,15 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
             auto& layout = base.d_layout;
             auto& draw   = base.d_draw;
 
-            layout.d_borderThickness
-                = double(layout.d_thickness
-                               .value_or(border.d_textEntryThickness));
+            if (layout.d_thickness < 0.0) {
+                layout.d_thickness = border.d_textEntryThickness;
+            }
 
             if (!draw.d_options.has_value()) {
                 draw.d_options = option.d_textEntryOptions;
             }
 
-            setAdapterValues(&draw, &layout, panel, *root, scale);
+            setAdapterValues(&draw, &layout, panel, *root);
 
             if (!entry.adapterView().verify()) {
                 throw Wawt::Exception("'TextEntry' corners are inverted.",
@@ -1747,14 +1750,15 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
             auto& layout = base.d_layout;
             auto& draw   = base.d_draw;
 
-            layout.d_borderThickness
-                = double(layout.d_thickness.value_or(border.d_labelThickness));
+            if (layout.d_thickness < 0.0) {
+                layout.d_thickness = border.d_labelThickness;
+            }
 
             if (!draw.d_options.has_value()) {
                 draw.d_options = option.d_labelOptions;
             }
 
-            setAdapterValues(&draw, &layout, panel, *root, scale);
+            setAdapterValues(&draw, &layout, panel, *root);
 
             if (!label.adapterView().verify()) {
                 throw Wawt::Exception("'Label' corners are inverted.",
@@ -1767,14 +1771,15 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
             auto& layout = base.d_layout;
             auto& draw   = base.d_draw;
 
-            layout.d_borderThickness
-               = double(layout.d_thickness.value_or(border.d_buttonThickness));
+            if (layout.d_thickness < 0.0) {
+                layout.d_thickness = border.d_buttonThickness;
+            }
 
             if (!draw.d_options.has_value()) {
                 draw.d_options = option.d_buttonOptions;
             }
 
-            setAdapterValues(&draw, &layout, panel, *root, scale);
+            setAdapterValues(&draw, &layout, panel, *root);
 
             if (!button.adapterView().verify()) {
                 throw Wawt::Exception("'Button' corners are inverted.",
@@ -1787,15 +1792,15 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
             auto& layout = base.d_layout;
             auto& draw   = base.d_draw;
 
-            layout.d_borderThickness
-                = double(layout.d_thickness
-                               .value_or(border.d_buttonBarThickness));
+            if (layout.d_thickness < 0.0) {
+                layout.d_thickness = border.d_buttonBarThickness;
+            }
 
             if (!draw.d_options.has_value()) {
                 draw.d_options = option.d_buttonBarOptions;
             }
 
-            setAdapterValues(&draw, &layout, panel, *root, scale);
+            setAdapterValues(&draw, &layout, panel, *root);
 
             if (!bar.adapterView().verify()) {
                 throw Wawt::Exception("'ButtonBar' corners are inverted.",
@@ -1815,15 +1820,14 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
             auto  upperLeft   = view.d_upperLeft;
             auto  lowerRight  = view.d_lowerRight;
             auto  width       = view.interiorWidth();
-            auto  borderScale = std::min(scale.first, scale.second);
 
-            auto thickness = bar.d_buttons.front().d_layout.d_borderThickness;
+            auto thickness = bar.d_buttons.front().d_layout.d_thickness;
 
-            if (thickness < 0) {
+            if (thickness < 0.0) {
                 thickness = double(border.d_buttonThickness);
             }
 
-            thickness   = scaleBorder(borderScale, thickness);
+            thickness   = scaleBorder(*root, thickness);
 
             auto  overhead    = 2.*view.d_borderThickness;
 
@@ -1848,7 +1852,7 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
                 buttonView.d_lowerRight      = lowerRight;
                 count                       -= 1;
 
-                button.d_layout.d_borderThickness = thickness;
+                button.d_layout.d_thickness  = thickness;
 
                 if (!button.d_draw.d_options.has_value()) {
                     button.d_draw.d_options = option.d_buttonOptions;
@@ -1864,11 +1868,8 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
             auto  usePanel = (list.d_type == ListType::eCHECKLIST
                            || list.d_type == ListType::eRADIOLIST);
 
-            if (layout.d_thickness.has_value()) {
-                layout.d_borderThickness = double(layout.d_thickness.value());
-            }
-            else {
-                layout.d_borderThickness
+            if (layout.d_thickness < 0.0) {
+                layout.d_thickness
                     = double(usePanel ? border.d_panelThickness
                                       : border.d_listThickness);
             }
@@ -1878,7 +1879,7 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
                                           : option.d_listOptions;
             }
 
-            setAdapterValues(&draw, &layout, panel, *root, scale);
+            setAdapterValues(&draw, &layout, panel, *root);
 
             if (!list.adapterView().verify()) {
                 throw Wawt::Exception("'List' corners are inverted.",
@@ -1894,15 +1895,15 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
             auto& layout = base.d_layout;
             auto& draw   = base.d_draw;
 
-            layout.d_borderThickness
-                = double(layout.d_thickness.value_or(border.d_panelThickness));
-
+            if (layout.d_thickness < 0.0) {
+                layout.d_thickness = border.d_panelThickness;
+            }
 
             if (!draw.d_options.has_value()) {
                 draw.d_options = option.d_panelOptions;
             }
 
-            setAdapterValues(&draw, &layout, panel, *root, scale);
+            setAdapterValues(&draw, &layout, panel, *root);
 
             if (!next.adapterView().verify()) {
                 throw Wawt::Exception("'Panel' corners are inverted.",
@@ -1913,7 +1914,6 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
                 setWidgetAdapterPositions(&nextWidget,
                                           root,
                                           next,
-                                          scale,
                                           border,
                                           option);
             }
@@ -1935,7 +1935,7 @@ Wawt::scrollableList(List          list,
     }
     // Copy over only the positioning, not border or options.
     Panel container({list.d_layout.d_upperLeft, list.d_layout.d_lowerRight});
-    auto  border = unsigned(std::round(list.d_layout.d_borderThickness));
+    auto  border = list.d_layout.d_thickness;
 
     auto      scrollUpCb   = [root=list.d_root,lines](auto btn) {
         WidgetId id(btn->d_widgetId.value()+3, true, false);
@@ -2065,8 +2065,6 @@ Wawt::popUpModalDialogBox(Panel *root, Panel&& dialogBox)
     canvas.d_draw.d_lowerRight = root->d_draw.d_lowerRight;
     widgets.emplace_back(canvas);
 
-    Scale scale(1.0, 1.0);
-
     auto& dialog = widgets.emplace_back(std::move(dialogBox));
     setIds(&dialog, nextId);
     root->d_widgetId = nextId;
@@ -2074,7 +2072,6 @@ Wawt::popUpModalDialogBox(Panel *root, Panel&& dialogBox)
     setWidgetAdapterPositions(&dialog,
                               root,
                               *root,
-                              scale,
                               d_borderDefaults,
                               d_optionDefaults);
 
@@ -2186,8 +2183,6 @@ Wawt::resizeRootPanel(Panel *root, double width, double  height)
     if (!root->d_widgetId.isSet()) {
         throw Exception("Root 'Panel' widget IDs not resolved.");      // THROW
     }
-    auto baseWidth  = root->d_layout.d_lowerRight.d_sX;
-    auto baseHeight = root->d_layout.d_lowerRight.d_sY;
 
     if (!root->drawView().options().has_value()) {
          root->drawView().options() = d_optionDefaults.d_screenOptions;
@@ -2199,16 +2194,12 @@ Wawt::resizeRootPanel(Panel *root, double width, double  height)
     root->d_draw.d_borderThickness          = 0.0;
     root->d_layout.d_lowerRight.d_sX        = width;
     root->d_layout.d_lowerRight.d_sY        = height;
-    root->d_layout.d_borderThickness        = 0.0;
-
-    Scale scale{ baseWidth  > 1 ? width/baseWidth : 1.0,
-                 baseHeight > 1 ? height/baseHeight : 1.0 };
+    root->d_layout.d_thickness              = 0.0;
 
     for (auto& widget : root->d_widgets) {
         setWidgetAdapterPositions(&widget,
                                   root,
                                   *root,
-                                  scale,
                                   d_borderDefaults,
                                   d_optionDefaults);
     }

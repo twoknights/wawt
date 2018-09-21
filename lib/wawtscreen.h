@@ -135,9 +135,6 @@ class WawtScreen {
 
     // PUBLIC CONSTANTS
 
-    //! Border thickness placeholder that defaults to the assigned default.
-    constexpr static const Wawt::OptInt kDEFAULT_BORDER{-1};
-
     //! Scale normalization adjustment constants.
     constexpr static const Wawt::Normalize kOUTER  = Wawt::Normalize::eOUTER;
     constexpr static const Wawt::Normalize kMIDDLE = Wawt::Normalize::eMIDDLE;
@@ -163,7 +160,7 @@ class WawtScreen {
     void addModalDialogBox(Wawt::Panel   panel,
                            double        width,
                            double        height,
-                           int           borderThickness = 2);
+                           double        borderThickness = 2.0);
 
     /**
      * @brief Draw the current screen user interface elements.
@@ -490,7 +487,7 @@ inline void
 WawtScreen::addModalDialogBox(Wawt::Panel   panel,
                               double        width,
                               double        height,
-                              int           borderThickness)
+                              double        borderThickness)
 {
     if (!d_modalActive && width <= 1.0 && height <= 1.0
                        && width >  0.1 && height >  0.1) {

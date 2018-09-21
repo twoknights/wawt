@@ -86,7 +86,13 @@ GameScreen::createScreenPanel()
             Button(Wawt::Layout::duplicate(1_wr,5).translate(4.0,4.0),
                    mkClick(9),
                    {S(""), Align::eCENTER})
-        }),
+        })
+        , Button({{},{-0.95,-0.95}, Vertex::eUPPER_LEFT},
+                 {[this](auto) { d_screen.serialize(std::cout);
+                                 d_notify();
+                                 return FocusCb();
+                               }, ActionType::eCLICK},
+                 {S("*")})
     });
 }
 
