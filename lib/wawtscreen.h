@@ -224,8 +224,15 @@ class WawtScreen {
     Wawt::EventUpCb downEvent(int x, int y) {
         try {
             auto cb = d_screen.downEvent(x, y);
+            if (!cb) {
+                return cb;
+            }
             refresh();
-            return cb;
+            return [this, cb](int xup, int yup, bool up) {
+                auto ret = cb(xup, yup, up);
+                refresh();
+                return ret;
+            };
         }
         catch (Wawt::Exception caught) {
             throw Wawt::Exception("Click on screen '" + d_name + "', "

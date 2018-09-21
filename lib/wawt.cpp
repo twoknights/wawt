@@ -279,16 +279,6 @@ void refreshTextMetric(Wawt::DrawDirective           *args,
     return;                                                           // RETURN
 }
 
-void scaleAdapterParameters(Wawt::DrawDirective     *args,
-                            const Wawt::Scale&       scale) {
-    auto width             = args->width();
-    auto height            = args->height();
-    args->d_upperLeft.d_x *= scale.first;
-    args->d_upperLeft.d_y *= scale.second;
-    args->d_lowerRight.d_x = args->d_upperLeft.d_x + width  * scale.first  - 1;
-    args->d_lowerRight.d_y = args->d_upperLeft.d_y + height * scale.second - 1;
-}
-
 double scaleBorder(double borderScale, double thickness) {
     auto scaled = borderScale * thickness;
 
@@ -319,11 +309,6 @@ void setAdapterValues(Wawt::DrawDirective      *args,
         = layout->d_borderThickness
         = scaleBorder(borderScale, layout->d_borderThickness);
 
-    layout->d_upperLeft.d_sX  *= scale.first;
-    layout->d_upperLeft.d_sY  *= scale.second;
-    layout->d_lowerRight.d_sX *= scale.first;
-    layout->d_lowerRight.d_sY *= scale.second;
-
     args->d_upperLeft  = makeAbsolute(layout->d_upperLeft,  parent, root);
     args->d_lowerRight = makeAbsolute(layout->d_lowerRight, parent, root);
 
@@ -333,49 +318,43 @@ void setAdapterValues(Wawt::DrawDirective      *args,
         auto& uy     = args->d_upperLeft.d_y;
         auto& lx     = args->d_lowerRight.d_x;
         auto& ly     = args->d_lowerRight.d_y;
+        auto  deltaW = square - args->width();
+        auto  deltaH = square - args->height();
         
         switch (layout->d_pin) {
           case Wawt::Vertex::eUPPER_LEFT: {
-                ly  = uy + square;
-                lx  = ux + square;
+                ly += deltaH; lx += deltaW;
             } break;
           case Wawt::Vertex::eUPPER_CENTER: {
-                ly  = uy + square;
-                ux -= square/2.0;
-                lx += square/2.0;
+                ly += deltaH; lx += deltaW/2.0;
+                              ux -= deltaW/2.0;
             } break;
           case Wawt::Vertex::eUPPER_RIGHT: {
-                ly  = uy + square;
-                ux  = lx - square;
+                ly += deltaH;
+                              ux -= deltaW;
             } break;
           case Wawt::Vertex::eCENTER_LEFT: {
-                uy -= square/2.0;
-                ly += square/2.0;
-                lx  = ux + square;
+                uy -= deltaH/2.0;
+                ly += deltaH/2.0; lx += deltaW;
             } break;
           case Wawt::Vertex::eCENTER_CENTER: {
-                uy -= square/2.0;
-                ly += square/2.0;
-                ux -= square/2.0;
-                lx += square/2.0;
+                uy -= deltaH/2.0; ux -= deltaW/2.0;
+                ly += deltaH/2.0; lx += deltaW/2.0;
             } break;
           case Wawt::Vertex::eCENTER_RIGHT: {
-                uy -= square/2.0;
-                ly += square/2.0;
-                ux  = lx - square;
+                uy -= deltaH/2.0; ux -= deltaW;
+                ly += deltaH/2.0;
             } break;
           case Wawt::Vertex::eLOWER_LEFT: {
-                uy  = ly - square;
-                lx  = ux + square;
+                uy -= deltaH;
+                              lx += deltaW;
             } break;
           case Wawt::Vertex::eLOWER_CENTER: {
-                uy  = ly - square;
-                ux -= square/2.0;
-                lx += square/2.0;
+                uy -= deltaH; ux -= deltaW/2.0;
+                              lx += deltaW/2.0;
             } break;
           case Wawt::Vertex::eLOWER_RIGHT: {
-                uy  = ly - square;
-                ux  = lx - square;
+                uy -= deltaH; ux -= deltaW;
             } break;
           default: break;
         }
@@ -1654,71 +1633,6 @@ Wawt::WidgetRef::getWidgetId() const
 
 // PRIVATE CLASS METHODS
 void
-Wawt::scalePosition(Panel::Widget *widget, const Scale& scale, double border)
-{
-    auto index = widget->index();
-    switch (index) {
-        case kCANVAS: { // Canvas
-            auto& canvas = std::get<Canvas>(*widget);
-            canvas.d_draw.d_borderThickness
-                = scaleBorder(border, canvas.d_layout.d_borderThickness);
-            scaleAdapterParameters(&canvas.d_draw, scale);
-        } break;                                                       // BREAK
-        case kTEXTENTRY: { // TextEntry
-            auto& entry = std::get<TextEntry>(*widget);
-            entry.d_draw.d_borderThickness
-                = scaleBorder(border, entry.d_layout.d_borderThickness);
-            scaleAdapterParameters(&entry.d_draw, scale);
-        } break;                                                       // BREAK
-        case kLABEL: { // Label
-            auto& label = std::get<Label>(*widget);
-            label.d_draw.d_borderThickness
-                = scaleBorder(border, label.d_layout.d_borderThickness);
-            scaleAdapterParameters(&label.d_draw, scale);
-        } break;                                                       // BREAK
-        case kBUTTON: { // Button
-            auto& btn = std::get<Button>(*widget);
-            btn.d_draw.d_borderThickness
-                = scaleBorder(border, btn.d_layout.d_borderThickness);
-            scaleAdapterParameters(&btn.d_draw, scale);
-        } break;                                                       // BREAK
-        case kBUTTONBAR: { // ButtonBar
-            auto& bar   = std::get<ButtonBar>(*widget);
-            bar.d_draw.d_borderThickness
-                = scaleBorder(border, bar.d_layout.d_borderThickness);
-            scaleAdapterParameters(&bar.d_draw, scale);
-
-            for (auto& btn : bar.d_buttons) {
-                btn.d_draw.d_borderThickness
-                    = scaleBorder(border, btn.d_layout.d_borderThickness);
-                scaleAdapterParameters(&btn.d_draw, scale);
-            }
-        } break;                                                       // BREAK
-        case kLIST: { // List
-            auto& list = std::get<List>(*widget);
-            list.d_draw.d_borderThickness
-                = scaleBorder(border, list.d_layout.d_borderThickness);
-            scaleAdapterParameters(&list.d_draw, scale);
-            list.d_rowHeight = double(list.d_draw.interiorHeight())
-                                                         / list.windowSize();
-            list.setButtonPositions(); // List buttons have no borders.
-        } break;                                                       // BREAK
-        case kPANEL: { // Panel
-            auto& panel = std::get<Wawt::Panel>(*widget);
-            panel.d_draw.d_borderThickness
-                = scaleBorder(border, panel.d_layout.d_borderThickness);
-            scaleAdapterParameters(&panel.d_draw, scale);
-
-            for (auto& nextWidget : panel.d_widgets) {
-                scalePosition(&nextWidget, scale, border);
-            }
-        } break;                                                       // BREAK
-        default: abort();
-    }
-    return;                                                           // RETURN
-}
-
-void
 Wawt::setIds(Panel::Widget *widget, Wawt::WidgetId& id)
 {
     auto index = widget->index();
@@ -2272,59 +2186,31 @@ Wawt::resizeRootPanel(Panel *root, double width, double  height)
     if (!root->d_widgetId.isSet()) {
         throw Exception("Root 'Panel' widget IDs not resolved.");      // THROW
     }
-    // The last values of 'width' and 'height' used when the layout was
-    // last interpreted (to create 'draw' coordinates) is saved in the
-    // root panel's lower right position.
-
     auto baseWidth  = root->d_layout.d_lowerRight.d_sX;
     auto baseHeight = root->d_layout.d_lowerRight.d_sY;
 
     if (!root->drawView().options().has_value()) {
          root->drawView().options() = d_optionDefaults.d_screenOptions;
     }
-    // Optimization: instead of interpreting the layout on each call, do it
-    // when the new size is about 25% larger than the old size (improves
-    // drag resizing performance).
-    bool interpretLayout = root->d_draw.width() == 1 // first time then...
-                        || std::abs(width-baseWidth)/baseWidth    > 0.25
-                        || std::abs(height-baseHeight)/baseHeight > 0.25;
 
-    if (interpretLayout) {
-        root->d_draw.d_upperLeft                = {0, 0};
-        root->d_draw.d_lowerRight.d_x           = width  - 1;
-        root->d_draw.d_lowerRight.d_y           = height - 1;
-        root->d_draw.d_borderThickness          = 0.0;
-        root->d_layout.d_lowerRight.d_sX        = width;
-        root->d_layout.d_lowerRight.d_sY        = height;
-        root->d_layout.d_borderThickness        = 0.0;
+    root->d_draw.d_upperLeft                = {0, 0};
+    root->d_draw.d_lowerRight.d_x           = width  - 1;
+    root->d_draw.d_lowerRight.d_y           = height - 1;
+    root->d_draw.d_borderThickness          = 0.0;
+    root->d_layout.d_lowerRight.d_sX        = width;
+    root->d_layout.d_lowerRight.d_sY        = height;
+    root->d_layout.d_borderThickness        = 0.0;
 
-        Scale scale{ baseWidth  > 1 ? width/baseWidth : 1.0,
-                     baseHeight > 1 ? height/baseHeight : 1.0 };
+    Scale scale{ baseWidth  > 1 ? width/baseWidth : 1.0,
+                 baseHeight > 1 ? height/baseHeight : 1.0 };
 
-        for (auto& widget : root->d_widgets) {
-            setWidgetAdapterPositions(&widget,
-                                      root,
-                                      *root,
-                                      scale,
-                                      d_borderDefaults,
-                                      d_optionDefaults);
-        }
-    }
-    auto  sizex  = root->d_draw.width();
-    auto  sizey  = root->d_draw.height();
-    Scale scale{ width/sizex, height/sizey };
-
-    bool needRescale = scale.first != 1.0 || scale.second != 1.0;
-
-    if (needRescale) {
-        root->d_draw.d_lowerRight.d_x = width-1;
-        root->d_draw.d_lowerRight.d_y = height-1;
-
-        auto borderScale = std::min(width/baseWidth, height/baseHeight);
-
-        for (auto& nextWidget : root->d_widgets) {
-            scalePosition(&nextWidget, scale, borderScale);
-        }
+    for (auto& widget : root->d_widgets) {
+        setWidgetAdapterPositions(&widget,
+                                  root,
+                                  *root,
+                                  scale,
+                                  d_borderDefaults,
+                                  d_optionDefaults);
     }
     d_fontIdToSize.clear();
     setTextAndFontValues(root);

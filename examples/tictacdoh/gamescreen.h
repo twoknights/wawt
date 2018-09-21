@@ -1,5 +1,5 @@
-/** @file controller.h
- *  @brief Implement the control logic for the game.
+/** @file gamescreen.h
+ *  @brief Game play screen for Tic-Tac-DOH!
  *
  * Copyright 2018 Bruce Szablak
  *
@@ -16,47 +16,50 @@
  * limitations under the License.
  */
 
-#ifndef BDS_TICTACDOH_CONTROLLER_H
-#define BDS_TICTACDOH_CONTROLLER_H
+#ifndef BDS_TICTACDOH_GAMESCREEN_H
+#define BDS_TICTACDOH_GAMESCREEN_H
 
-#include "setupscreen.h"
 #include "stringid.h"
+#include "drawoptions.h"
 
-#include <wawteventrouter.h>
+#include "wawtscreen.h"
+
+#include <iostream>
 
 namespace BDS {
 
                             //=================
-                            // class Controller
+                            // class GameScreen
                             //=================
 
-class Controller {
-    using Handle = WawtEventRouter::Handle;
-
-    WawtEventRouter&    d_router;
-    StringIdLookup&     d_mapper;
-    Handle              d_setupScreen;
-    Handle              d_gameScreen;
+//
+// The game screen consists of the tic-tac-toe board.  When both players
+// select the same cell, a pop-up dialog presents a selection for a
+// "rock-scissors-paper" round which continues until there is a winner.
+//
+class GameScreen : public WawtScreenImpl<GameScreen,DrawOptions> {
+    
+    // PRIVATE DATA MEMBERS
 
   public:
     // PUBLIC TYPES
 
     // PUBLIC CONSTRUCTORS
-    Controller(WawtEventRouter& router, StringIdLookup& mapper)
-        : d_router(router), d_mapper(mapper) { }
+    GameScreen() : WawtScreenImpl() { }
 
     // PUBLIC MANIPULATORS
-    void startup();
+    // Called by 'WawtScreenImpl::setup()':
+    Panel createScreenPanel();
+
+    // Called by 'WawtScreenImpl::activate()':
+    void resetWidgets();
+
+    FocusCb click(int square, Wawt::Text *button);
 };
+
 
 } // end BDS namespace
 
 #endif
 
 // vim: ts=4:sw=4:et:ai
-
-///////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2018 Bruce Szablak
-//
-///////////////////////////////////////////////////////////////////////////////

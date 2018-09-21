@@ -26,14 +26,6 @@
 
 #include <iostream>
 
-// Make string literals adaptable to different character encodings.
-// See: Wawt::Char_t and Wawt::String_t
-
-#undef  C
-//#define C(str) (str)      // ANSI strings  (std::string)
-//#define C(str) (L"" str)  // UCS-2 strings (std::wstring)
-#define C(str) (U"" str)  // UTF-32 strings (std::u32string)
-
 namespace BDS {
 
                             //==================
@@ -69,9 +61,6 @@ class SetupScreen : public WawtScreenImpl<SetupScreen,DrawOptions> {
     // PUBLIC MANIPULATORS
     // Called by 'WawtScreenImpl::setup()':
     Panel createScreenPanel();
-
-    // Called by 'WawtScreenImpl::setup()':
-    void initialize();
 
     // Called by 'WawtScreenImpl::activate()':
     void resetWidgets();

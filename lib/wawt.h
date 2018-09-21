@@ -252,7 +252,10 @@ class Wawt {
         ActionType          d_action;
         Callback            d_callback;
 
-        InputHandler(Callback   cb     = Callback(),
+        template<class OnClick = Callback,
+                 typename = std::enable_if_t<std::is_convertible_v<OnClick,
+                                                                  Callback>>>
+        InputHandler(OnClick    cb     = Callback(),
                      ActionType action = ActionType::eINVALID)
             : d_disabled(action == ActionType::eINVALID)
             , d_action(action)
@@ -410,6 +413,11 @@ class Wawt {
         constexpr static Layout duplicate(WidgetId id,
                                           OptInt   thickness = OptInt()) {
             return Layout({-1.0, -1.0, id}, {1.0, 1.0, id}, thickness);
+        }
+
+        constexpr Layout&& pin(Vertex vertex) && {
+            d_pin = vertex;
+            return std::move(*this);
         }
 
         constexpr Layout&& translate(double x, double y) && {
@@ -1250,10 +1258,6 @@ class Wawt {
     static const std::any  s_noOptions;
 
     // PUBLIC CLASS MEMBERS
-    static void    scalePosition(Panel::Widget  *widget,
-                                 const Scale&    scale,
-                                 double          borderScale);
-
     static Panel   scrollableList(List          list,
                                   bool          buttonsOnLeft = true,
                                   unsigned int  scrollLines   = 1);

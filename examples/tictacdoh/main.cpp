@@ -92,7 +92,7 @@ int main()
     try {
         controller.startup();
         SfmlEventLoop::run(window, router, [](auto) { return true; },
-                            50ms, WIDTH/2, HEIGHT/2);
+                           5ms, WIDTH/4, HEIGHT/4);
     }
     catch (Wawt::Exception& e) {
         std::cout << e.what() << std::endl;

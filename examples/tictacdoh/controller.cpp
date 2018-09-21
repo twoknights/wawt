@@ -19,6 +19,7 @@
 
 #include "controller.h"
 
+#include "gamescreen.h"
 #include "setupscreen.h"
 
 #include <chrono>
@@ -38,9 +39,10 @@ void
 Controller::startup()
 {
     d_setupScreen = d_router.create<SetupScreen>("Setup Screen", d_mapper);
+    d_gameScreen  = d_router.create<GameScreen>("Game Screen");
     /* ... additional screens here ...*/
 
-    d_router.activate<SetupScreen>(d_setupScreen);
+    d_router.activate<GameScreen>(d_gameScreen);
     // Ready for events to be processed.
 }
 

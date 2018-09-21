@@ -137,11 +137,6 @@ SetupScreen::createScreenPanel()
 }
 
 void
-SetupScreen::initialize()
-{
-}
-
-void
 SetupScreen::resetWidgets()
 {
     d_connectEntry->setEnablement(Enablement::eOFF);
