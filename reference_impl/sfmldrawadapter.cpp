@@ -26,12 +26,6 @@
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Graphics/Rect.hpp>
 #include <SFML/Graphics/Text.hpp>
-#include <SFML/System/Utf.hpp>
-#include <SFML/Window/ContextSettings.hpp>
-#include <SFML/Window/Event.hpp>
-#include <SFML/Window/Mouse.hpp>
-#include <SFML/Window/VideoMode.hpp>
-#include <SFML/Window/WindowStyle.hpp>
 
 #include <cmath>
 #include <chrono>
@@ -328,110 +322,6 @@ SfmlDrawAdapter::getTextMetrics(Wawt::DrawDirective   *parameters,
     }
     metrics->d_textWidth  = bounds.width;
     metrics->d_textHeight = bounds.height;
-    return;                                                           // RETURN
-}
-
-                                //-----------------
-                                // class SfmlWindow
-                                //-----------------
-
-void
-SfmlWindow::eventLoop(sf::RenderWindow&                 window,
-                      WawtConnector&                    connector,
-                      const std::chrono::milliseconds&  pollInterval,
-                      int                               minWidth,
-                      int                               minHeight)
-{
-    Wawt::FocusCb   onKey;
-    Wawt::EventUpCb mouseUp;
-
-    while (window.isOpen()) {
-        sf::Event event;
-
-        if (window.pollEvent(event)) {
-            try {
-                if (event.type == sf::Event::Closed) {
-                    connector.shutdownRequested([&window]() {
-                                                    window.close();
-                                                });
-                }
-                else if (event.type == sf::Event::Resized) {
-                    float width  = static_cast<float>(event.size.width); 
-                    float height = static_cast<float>(event.size.height); 
-
-                    if (width < minWidth) {
-                        width = float(minWidth);
-                    }
-
-                    if (height < minHeight) {
-                        height = float(minHeight);
-                    }
-
-                    sf::View view(sf::FloatRect(0, 0, width, height));
-                    connector.resize(width, height);
-
-                    window.clear();
-                    window.setView(view);
-                    connector.draw();
-                    window.display();
-                }
-                else if (event.type == sf::Event::MouseButtonPressed
-                      && event.mouseButton.button == sf::Mouse::Button::Left) {
-                    mouseUp = connector.downEvent(event.mouseButton.x,
-                                                   event.mouseButton.y);
-                    window.clear();
-                    connector.draw();
-                    window.display();
-                }
-                else if (event.type == sf::Event::MouseButtonReleased
-                      && event.mouseButton.button == sf::Mouse::Button::Left) {
-
-                    if (mouseUp) {
-
-                        if (onKey) {
-                            onKey(Wawt::Char_t(0)); // erase cursor
-                        }
-                        onKey = mouseUp(event.mouseButton.x,
-                                        event.mouseButton.y,
-                                        true);
-
-                        if (onKey) {
-                            onKey(Wawt::Char_t(0)); // show cursor
-                        }
-                    }
-                    window.clear();
-                    connector.draw();
-                    window.display();
-                }
-                else if (event.type == sf::Event::TextEntered) {
-                    window.clear();
-
-                    if (onKey) {
-                        auto key = static_cast<Wawt::Char_t>(event.text
-                                                                  .unicode);
-
-                        if (key) {
-                            if (onKey(key)) { // focus lost?
-                                onKey = Wawt::FocusCb();
-                            }
-                        }
-                    }
-                    connector.draw();
-                    window.display();
-                }
-            }
-            catch (Wawt::Exception& ex) {
-                std::cerr << ex.what() << std::endl;
-                window.close();
-            }
-        }
-        else {
-            std::this_thread::sleep_for(pollInterval); // FIX THIS
-            window.clear();
-            connector.draw();
-            window.display();
-        }
-    }
     return;                                                           // RETURN
 }
 

@@ -1291,6 +1291,10 @@ class Wawt {
         return d_optionDefaults;
     }
 
+    const BorderThicknessDefaults& getBorderDefaults() const {
+        return d_borderDefaults;
+    }
+
     const std::any& defaultScreenOptions()            const {
         return d_optionDefaults.d_screenOptions;
     }

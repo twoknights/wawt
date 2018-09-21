@@ -19,12 +19,14 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "controller.h"
-#include "drawoptions.h"
-#include "sfmldrawadapter.h"
-#include "wawtconnector.h"
-
 #include "stringid.h"
 #include "setupscreen.h"
+
+#include <wawteventrouter.h>
+
+#include <drawoptions.h>
+#include <sfmldrawadapter.h>
+#include <sfmleventloop.h>
 
 #include <fontconfig/fontconfig.h>
 
@@ -81,20 +83,16 @@ int main()
                             sf::ContextSettings());
 
     StringIdLookup   idMapper;
-    SetupScreen      setup(idMapper);
     SfmlDrawAdapter  drawAdapter(window, path, arial);
 
-    WawtConnector    connector(&drawAdapter,
-                               idMapper,
-                               WIDTH,
-                               HEIGHT,
-                               DrawOptions::defaults());
+    WawtEventRouter  router(&drawAdapter, idMapper, DrawOptions::defaults());
 
-    Controller       controller(connector);
+    Controller       controller(router, idMapper);
 
     try {
-        controller.installScreens(&setup);
-        SfmlWindow::eventLoop(window, connector, 50ms, WIDTH/2, HEIGHT/2);
+        controller.startup();
+        SfmlEventLoop::run(window, router, [](auto) { return true; },
+                            50ms, WIDTH/2, HEIGHT/2);
     }
     catch (Wawt::Exception& e) {
         std::cout << e.what() << std::endl;

@@ -35,22 +35,13 @@ namespace {
                             //-----------------
 
 void
-Controller::installScreens(SetupScreen *setup)
+Controller::startup()
 {
-    d_connector.setControllerCallback([this](int id, const std::any& request) {
-        processScreenRequest(id, request);
-    }, true);
+    d_setupScreen = d_router.create<SetupScreen>("Setup Screen", d_mapper);
+    /* ... additional screens here ...*/
 
-    d_setupScreen = setup;
-    d_connector.setupScreen(setup, "Setup Screen", eSETUPSCREEN);
-    d_connector.setCurrentScreen(setup); // no optional arguments
-}
-
-void
-Controller::processScreenRequest(int, const std::any&)
-{
-    std::this_thread::sleep_for(std::chrono::milliseconds(5000)); // FIX THIS
-    d_connector.voidCall(&SetupScreen::dropModalDialogBox, d_setupScreen);
+    d_router.activate<SetupScreen>(d_setupScreen);
+    // Ready for events to be processed.
 }
 
 }  // namespace BDS

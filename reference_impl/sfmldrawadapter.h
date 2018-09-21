@@ -23,9 +23,6 @@
 #include <SFML/Graphics/RenderWindow.hpp>
 
 #include "wawt.h"
-#include "wawtconnector.h"
-
-#include <chrono>
 
 namespace BDS {
 
@@ -70,19 +67,6 @@ class SfmlDrawAdapter : public Wawt::DrawAdapter {
     sf::Font                 d_otherFont;
     bool                     d_defaultOk;
     bool                     d_otherOk;
-};
-
-                                //=================
-                                // class SfmlWindow
-                                //=================
-
-
-struct SfmlWindow {
-    static void eventLoop(sf::RenderWindow&                 window,
-                          WawtConnector&                    wawtManager,
-                          const std::chrono::milliseconds&  pollInterval,
-                          int                               minWidth,
-                          int                               minHeight);
 };
 
 } // end BDS namespace

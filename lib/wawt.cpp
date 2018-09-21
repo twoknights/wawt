@@ -68,17 +68,39 @@ std::ostream& operator<<(std::ostream& os, const Wawt::WidgetId id) {
 }
 
 inline
-void outputString(std::ostream& os, const Wawt::String_t& text) {
+void outputXMLString(std::ostream& os, const Wawt::String_t& text) {
     // NOTE: std::codecvt is deprecated. So, to avoid compiler warnings,
-    // and until this is sorted out, assume fixed size 8-bit encoding is
-    // kept in the char type. For anticipated use (i.e. test drivers), this
-    // is expected to be good enough.
+    // and until this is sorted out, lets roll our own.
+    // For anticipated use (i.e. test drivers), this is expected to be
+    // good enough.
     for (auto c : text) {
-        const char *p = reinterpret_cast<const char*>(&c);
-        for (auto i=0u; i < sizeof(c); ++i, ++p) {
-            if (*p) {
-                os.put(static_cast<char>(*p));
+        unsigned char ch = static_cast<char>(c);
+
+        if (static_cast<decltype(c)>(ch) == c) {
+            if (ch == '"') {
+                os << "&quot;";
             }
+            else if (ch == '\'') {
+                os << "&apos;";
+            }
+            else if (ch == '<') {
+                os << "&lt;";
+            }
+            else if (ch == '>') {
+                os << "&gt;";
+            }
+            else if (ch == '&') {
+                os << "&amp;";
+            }
+            else if (ch > 127) {
+                os << "&#" << unsigned(ch) << ';';
+            }
+            else {
+                os.put(ch);
+            }
+        }
+        else {
+            os << "&#" << unsigned(c) << ';'; // hope endianess doesn't matter
         }
     }
 }
@@ -466,7 +488,7 @@ Wawt::Base::serialize(std::ostream&  os,
     os << spaces << "<" << widgetName << " id='" << d_widgetId;
 
     if (d_widgetLabel) {
-        os << "' label='" << *d_widgetLabel;
+        os << "' label='" << (*d_widgetLabel == this ? "this" : "?");
     }
     os << "'>\n";
 
@@ -485,24 +507,24 @@ Wawt::Base::serialize(std::ostream&  os,
     os << spaces
        <<     "<ul sx='" << d_layout.d_upperLeft.d_sX
        <<       "' sy='" << d_layout.d_upperLeft.d_sY
-       <<   "' widget="  << d_layout.d_upperLeft.d_widgetRef.getWidgetId()
-       <<    " norm_x='" << int(d_layout.d_upperLeft.d_normalizeX)
+       <<   "' widget='" << d_layout.d_upperLeft.d_widgetRef.getWidgetId()
+       <<   "' norm_x='" << int(d_layout.d_upperLeft.d_normalizeX)
        <<   "' norm_y='" << int(d_layout.d_upperLeft.d_normalizeX)
-       << "'>\n";
+       << "'/>\n";
     os << spaces
        <<     "<lr sx='" << d_layout.d_lowerRight.d_sX
        <<       "' sy='" << d_layout.d_lowerRight.d_sY
-       <<   "' widget="  << d_layout.d_lowerRight.d_widgetRef.getWidgetId()
-       <<    " norm_x='" << int(d_layout.d_lowerRight.d_normalizeX)
+       <<   "' widget='" << d_layout.d_lowerRight.d_widgetRef.getWidgetId()
+       <<   "' norm_x='" << int(d_layout.d_lowerRight.d_normalizeX)
        <<   "' norm_y='" << int(d_layout.d_lowerRight.d_normalizeX)
-       << "'>\n";
+       << "'/>\n";
     spaces -= 2;
     os << spaces << "</layout>\n";
 
     os << spaces
        << "<input action='" << int(d_input.d_action)
        << "' disabled='"    << int(d_input.d_disabled)
-       << "' variant='"     << d_input.d_callback.index() << "'>\n";
+       << "' variant='"     << d_input.d_callback.index() << "'/>\n";
 
     os << spaces
        << "<text textId='"  << int(d_text.d_block.d_id)
@@ -513,7 +535,7 @@ Wawt::Base::serialize(std::ostream&  os,
         os << d_text.d_block.d_fontSizeGrp.value();
     }
     os << "' string='";
-    outputString(os, d_text.d_block.d_string);
+    outputXMLString(os, d_text.d_block.d_string);
     os << "'/>\n";
 
     os << spaces
@@ -2430,7 +2452,7 @@ WawtDump::draw(const Wawt::DrawDirective&  widget,
         d_dumpOs  << d_indent
                   << "<string charSize='" << widget.d_charSize
                   << "'>";
-        outputString(d_dumpOs, text);
+        outputXMLString(d_dumpOs, text);
         d_dumpOs  << "</string>\n";
         d_indent -= 2;
         d_dumpOs  << d_indent

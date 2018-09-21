@@ -56,14 +56,14 @@ SetupScreen::createScreenPanel()
     };
 
     auto listenPopUp =
-        Panel(Layout::centered(0.33, 0.33).border(2), defaultScreenOptions(),
+        Panel({}, defaultScreenOptions(),
         {
             Label(Layout::slice(false, 0.1, 0.3),
                   {S("Waiting for opponent."), Align::eCENTER})
         });
 
-    auto listenTo  = [this,listenPopUp](auto) { addModalDialogBox(listenPopUp);
-        forwardToControl(std::string("foo"));
+    auto listenTo  = [this,listenPopUp](auto) {
+        addModalDialogBox(listenPopUp, 0.33, 0.33, 2);
         return true;
     };
     auto connectTo = Wawt::EnterFn();

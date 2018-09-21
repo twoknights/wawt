@@ -20,7 +20,9 @@
 #define BDS_TICTACDOH_CONTROLLER_H
 
 #include "setupscreen.h"
-#include "wawtconnector.h"
+#include "stringid.h"
+
+#include <wawteventrouter.h>
 
 namespace BDS {
 
@@ -29,22 +31,21 @@ namespace BDS {
                             //=================
 
 class Controller {
-    WawtConnector&      d_connector;
-    SetupScreen        *d_setupScreen;
+    using Handle = WawtEventRouter::Handle;
+
+    WawtEventRouter&    d_router;
+    StringIdLookup&     d_mapper;
+    Handle              d_setupScreen;
 
   public:
     // PUBLIC TYPES
-    enum ScreenId {
-        eSETUPSCREEN
-    };
 
     // PUBLIC CONSTRUCTORS
-    Controller(WawtConnector& connector) : d_connector(connector) { }
+    Controller(WawtEventRouter& router, StringIdLookup& mapper)
+        : d_router(router), d_mapper(mapper) { }
 
     // PUBLIC MANIPULATORS
-    void installScreens(SetupScreen *setup);
-
-    void processScreenRequest(int id, const std::any& request);
+    void startup();
 };
 
 } // end BDS namespace

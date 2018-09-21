@@ -92,8 +92,6 @@ class WawtScreen {
     // PROTECTED CONSTRUCTOR
     /**
      * @brief Initialize protected data members of the derived object.
-     *
-     * @param closeFn Call into "impl" 'closeWindow' with bound callback.
      */
     WawtScreen()
         : d_wawt()
@@ -125,9 +123,10 @@ class WawtScreen {
     /**
      * @brief Extend the screen definition with an element which is drawn last.
      *
+     * @param panel Contains user interface elements to "pop-up".
      * @param width The width of the panel where 1.0 is the screen width.
      * @param height The height of the panel where 1.0 is the screen height.
-     * @param panel Contains user interface elements to "pop-up".
+     * @param borderThickness The panels border thickness, defaulting to 2.
      * 
      * The 'width' and 'height' will be used to create a centered panel with
      * those dimensions (see: 'Wawt::Lahyout::centered'). Their values must
@@ -136,18 +135,10 @@ class WawtScreen {
      * prevents any user interface element other than the pop-up 'panel'
      * from receiving events.
      */
-    void addModalDialogBox(double width, double height, Wawt::Panel panel) {
-        if (!d_modalActive && width <= 1.0 && height <= 1.0
-                           && width >  0.1 && height >  0.1) {
-            if (!panel.drawView().options().has_value()) {
-                panel.drawView().options() = d_wawt->getWidgetOptionDefaults()
-                                                   .d_screenOptions;
-            }
-            panel.layout() = Wawt::Layout::centered(width, height);
-            d_wawt->popUpModalDialogBox(&d_screen, std::move(panel));
-            d_modalActive = true;
-        }
-    }
+    void addModalDialogBox(Wawt::Panel   panel,
+                           double        width,
+                           double        height,
+                           int           borderThickness = 2);
 
     /**
      * @brief Draw the current screen user interface elements.
@@ -377,7 +368,7 @@ class WawtScreenImpl : public WawtScreen {
      * @param args The parameters to be passed to the 'resetWidgets' method.
      */
     template<typename... Types>
-    void activate(double width, double hieght, Types&... args);
+    void activate(double width, double height, Types&... args);
 
     /**
      * @brief Initialize the screen's definition.
@@ -460,6 +451,25 @@ class WawtScreenImpl : public WawtScreen {
     // PROTECTED DATA MEMBERS
 };
 
+inline void
+WawtScreen::addModalDialogBox(Wawt::Panel   panel,
+                              double        width,
+                              double        height,
+                              int           borderThickness)
+{
+    if (!d_modalActive && width <= 1.0 && height <= 1.0
+                       && width >  0.1 && height >  0.1) {
+        if (!panel.drawView().options().has_value()) {
+            panel.drawView().options() = d_wawt->getWidgetOptionDefaults()
+                                               .d_screenOptions;
+        }
+        panel.layoutView()
+            = Wawt::Layout::centered(width, height).border(borderThickness);
+        d_wawt->popUpModalDialogBox(&d_screen, std::move(panel));
+        d_modalActive = true;
+    }
+}
+
 template<class Derived,class Option>
 inline
 WawtScreenImpl<Derived,Option>::WawtScreenImpl() : WawtScreen()
@@ -474,11 +484,8 @@ WawtScreenImpl<Derived,Option>::activate(double         width,
                                          Types&...      args)
 {
     try {
-        reinterpret_cast<Derived*>(this)->resetWidgets(args...);
-
-        if (current) {
-            d_wawt->resizeRootPanel(&d_screen, width, height);
-        }
+        static_cast<Derived*>(this)->resetWidgets(args...);
+        d_wawt->resizeRootPanel(&d_screen, width, height);
     }
     catch (Wawt::Exception caught) {
             std::ostringstream os;

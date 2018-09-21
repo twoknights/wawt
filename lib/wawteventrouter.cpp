@@ -43,6 +43,16 @@ WawtEventRouter::FifoMutex::lock()
     d_signal.wait(guard, [this, myTicket] { return myTicket==d_nowServing; });
 }
 
+bool
+WawtEventRouter::FifoMutex::try_lock()
+{
+    if (d_lock.try_lock()) {
+        d_nextTicket++; // since unlock will increase now serving count
+        return true;
+    }
+    return false;
+}
+
 void
 WawtEventRouter::FifoMutex::unlock()
 {
@@ -60,14 +70,15 @@ Wawt::FocusCb
 WawtEventRouter::wrap(Wawt::FocusCb&& unwrapped)
 {
     return  [me      = this,
-             count   = d_activations,
+             current = d_current,
              cb      = std::move(unwrapped)](Wawt::Char_t key) {
                 std::unique_lock<FifoMutex> guard(me->d_lock);
+                bool ret = false;
 
-                if (count == me->d_activations) {
-                    return cb(key);
+                if (current == me->d_current) {
+                    ret = cb(key);
                 }
-                return false;
+                return ret;
              };                                                       // RETURN
 }
 
@@ -75,42 +86,28 @@ Wawt::EventUpCb
 WawtEventRouter::wrap(Wawt::EventUpCb&& unwrapped)
 {
     return  [me      = this,
-             count   = d_activations,
+             current = d_current,
              cb      = std::move(unwrapped)](int x, int y, bool up) {
                 std::unique_lock<FifoMutex> guard(me->d_lock);
                 Wawt::FocusCb focusCb;
 
-                if (count == me->d_activations) {
-                    focusCb = cb(x, y, up);
+                assert(current == me->d_current);
+                focusCb = cb(x, y, up);
 
-                    if (focusCb) {
-                        focusCb = me->wrap(std::move(focusCb));
-                    }
+                if (focusCb) {
+                    focusCb = me->wrap(std::move(focusCb));
                 }
+                me->d_downEventActive = false;
                 return focusCb;
              };                                                       // RETURN
 }
 
 // PRIVATE METHODS
-void
-WawtEventRouter::doDeferred() // d_lock assumed to be held
-{
-    std::lock_guard<std::mutex> guard(d_defer);
-    if (d_activateFn) {
-        d_activateFn();
-        d_activateFn = std::function<void()>();
-    }
-    return;                                                           // RETURN
-}
-
 WawtEventRouter::Handle // d_lock assumed to be held
-WawtEventRouter::install(std::unique_ptr<WawtScreen>&&  screen,
-                         std::string_view               name,
-                         std::size_t                    hashCode)
+WawtEventRouter::install(WawtScreen *screen, std::size_t hashCode)
 {
     Handle handle{d_installed.size(), hashCode};
-    d_installed.emplace_back(std::move(screen));
-    d_installed.back()->wawtScreenSetup(&d_wawt, name);
+    d_installed.emplace_back(std::unique_ptr<WawtScreen>(screen));
     return handle;                                                    // RETURN
 }
 
@@ -121,23 +118,26 @@ WawtEventRouter::WawtEventRouter(Wawt::DrawAdapter                 *adapter,
 : d_wawt(textMapper, adapter)
 {
     d_wawt.setWidgetOptionDefaults(defaults);
-    d_showAlert = false;
+    d_deferredFn = nullptr;
+    d_alert      = nullptr;
+    d_lastTick   = std::chrono::steady_clock::now();
 }
 
 Wawt::EventUpCb
 WawtEventRouter::downEvent(int x, int y)
 {
     std::unique_lock<FifoMutex> guard(d_lock);
+
     Wawt::EventUpCb eventUp;
 
     if (d_current) {
         eventUp = d_current->downEvent(x, y);
 
         if (eventUp) {
+            d_downEventActive = true;
             eventUp = wrap(std::move(eventUp));
         }
     }
-    doDeferred();
     return eventUp;                                                   // RETURN
 }
     
@@ -145,14 +145,26 @@ void
 WawtEventRouter::draw()
 {
     std::unique_lock<FifoMutex> guard(d_lock);
+    // Screen changes do not happen between a 'downEvent' and a 'EventUpCb'.
+
+    if (!d_downEventActive) {
+        auto deferredActivate_p
+            = std::unique_ptr<DeferFn>(d_deferredFn.exchange(nullptr));
+
+        if (deferredActivate_p) {
+            (*deferredActivate_p)();
+        }
+    }
+
     if (d_current) {
         d_current->draw();
     }
 
-    if (d_showAlert.load()) {
-        d_wawt.draw(d_alert);
+    auto alert_p = d_alert.load();
+
+    if (alert_p) {
+        d_wawt.draw(*alert_p);
     }
-    doDeferred();
     return;                                                           // RETURN
 }
 
@@ -160,32 +172,42 @@ void
 WawtEventRouter::resize(double width, double height)
 {
     std::unique_lock<FifoMutex> guard(d_lock);
+
     d_currentWidth  = width;
     d_currentHeight = height;
 
     if (d_current) {
         d_current->resize(width, height);
     }
-    doDeferred();
     return;                                                           // RETURN
 }
 
 void
-WawtEventRouter::showAlert(double width, double height, Wawt::Panel panel)
+WawtEventRouter::showAlert(Wawt::Panel      panel,
+                           double           width,
+                           double           height,
+                           int              borderThickness)
 {
-    std::unique_lock<FifoMutex> guard(d_lock);
-
     if (width <= 1.0 && height <= 1.0 && width >  0.1 && height >  0.1) {
         if (!panel.drawView().options().has_value()) {
-            panel.drawView().options() = d_wawt->getWidgetOptionDefaults()
+            panel.drawView().options() = d_wawt.getWidgetOptionDefaults()
                                                .d_screenOptions;
         }
-        panel.layout()  = Wawt::Layout::centered(width, height);
-        d_alert         = std::move(panel);
-        d_showAlert     = true;
+        panel.layoutView()
+            = Wawt::Layout::centered(width, height).border(borderThickness);
+        auto ptr = std::make_unique<Wawt::Panel>(std::move(panel));
+        delete d_alert.exchange(ptr.release());
     }
-    doDeferred();
     return;                                                           // RETURN
+}
+
+bool
+WawtEventRouter::tick(std::chrono::milliseconds minimumTickInterval)
+{
+    auto time = d_lastTick + minimumTickInterval;
+    std::this_thread::sleep_until(time);
+    d_lastTick = std::chrono::steady_clock::now();
+    return false;                                                     // RETURN
 }
 
 }  // namespace BDS
