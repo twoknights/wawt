@@ -22,6 +22,7 @@
 #include "wawt.h"
 
 #include <any>
+#include <chrono>
 #include <experimental/type_traits>
 #include <sstream>
 #include <string>
@@ -56,14 +57,16 @@ namespace BDS {
  * Finally, this class is NOT thread-safe, and has no exception guarantee.
  */
 class WawtScreen {
+  public:
+    // PUBLIC TYPES
+    using SetTimerCb = std::function<void(std::chrono::milliseconds,
+                                          std::function<void()>&&)>;
+  private:
     // PRIVATE TYPES
 
     // PRIVATE DATA MEMBERS
     bool                    d_modalActive = false;
-
-  public:
-    // PUBLIC TYPES
-    using ControllerCallback = std::function<void(const std::any&)>;
+    SetTimerCb              d_setTimer{};
 
   protected:
     // PROTECTED TYPES
@@ -93,17 +96,39 @@ class WawtScreen {
     /**
      * @brief Initialize protected data members of the derived object.
      */
-    WawtScreen()
-        : d_wawt()
-        , d_name()
-        , d_screen() { }
+    WawtScreen() : d_wawt(), d_name(), d_screen() { }
 
     // PROTECTED MANIPULATOR
+
+    //! Cancel any pending timed event.
+    void cancelTimedEvent() {
+        setTimedEvent(std::chrono::milliseconds{},
+                      std::function<void()>());
+    }
+
+    /**
+     * @brief Invoke a callback after approximate time interval has elapsed
+     *
+     * @param interval The elapsed time in milliseconds.
+     * @param callback Function called after the time elapses.
+     *
+     * @return 'true' if the "timer" can be set, otherwise 'false'.
+     *
+     * Note that only one outstanding timed callback can be in effect at
+     * any point in time.
+     */
+    bool setTimedEvent(std::chrono::milliseconds interval,
+                       std::function<void()>     callback) {
+        if (d_setTimer) {
+            d_setTimer(interval, std::move(callback));
+            return true;
+        }
+        return false;
+    }
 
     // PROTECTED DATA MEMBERS
     Wawt                   *d_wawt;        ///< Holder of the WAWT adapters.
     std::string             d_name;        ///< Identifier for the screen.
-    ControllerCallback      d_controlCb;   ///< Forward messages to control.
     Wawt::Panel             d_screen;      ///< Root WAWT element.
 
   public:
@@ -237,18 +262,21 @@ class WawtScreen {
                                 newWidth  ? newWidth  : width(),
                                 newHeight ? newHeight : height());
     }
-
+                
     /**
      * @brief Complete initialization of this object.
      *
      * @param wawt Pointer to the shared toolkit instance.
      * @param name Name to add to intercepted exceptions before rethrowing.
+     * @param setTimer Callback to establish/cancel a timed event.
      *
      * This method should be called immediately after the screen is created.
      */
-    void wawtScreenSetup(Wawt             *wawt,
-                         std::string_view  name) {
-        d_wawt = wawt;
+    void wawtScreenSetup(Wawt              *wawt,
+                         std::string_view   name,
+                         const SetTimerCb&  setTimer) {
+        d_wawt      = wawt;
+        d_setTimer  = setTimer;
         d_name.assign(name.data(), name.length());
     }
 

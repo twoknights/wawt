@@ -116,11 +116,16 @@ WawtEventRouter::WawtEventRouter(Wawt::DrawAdapter                 *adapter,
                                  const Wawt::TextMapper&            textMapper,
                                  const Wawt::WidgetOptionDefaults&  defaults)
 : d_wawt(textMapper, adapter)
+, d_setTimedEvent(  [this](std::chrono::milliseconds interval,
+                           std::function<void()>&&   callback) {
+                        d_timedCallback  = std::move(callback);
+                        d_nextTimedEvent = std::chrono::steady_clock::now()
+                                                + interval;
+                    })
 {
     d_wawt.setWidgetOptionDefaults(defaults);
     d_deferredFn = nullptr;
     d_alert      = nullptr;
-    d_lastTick   = std::chrono::steady_clock::now();
 }
 
 Wawt::EventUpCb
@@ -204,10 +209,30 @@ WawtEventRouter::showAlert(Wawt::Panel      panel,
 bool
 WawtEventRouter::tick(std::chrono::milliseconds minimumTickInterval)
 {
-    auto time = d_lastTick + minimumTickInterval;
-    std::this_thread::sleep_until(time);
+    d_lock.lock();
+    auto calledEvent = false;
+    auto earliest    = d_lastTick + minimumTickInterval;
+
+    while (d_timedCallback && d_nextTimedEvent < earliest) {
+        auto when = d_nextTimedEvent;
+        auto now  = std::chrono::steady_clock::now();
+
+        if (now < when) {
+            d_lock.unlock();
+            std::this_thread::sleep_until(when); // careful, event could change
+            d_lock.lock();
+        }
+        else {
+            auto callback = d_timedCallback;
+            d_timedCallback = std::function<void()>();
+            callback(); // permitted to set a new timed event.
+            calledEvent = true;
+        }
+    }
+    d_lock.unlock();
+    std::this_thread::sleep_until(earliest);
     d_lastTick = std::chrono::steady_clock::now();
-    return false;                                                     // RETURN
+    return calledEvent;                                               // RETURN
 }
 
 }  // namespace BDS

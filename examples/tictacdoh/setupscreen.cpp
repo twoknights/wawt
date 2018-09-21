@@ -19,7 +19,10 @@
 
 #include "setupscreen.h"
 
+#include <chrono>
 #include <string>
+
+using namespace std::literals::chrono_literals;
 
 // String literals must have the appropriate prefix.
 // See: Wawt::Char_t and Wawt::String_t
@@ -27,11 +30,11 @@
 #undef  S
 #undef  C
 //#define S(str) Wawt::String_t(str)      // ANSI strings  (std::string)
+//#define C(c) (c)
 //#define S(str) Wawt::String_t(L"" str)  // UCS-2 strings (std::wstring)
+//#define C(c) (L ## c)
 #define S(str) Wawt::String_t(U"" str)  // UTF-32 strings (std::u32string)
-//#define C(str) (str)
-//#define C(str) (L"" str)
-#define C(str) (U"" str)
+#define C(c) (U ## c)
 
 namespace BDS {
 
@@ -64,6 +67,7 @@ SetupScreen::createScreenPanel()
 
     auto listenTo  = [this,listenPopUp](auto) {
         addModalDialogBox(listenPopUp, 0.33, 0.33, 2);
+        setTimedEvent(5000ms, [this]() { dropModalDialogBox(); });
         return true;
     };
     auto connectTo = Wawt::EnterFn();
@@ -128,7 +132,7 @@ SetupScreen::createScreenPanel()
                      {[this](auto) { d_screen.serialize(std::cout);
                                      return FocusCb();
                                    }, ActionType::eCLICK},
-                     {C("*")})
+                     {S("*")})
         });                                                           // RETURN
 }
 

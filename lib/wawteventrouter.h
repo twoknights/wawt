@@ -69,6 +69,7 @@ class WawtEventRouter {
     };
     using ScreenVec  = std::vector<std::unique_ptr<WawtScreen>>;
     using DeferFn    = std::function<void()>;
+    using SetTimerFn = WawtScreen::SetTimerCb;
 
     template <class Screen, typename MemF, typename... Args>
     using IsVoid = typename std::is_void<Ret<Screen,MemF,Args...>>::type;
@@ -119,14 +120,17 @@ class WawtEventRouter {
     FifoMutex                 d_lock{};
     std::mutex                d_defer{};
     ScreenVec                 d_installed{};
+    std::function<void()>     d_timedCallback{};
+    Time                      d_lastTick{};
+    Time                      d_nextTimedEvent{};
     WawtScreen               *d_current         = nullptr;
     double                    d_currentWidth    = 1280.0;
     double                    d_currentHeight   =  720.0;
     bool                      d_downEventActive = false;
-    Time                      d_lastTick;
     std::atomic<DeferFn*>     d_deferredFn;
     std::atomic<Wawt::Panel*> d_alert;
     Wawt                      d_wawt;
+    SetTimerFn                d_setTimedEvent;
 
   public:
     // PUBLIC CONSTRUCTORS
@@ -189,7 +193,7 @@ WawtEventRouter::create(std::string_view name, Args&&... args)
                   "'Screen' must be derived from WawtScreenImpl");
     auto ptr  = std::make_unique<Screen>(std::forward<Args>(args)...);
     auto hash = typeid(*ptr).hash_code();
-    ptr->wawtScreenSetup(&d_wawt, name);
+    ptr->wawtScreenSetup(&d_wawt, name, d_setTimedEvent);
     ptr->setup();
 
     return install(static_cast<WawtScreen*>(ptr.release()), hash);

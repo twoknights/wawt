@@ -1185,6 +1185,8 @@ class Wawt {
 
     class  DrawAdapter {
       public:
+        virtual ~DrawAdapter() { }
+
         virtual void  draw(const Wawt::DrawDirective&  parameters,
                            const String_t&             text)               = 0;
 

@@ -158,6 +158,7 @@ bool handleChar(Wawt::Base           *base,
                 uint16_t              maxChars,
                 Wawt::Char_t          pressed)
 {
+    // Return 'true' if "focus" is lost; 'false' if it is retained.
     auto text = base->textView().getText();
     bool hasCursor = !text.empty() && text.back() == Wawt::s_cursor;
 
@@ -757,7 +758,7 @@ Wawt::InputHandler::callSelectFn(Text *text)
                     return handleChar(text, enterFn, maxChars, c);
                 };                                                    // RETURN
     }
-    return Wawt::FocusCb();                                            // RETURN
+    return Wawt::FocusCb();                                           // RETURN
 }
 
 bool
@@ -766,7 +767,7 @@ Wawt::InputHandler::contains(int x, int y, const Base *base) const
     return x >= base->d_draw.d_upperLeft.d_x
         && x <= base->d_draw.d_lowerRight.d_x
         && y >= base->d_draw.d_upperLeft.d_y
-        && y <= base->d_draw.d_lowerRight.d_y;                         // RETURN
+        && y <= base->d_draw.d_lowerRight.d_y;                        // RETURN
 }
 
 bool
