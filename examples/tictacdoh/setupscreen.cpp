@@ -27,17 +27,6 @@ using namespace std::literals::chrono_literals;
 // String literals must have the appropriate prefix.
 // See: Wawt::Char_t and Wawt::String_t
 
-#undef  S
-#undef  C
-//#define S(str) Wawt::String_t(str)      // ANSI strings  (std::string)
-//#define C(c) (c)
-//#define S(str) Wawt::String_t(L"" str)  // UCS-2 strings (std::wstring)
-//#define C(c) (L ## c)
-#define S(str) Wawt::String_t(U"" str)  // UTF-32 strings (std::u32string)
-#define C(c) (U ## c)
-
-namespace BDS {
-
 namespace {
 
 } // unnamed namespace
@@ -58,24 +47,10 @@ SetupScreen::createScreenPanel()
         return Wawt::FocusCb(); // no text entry block gets the focus
     };
 
-    auto listenPopUp =
-        Panel({}, defaultScreenOptions(),
-        {
-            Label(Layout::slice(false, 0.1, 0.3),
-                  {S("Waiting for opponent."), Align::eCENTER})
-        });
-
-    auto listenTo  = [this,listenPopUp](auto) {
-        addModalDialogBox(listenPopUp, 0.33, 0.33, 2);
-        setTimedEvent(5000ms, [this]() { dropModalDialogBox(); });
-        return true;
-    };
-    auto connectTo = Wawt::EnterFn();
-
     Panel::Widgets selectLanguage = // 2 widgets
         {
             Label(Layout::slice(false, 0.25, 0.45),
-                  {StringId::eSelectLanguage, Align::eCENTER}),
+                  {StringId::eSelectLanguage}),
             List({{-0.8, 1., 1_wr},{0.8, 5., 1_wr}},
                  1_F,
                  Wawt::ListType::eSELECTLIST,
@@ -95,23 +70,24 @@ SetupScreen::createScreenPanel()
         {
             Label(Layout::slice(false, 0.0, 0.22),
                   {StringId::eWaitForConnection, 2_F, Align::eLEFT}),
-            TextEntry({{-1.0,1.1, 1_wr},{-0.5,3., 1_wr}},
+            TextEntry(&d_listenEntry,
+                     {{-1.0,1.1, 1_wr},{-0.5,3., 1_wr}},
                       5,
-                      listenTo,
+                      connectCallback(true),
                       {StringId::eNone, 3_F, Align::eLEFT}),
             Label(Layout::slice(false, -0.45, -0.23),
                   {StringId::eConnectToOpponent, 2_F, Align::eLEFT}),
             TextEntry(&d_connectEntry,
                       Layout::slice(false, -0.22, 0.0),
                       40,
-                      connectTo,
+                      connectCallback(false),
                       {StringId::eNone, 3_F, Align::eLEFT})
         };
 
     return Panel({},
         {
 /* 1 */     Label(Layout::slice(false, 0.1, 0.2),
-                  {StringId::eGameSettings, Align::eCENTER}),
+                  {StringId::eGameSettings}),
 /* 5 */     Panel(Layout::slice(true, 0.0, 0.5),
             {
 /* 4(2,3) */    Panel(Layout::centered(0.5, 0.75).translate(0.,-.25),
@@ -119,7 +95,8 @@ SetupScreen::createScreenPanel()
             }),
             Panel(Layout::slice(true, 0.5, 0.95),
             {
-/* 6 */         List(Layout::slice(false, 0.25, 0.40),
+/* 6 */         List(&d_playerMark,
+                     Layout::slice(false, 0.25, 0.40),
                      2_F,
                      Wawt::ListType::eRADIOLIST,
                      {
@@ -139,9 +116,82 @@ SetupScreen::createScreenPanel()
 void
 SetupScreen::resetWidgets()
 {
-    d_connectEntry->setEnablement(Enablement::eOFF);
+    d_listenEntry->textView().setText(S(""));
+    d_connectEntry->textView().setText(S(""));
 }
 
-}  // namespace BDS
+Wawt::EnterFn
+SetupScreen::connectCallback(bool listen)
+{
+    return [this, listen](auto textString) {
+        auto status = listen ? d_controller->listen(*textString)
+                             : d_controller->connect(*textString);
+        auto id = addModalDialogBox(
+            Panel({}, defaultScreenOptions(),
+            {
+                Label(Layout::slice(false, 0.1, 0.3), {S("")}),
+                ButtonBar(Layout::slice(false, -0.3, -0.1),
+                          {
+                            {{S("Cancel")}, [this](auto) { return FocusCb(); }}
+                          })
+            }));
+        lookup<Label>(id++).textView().setText(status.second);
+        auto& btn = lookup<ButtonBar>(id).button(0);
+        Wawt::SelectFn onClick;
+
+        if (status.first) {
+            onClick =   [this](auto) {
+                            d_controller->cancel();
+                            return FocusCb();
+                        };
+        }
+        else {
+            onClick =   [this](auto) {
+                            dropModalDialogBox();
+                            // return focus to listen text entry widget:
+                            return listen ? d_listenEntry->getFocusCb()
+                                          : d_connectEntry->getFocusCb();
+                        };
+        }
+        btn.inputView().callback() = onClick;
+        resize();
+        return true;
+    };
+}
+
+void
+SetupScreen::connectionResult(bool             success,
+                              Wawt::String_t   message,
+                              sf::TcpSocket*)
+{
+    Wawt::SelectFn  onClick;
+    Wawt::String_t  buttonLabel;
+    auto selectedRows = d_playerMark->selectedRows();
+    assert(selectedRows.size() == 1);
+    auto marker = selectedRows.front() == 0 ? C('X') : C('O');
+
+    if (success) {
+        onClick =   [this,marker](auto) {
+                        d_controller->showGameScreen(marker);
+                        return FocusCb();
+                    };
+        buttonLabel = S("Play");
+    }
+    else {
+        onClick =   [this](auto) {
+                        dropModalDialogBox();
+                        return FocusCb();
+                    };
+        buttonLabel = S("Done");
+    }
+    addModalDialogBox(Panel({}, defaultScreenOptions(),
+                      {
+                          Label(Layout::slice(false, 0.1, 0.3), {message}),
+                          ButtonBar(Layout::slice(false, -0.3, -0.1),
+                                    {
+                                      {{buttonLabel}, onClick}
+                                    })
+                      }));
+}
 
 // vim: ts=4:sw=4:et:ai

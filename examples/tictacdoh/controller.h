@@ -16,27 +16,34 @@
  * limitations under the License.
  */
 
-#ifndef BDS_TICTACDOH_CONTROLLER_H
-#define BDS_TICTACDOH_CONTROLLER_H
+#ifndef TICTACDOH_CONTROLLER_H
+#define TICTACDOH_CONTROLLER_H
 
-#include "setupscreen.h"
 #include "stringid.h"
+#include "gamescreen.h"
+#include "setupscreen.h"
 
-#include <wawteventrouter.h>
+#include <SFML/Network/TcpListener.hpp>
+#include <SFML/Network/TcpSocket.hpp>
 
-namespace BDS {
+#include <atomic>
+#include <regex>
 
                             //=================
                             // class Controller
                             //=================
 
-class Controller {
+class Controller : public SetupScreen::Calls {
     using Handle = WawtEventRouter::Handle;
 
     WawtEventRouter&    d_router;
     StringIdLookup&     d_mapper;
     Handle              d_setupScreen;
     Handle              d_gameScreen;
+    sf::TcpListener     d_listener{};
+    sf::TcpSocket       d_connection{};
+    std::regex          d_addressRegex{R"(^([^:]+):(\d+)$)"}; // split on ':'
+    std::atomic_bool    d_cancel;
 
   public:
     // PUBLIC TYPES
@@ -45,20 +52,23 @@ class Controller {
     Controller(WawtEventRouter& router, StringIdLookup& mapper)
         : d_router(router), d_mapper(mapper) { }
 
+    // SetupScreen::Calls Interface:
+    StatusPair listen(const Wawt::String_t& port)           override;
+
+    StatusPair connect(const Wawt::String_t& connectString) override;
+
+    void       cancel()                                     override;
+
+    void       showGameScreen(Wawt::Char_t marker)          override;
+
     // PUBLIC MANIPULATORS
+    void accept();
+
+    void asyncConnect(sf::IpAddress address, int port);
+
     void startup();
-
-    void setupScreen();
 };
-
-} // end BDS namespace
 
 #endif
 
 // vim: ts=4:sw=4:et:ai
-
-///////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2018 Bruce Szablak
-//
-///////////////////////////////////////////////////////////////////////////////

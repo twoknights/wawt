@@ -22,7 +22,8 @@
 #include <SFML/Graphics/Font.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
 
-#include "wawt.h"
+#include <wawt.h>
+#include <string>
 
 namespace BDS {
 
@@ -35,6 +36,8 @@ class SfmlDrawAdapter : public Wawt::DrawAdapter {
     sf::Font& getFont(uint8_t index);
 
   public:
+    // PUBLIC CLASS MEMBERS
+    static std::string toAnsiString(const Wawt::String_t& string);
 
     // PUBLIC CREATORS
     SfmlDrawAdapter(sf::RenderWindow&   window,

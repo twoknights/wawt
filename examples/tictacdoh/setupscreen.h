@@ -16,17 +16,15 @@
  * limitations under the License.
  */
 
-#ifndef BDS_TICTACDOH_SETUPSCREEN_H
-#define BDS_TICTACDOH_SETUPSCREEN_H
+#ifndef TICTACDOH_SETUPSCREEN_H
+#define TICTACDOH_SETUPSCREEN_H
 
 #include "stringid.h"
-#include "drawoptions.h"
 
-#include "wawtscreen.h"
+#include <SFML/Network/TcpSocket.hpp>
 
+#include <atomic>
 #include <iostream>
-
-namespace BDS {
 
                             //==================
                             // class SetupScreen
@@ -45,17 +43,27 @@ namespace BDS {
 // the screen was created.
 //
 class SetupScreen : public WawtScreenImpl<SetupScreen,DrawOptions> {
-    
-    // PRIVATE DATA MEMBERS
-    TextEntry              *d_connectEntry      = nullptr;
-    StringIdLookup&         d_mapper;
-
   public:
     // PUBLIC TYPES
 
+    struct Calls {
+        using StatusPair = std::pair<bool, Wawt::String_t>;
+
+        virtual ~Calls() { }
+
+        virtual StatusPair connect(const Wawt::String_t& connectString) = 0;
+
+        virtual void       cancel()                                     = 0;
+
+        virtual StatusPair listen(const Wawt::String_t& port)           = 0;
+
+        virtual void       showGameScreen(Wawt::Char_t marker)          = 0;
+    };
+
     // PUBLIC CONSTRUCTORS
-    SetupScreen(StringIdLookup& mapper)
+    SetupScreen(Calls *controller, StringIdLookup& mapper)
         : WawtScreenImpl()
+        , d_controller(controller)
         , d_mapper(mapper) { }
 
     // PUBLIC MANIPULATORS
@@ -64,10 +72,21 @@ class SetupScreen : public WawtScreenImpl<SetupScreen,DrawOptions> {
 
     // Called by 'WawtScreenImpl::activate()':
     void resetWidgets();
+
+    Wawt::EnterFn connectCallback(bool listen);
+
+    void connectionResult(bool             success,
+                          Wawt::String_t   status,
+                          sf::TcpSocket   *socket); // NO optional arguments
+
+  private:  
+    // PRIVATE DATA MEMBERS
+    TextEntry              *d_connectEntry;
+    TextEntry              *d_listenEntry;
+    List                   *d_playerMark;
+    Calls                  *d_controller;
+    StringIdLookup&         d_mapper;
 };
-
-
-} // end BDS namespace
 
 #endif
 

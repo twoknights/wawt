@@ -24,20 +24,6 @@
 
 using namespace std::literals::chrono_literals;
 
-// String literals must have the appropriate prefix.
-// See: Wawt::Char_t and Wawt::String_t
-
-#undef  S
-#undef  C
-//#define S(str) Wawt::String_t(str)      // ANSI strings  (std::string)
-//#define C(c) (c)
-//#define S(str) Wawt::String_t(L"" str)  // UCS-2 strings (std::wstring)
-//#define C(c) (L ## c)
-#define S(str) Wawt::String_t(U"" str)  // UTF-32 strings (std::u32string)
-#define C(c) (U ## c)
-
-namespace BDS {
-
 namespace {
 
 } // unnamed namespace
@@ -109,7 +95,5 @@ GameScreen::click(int square, Wawt::Text *button)
     button->textView().setText(Wawt::String_t(1, ch));
     return FocusCb();
 }
-
-}  // namespace BDS
 
 // vim: ts=4:sw=4:et:ai

@@ -18,6 +18,7 @@ target_link_libraries(tictacdoh   wawtsfml${LIBSUFFIX}
                                   wawt${LIBSUFFIX}
                                   sfml-graphics
                                   sfml-window
+                                  sfml-network
                                   sfml-system
                                   fontconfig
                                   cryptopp)

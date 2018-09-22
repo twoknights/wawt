@@ -76,6 +76,7 @@ void drawCircle(sf::RenderWindow  *window,
     window->draw(circle);
 }
 
+inline
 sf::String toString(const Wawt::String_t& string) {
     if constexpr(std::is_same_v<Wawt::String_t, std::u32string>) {
         return sf::String(reinterpret_cast<const sf::Uint32*>(string.data()));
@@ -107,6 +108,14 @@ SfmlDrawAdapter::getFont(uint8_t index)
     return d_otherFont;
 }
 
+// PUBLIC CLASS MEMBERS
+std::string
+SfmlDrawAdapter::toAnsiString(const Wawt::String_t& string)
+{
+    return toString(string).toAnsiString();
+}
+
+// PUBLIC CONSTRUCTORS
 SfmlDrawAdapter::SfmlDrawAdapter(sf::RenderWindow&   window,
                                  const std::string&  defaultFontPath,
                                  bool                noArrow,

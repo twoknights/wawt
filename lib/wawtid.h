@@ -60,10 +60,9 @@ class WawtId {
 
     template<typename IntType>
     class IntId {
-      protected:
+      public:
         IntType d_id;
 
-      public:
         using value_type = IntType;
 
         constexpr IntId() : d_id() { }
@@ -113,6 +112,7 @@ class WawtId {
 
     template<typename IdType, typename... Mixins>
     class Id : public Mixins... { // parameter pack
+      protected:
         IdType d_id;
       public:
         constexpr Id() : Mixins()..., d_id() { }

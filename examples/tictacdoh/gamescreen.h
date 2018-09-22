@@ -16,17 +16,12 @@
  * limitations under the License.
  */
 
-#ifndef BDS_TICTACDOH_GAMESCREEN_H
-#define BDS_TICTACDOH_GAMESCREEN_H
+#ifndef TICTACDOH_GAMESCREEN_H
+#define TICTACDOH_GAMESCREEN_H
 
 #include "stringid.h"
 
-#include <drawoptions.h>
-#include <wawtscreen.h>
-
 #include <iostream>
-
-namespace BDS {
 
                             //=================
                             // class GameScreen
@@ -58,9 +53,6 @@ class GameScreen : public WawtScreenImpl<GameScreen,DrawOptions> {
 
     FocusCb click(int square, Wawt::Text *button);
 };
-
-
-} // end BDS namespace
 
 #endif
 

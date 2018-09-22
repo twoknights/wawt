@@ -30,8 +30,6 @@
 //#define C(str) (L"" str)  // UCS-2 strings (std::wstring)
 #define C(str) (U"" str)  // UTF-32 strings (std::u32string)
 
-namespace BDS {
-
 namespace {
 
 Wawt::String_t english(StringId id) {
@@ -188,7 +186,5 @@ StringIdLookup::currentLanguage(Language newCurrent) {
     unsigned int newValue = static_cast<unsigned int>(newCurrent);
     return static_cast<Language>(d_currentLanguage.exchange(newValue));
 }
-
-}  // namespace BDS
 
 // vim: ts=4:sw=4:et:ai

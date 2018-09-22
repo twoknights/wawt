@@ -18,13 +18,9 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "controller.h"
 #include "stringid.h"
-#include "setupscreen.h"
+#include "controller.h"
 
-#include <wawteventrouter.h>
-
-#include <drawoptions.h>
 #include <sfmldrawadapter.h>
 #include <sfmleventloop.h>
 
@@ -60,8 +56,6 @@ std::string fontPath(const char *name)
 
 constexpr int WIDTH  = 1280;
 constexpr int HEIGHT = 720;
-
-using namespace BDS;
 
 int main()
 {

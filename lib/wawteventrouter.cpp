@@ -170,6 +170,7 @@ WawtEventRouter::draw()
     if (alert_p) {
         d_wawt.draw(*alert_p);
     }
+    d_drawRequested = false;
     return;                                                           // RETURN
 }
 
@@ -210,8 +211,9 @@ bool
 WawtEventRouter::tick(std::chrono::milliseconds minimumTickInterval)
 {
     d_lock.lock();
-    auto calledEvent = false;
     auto earliest    = d_lastTick + minimumTickInterval;
+    auto calledEvent = d_drawRequested;
+    d_drawRequested  = false;
 
     while (d_timedCallback && d_nextTimedEvent < earliest) {
         auto when = d_nextTimedEvent;

@@ -16,14 +16,29 @@
  * limitations under the License.
  */
 
-#ifndef BDS_TICTACDOH_STRINGID_H
-#define BDS_TICTACDOH_STRINGID_H
+#ifndef TICTACDOH_STRINGID_H
+#define TICTACDOH_STRINGID_H
 
-#include "wawt.h"
+#include <wawt.h>
+#include <wawtscreen.h>
+#include <wawteventrouter.h>
+
+#include <drawoptions.h>
+#include <sfmldrawadapter.h>
 
 #include <atomic>
 
-namespace BDS {
+#undef  S
+#undef  C
+//#define S(str) Wawt::String_t(str)      // ANSI strings  (std::string)
+//#define C(c) (c)
+//#define S(str) Wawt::String_t(L"" str)  // UCS-2 strings (std::wstring)
+//#define C(c) (L ## c)
+#define S(str) Wawt::String_t(U"" str)  // UTF-32 strings (std::u32string)
+#define C(c) (U ## c)
+
+
+using namespace BDS;
 
 // Note: StringId should be implicitly castable to 'uint16_t'
 enum StringId {
@@ -76,8 +91,6 @@ class StringIdLookup {
         return static_cast<Language>(d_currentLanguage.load());
     }
 };
-
-} // end BDS namespace
 
 #endif
 

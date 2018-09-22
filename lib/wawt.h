@@ -65,16 +65,22 @@ class Wawt {
     using StringView_t = std::basic_string_view<Char_t>; // Not used here
 
     // Identifiers:
-    using WidgetId   = WawtId::Id<WawtId::IntId<uint16_t>,
-                                  WawtId::IsSet,
-                                  WawtId::IsRelative>;
+    struct WidgetId : WawtId::Id<WawtId::IntId<uint16_t>,
+                                 WawtId::IsSet,
+                                 WawtId::IsRelative> {
+        constexpr WidgetId()              = default;
 
-    static WidgetId inc(WidgetId& id) {
-        assert(id.isSet());
-        assert(!id.isRelative());
-        auto next = WidgetId(id.value()+1, true, false);
-        return std::exchange(id, std::move(next));
-    }
+        constexpr WidgetId(uint16_t value, bool isSet, bool isRelative)
+            : WawtId::Id<WawtId::IntId<uint16_t>,
+                         WawtId::IsSet,
+                         WawtId::IsRelative>(value, isSet, isRelative) { }
+
+        constexpr WidgetId operator++(int) { // post increment
+            auto post = WidgetId(*this);
+            d_id.d_id += 1;
+            return post;
+        }
+    };
 
     using Scale       = std::pair<double, double>;
 
@@ -280,6 +286,14 @@ class Wawt {
                 d_action   = type;
                 d_disabled = d_action == ActionType::eINVALID;
             }
+        }
+
+        Callback& callback() {
+            return d_callback;
+        }
+
+        ActionType& action() {
+            return d_action;
         }
 
         FocusCb callSelectFn(Text* text);
@@ -762,6 +776,10 @@ class Wawt {
                                 ActionType::eENTRY),
                    std::move(text).defaultAlignment(Align::eLEFT),
                    std::move(options)) { }
+
+        FocusCb getFocusCb() {
+            return d_input.callSelectFn(this);
+        }
     };
 
                                 //============
@@ -820,7 +838,7 @@ class Wawt {
             : Text(reinterpret_cast<Base**>(indirect),
                    std::move(layout),
                    std::move(onClick).defaultAction(ActionType::eCLICK),
-                   std::move(text),
+                   std::move(text).defaultAlignment(Align::eCENTER),
                    std::move(options)) { }
 
         Button(Layout&&                  layout,
@@ -830,7 +848,7 @@ class Wawt {
             : Text(nullptr,
                    std::move(layout),
                    std::move(onClick).defaultAction(ActionType::eCLICK),
-                   std::move(text),
+                   std::move(text).defaultAlignment(Align::eCENTER),
                    std::move(options)) { }
     };
 
@@ -868,6 +886,9 @@ class Wawt {
                   std::initializer_list<Button>     buttons)
             : ButtonBar(nullptr, std::move(layout), -1.0, buttons) { }
 
+        Button&  button(uint16_t index) {
+            return d_buttons.at(index);
+        }
 
         EventUpCb downEvent(int x, int y);
 
@@ -1032,6 +1053,8 @@ class Wawt {
         const std::vector<Button>& rows() const {
             return d_buttons;
         }
+
+        std::vector<uint16_t> selectedRows();
 
         void serialize(std::ostream& os, unsigned int indent = 0) const;
 
@@ -1279,15 +1302,15 @@ class Wawt {
     explicit Wawt(DrawAdapter *adapter) : Wawt(TextMapper(), adapter) { }
 
     // PUBLIC MANIPULATORS
-    void  draw(const Panel& panel);
+    void     draw(const Panel& panel);
 
-    void  popUpModalDialogBox(Panel *root, Panel&& dialogBox);
+    WidgetId popUpModalDialogBox(Panel *root, Panel&& dialogBox);
 
-    void  refreshTextMetrics(Panel *panel);
+    void     refreshTextMetrics(Panel *panel);
 
-    void  resizeRootPanel(Panel   *root, double  width, double  height);
+    void     resizeRootPanel(Panel   *root, double  width, double  height);
 
-    void  resolveWidgetIds(Panel *root);
+    void     resolveWidgetIds(Panel *root);
 
     void setBorderThicknessDefaults(const BorderThicknessDefaults& defaults) {
         d_borderDefaults = defaults;

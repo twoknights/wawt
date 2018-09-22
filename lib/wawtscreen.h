@@ -149,18 +149,22 @@ class WawtScreen {
      * @param width The width of the panel where 1.0 is the screen width.
      * @param height The height of the panel where 1.0 is the screen height.
      * @param borderThickness The panels border thickness, defaulting to 2.
+     *
+     * @return The widget ID of the first widget in 'panel' on success.
      * 
      * The 'width' and 'height' will be used to create a centered panel with
      * those dimensions (see: 'Wawt::Lahyout::centered'). Their values must
      * be in the range of 0.1 and 1.0.
+     * If a modal pop-up is already active, then this method has no effect,
+     * and the returned widget ID is unset.
      * Note that the screen is overlayed with a transparent canvas which
      * prevents any user interface element other than the pop-up 'panel'
      * from receiving events.
      */
-    void addModalDialogBox(Wawt::Panel   panel,
-                           double        width,
-                           double        height,
-                           double        borderThickness = 2.0);
+    WidgetId addModalDialogBox(Wawt::Panel   panel,
+                               double        width           = 0.33,
+                               double        height          = 0.33,
+                               double        borderThickness = 2.0);
 
     /**
      * @brief Draw the current screen user interface elements.
@@ -483,23 +487,29 @@ class WawtScreenImpl : public WawtScreen {
     // PROTECTED DATA MEMBERS
 };
 
-inline void
+inline Wawt::WidgetId
 WawtScreen::addModalDialogBox(Wawt::Panel   panel,
                               double        width,
                               double        height,
                               double        borderThickness)
 {
-    if (!d_modalActive && width <= 1.0 && height <= 1.0
-                       && width >  0.1 && height >  0.1) {
+    Wawt::WidgetId ret;
+
+    if (width <= 1.0 && height <= 1.0 && width >  0.1 && height >  0.1) {
+        if (d_modalActive) {
+            dropModalDialogBox();
+        }
+
         if (!panel.drawView().options().has_value()) {
             panel.drawView().options() = d_wawt->getWidgetOptionDefaults()
                                                .d_screenOptions;
         }
         panel.layoutView()
             = Wawt::Layout::centered(width, height).border(borderThickness);
-        d_wawt->popUpModalDialogBox(&d_screen, std::move(panel));
+        ret = d_wawt->popUpModalDialogBox(&d_screen, std::move(panel));
         d_modalActive = true;
     }
+    return ret;                                                       // RETURN
 }
 
 template<class Derived,class Option>

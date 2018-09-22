@@ -36,8 +36,6 @@ namespace BDS {
 class WawtEventRouter {
   public:
     // PUBLIC TYPES
-    template <class Screen, typename MemFunc, typename... Args>
-    using Ret = typename std::invoke_result_t<Screen,MemFunc,Args...>;
     using Time = std::chrono::time_point<std::chrono::steady_clock>;
 
     class Handle {
@@ -71,35 +69,32 @@ class WawtEventRouter {
     using DeferFn    = std::function<void()>;
     using SetTimerFn = WawtScreen::SetTimerCb;
 
-    template <class Screen, typename MemF, typename... Args>
-    using IsVoid = typename std::is_void<Ret<Screen,MemF,Args...>>::type;
-
     // PRIVATE CLASS MEMBERS
     Wawt::FocusCb   wrap(Wawt::FocusCb&& unwrapped);
 
     Wawt::EventUpCb wrap(Wawt::EventUpCb&& unwrapped);
 
     // PRIVATE MANIPULATORS
-    template <class Screen, typename MemFunc, typename... Args>
+    template <class Ret, class MemFn, typename Screen, typename... Args>
     decltype(auto) call(std::false_type,
+                        MemFn           func,
                         Screen         *screen,
-                        MemFunc         func,
                         Args&&...       args) {
-        std::optional<Ret<Screen,MemFunc,Args...>> ret;
+        std::optional<Ret> ret;
         if (screen == d_current) {
-            ret = std::invoke(screen, func, std::forward<Args>(args)...);
+            ret = std::invoke(func, screen, std::forward<Args>(args)...);
         }
         return ret;
     }
 
-    template <class Screen, typename MemFunc, typename... Args>
+    template <class Ret, class MemFn, typename Screen, typename... Args>
     decltype(auto) call(std::true_type,
+                        MemFn           func,
                         Screen         *screen,
-                        MemFunc         func,
-                        Args&&...       args) {
-        std::optional<bool> ret;
-        if (screen == d_current) {
-            std::invoke(screen, func, std::forward<Args>(args)...);
+                        Args&&...       args)  {
+        std::optional<bool> ret;               
+        if (screen == d_current) {             
+            std::invoke(func, screen, std::forward<Args>(args)...);
             ret = true;
         }
         return ret;
@@ -127,6 +122,7 @@ class WawtEventRouter {
     double                    d_currentWidth    = 1280.0;
     double                    d_currentHeight   =  720.0;
     bool                      d_downEventActive = false;
+    bool                      d_drawRequested   = false;
     std::atomic<DeferFn*>     d_deferredFn;
     std::atomic<Wawt::Panel*> d_alert;
     Wawt                      d_wawt;
@@ -146,8 +142,8 @@ class WawtEventRouter {
     template<class Screen, typename... Args>
     void activate(const Handle& screen, Args&&... args);
 
-    template <class Screen, typename MemF, typename... Args>
-    auto callCurrent(const Handle& screen, MemF func, Args&&... args);
+    template <typename R, class Screen, typename... Args>
+    auto call(const Handle& screen, R(Screen::*fn), Args&&... args);
 
     template<class Screen, typename... Args>
     Handle create(std::string_view name, Args&&... args);
@@ -180,7 +176,7 @@ WawtEventRouter::activate(const Handle& screen, Args&&... args)
     auto fp    = make_unique<DeferFn>(bind(mem_p,
                                            this,
                                            screen,
-                                           std::forward<Args>(args)...));
+                                           forward<Args>(args)...));
     delete d_deferredFn.exchange(fp.release());
     return;                                                           // RETURN
 }
@@ -208,23 +204,23 @@ WawtEventRouter::deferredActivate(const Handle& screen, Args&&... args)
 
     if (d_current) {
         d_current->dropModalDialogBox();
+        d_timedCallback  = std::function<void()>(); // cancel timed event too
     }
     d_current = ptr;
     return;                                                           // RETURN
 }
 
-template <class Screen, typename MemF, typename... Args>
+template <typename R, class Screen, typename... Args>
 auto
-WawtEventRouter::callCurrent(const Handle& screen, MemF func, Args&&... args)
+WawtEventRouter::call(const Handle& screen, R(Screen::*fn), Args&&... args)
 {
     std::unique_lock<FifoMutex> guard(d_lock);
+    using Ret = std::invoke_result_t<decltype(fn),Screen*,Args&&...>;
 
-    auto p = resolve<Screen>(screen); // make current
+    auto p = resolve<Screen>(screen); // Lookup pointer and cast.
+    d_drawRequested = true;
 
-    return call(IsVoid<Screen, MemF, Args...>{},
-                p,
-                func,
-                std::forward<Args>(args)...);                         // RETURN
+    return call<Ret>(std::is_void<Ret>{}, fn, p, std::forward<Args>(args)...);
 }
 
 } // end BDS namespace
