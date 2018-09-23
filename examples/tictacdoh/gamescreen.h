@@ -35,7 +35,8 @@
 class GameScreen : public WawtScreenImpl<GameScreen,DrawOptions> {
     
     // PRIVATE DATA MEMBERS
-    std::function<void()> d_notify;
+    Label                  *d_timeLabel;
+    Panel                  *d_boardPanel;
 
   public:
     // PUBLIC TYPES

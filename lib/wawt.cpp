@@ -306,6 +306,13 @@ void setAdapterValues(Wawt::DrawDirective      *args,
 
     if (layout->d_pin != Wawt::Vertex::eNONE) {
         auto  square = (args->width() + args->height())/2.0;
+
+        if (square > args->width()) {
+            square = args->width();
+        }
+        else if (square > args->height()) {
+            square = args->height();
+        }
         auto& ux     = args->d_upperLeft.d_x;
         auto& uy     = args->d_upperLeft.d_y;
         auto& lx     = args->d_lowerRight.d_x;
@@ -1839,12 +1846,12 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
                 thickness = double(border.d_buttonThickness);
             }
 
-            thickness   = scaleBorder(*root, thickness);
+            auto scaledThickness   = scaleBorder(*root, thickness);
 
             auto  overhead    = 2.*view.d_borderThickness;
 
-            if (overhead + 2*thickness+4         > view.height()
-             || overhead + count*(2*thickness+4) > view.width()) {
+            if (overhead + 2*scaledThickness+4         > view.height()
+             || overhead + count*(2*scaledThickness+4) > view.width()) {
                 throw Wawt::Exception("'ButtonBar' is too small.",
                                      bar.d_widgetId);                  // THROW
             }
@@ -1859,7 +1866,7 @@ Wawt::setWidgetAdapterPositions(Panel::Widget                  *widget,
                 upperLeft.d_x                = lowerRight.d_x + 1;
                 lowerRight.d_x              += delta;
                 width                       -= delta;
-                buttonView.d_borderThickness = thickness;
+                buttonView.d_borderThickness = scaledThickness;
                 buttonView.d_upperLeft       = upperLeft;
                 buttonView.d_lowerRight      = lowerRight;
                 count                       -= 1;

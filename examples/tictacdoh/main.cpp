@@ -82,11 +82,13 @@ int main()
     WawtEventRouter  router(&drawAdapter, idMapper, DrawOptions::defaults());
 
     Controller       controller(router, idMapper);
+    auto shutdown = [&controller]() {
+                        return controller.shutdown();
+                    };
 
     try {
         controller.startup();
-        SfmlEventLoop::run(window, router, [](auto) { return true; },
-                           5ms, WIDTH/4, HEIGHT/4);
+        SfmlEventLoop::run(window, router, shutdown, 5ms, WIDTH/4, HEIGHT/4);
     }
     catch (Wawt::Exception& e) {
         std::cout << e.what() << std::endl;

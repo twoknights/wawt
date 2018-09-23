@@ -146,7 +146,7 @@ SetupScreen::connectCallback(bool listen)
                         };
         }
         else {
-            onClick =   [this](auto) {
+            onClick =   [this, listen](auto) {
                             dropModalDialogBox();
                             // return focus to listen text entry widget:
                             return listen ? d_listenEntry->getFocusCb()

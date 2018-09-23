@@ -40,46 +40,53 @@ GameScreen::createScreenPanel()
     };
     double third   = 1.0/3.0;
     return Panel({},
-    {
-        Panel(Layout::centered(0.5, 0.5).border(0).pin(Vertex::eCENTER_CENTER),
+      {
+      Panel({{-1.0,-1.0},{1.0,1.0}, Vertex::eUPPER_CENTER, 0.0},
         {
-            Button({{-1.0, -1.0}, {-third,-third}, 5},
-                   mkClick(1),
-                   {S(""), Align::eCENTER}),
-            Button(Wawt::Layout::duplicate(1_wr,5).translate(2.0,0.0),
-                   mkClick(2),
-                   {S(""), Align::eCENTER}),
-            Button(Wawt::Layout::duplicate(1_wr,5).translate(4.0,0.0),
-                   mkClick(3),
-                   {S(""), Align::eCENTER}),
+        Panel(Layout::centered(0.6, 0.6).border(0),
+          {
+          Button({{-1.0, -1.0}, {-third,-third}, 5},
+                  mkClick(1),
+                  {S(""), Align::eCENTER}),
+          Button(Layout::duplicate(1_wr,5).translate(2.0,0.0),
+                  mkClick(2),
+                  {S(""), Align::eCENTER}),
+          Button(Layout::duplicate(1_wr,5).translate(4.0,0.0),
+                  mkClick(3),
+                  {S(""), Align::eCENTER}),
 
-            Button(Wawt::Layout::duplicate(1_wr,5).translate(0.0,2.0),
-                   mkClick(4),
-                   {S(""), Align::eCENTER}),
-            Button(Wawt::Layout::duplicate(1_wr,5).translate(2.0,2.0),
-                   mkClick(5),
-                   {S(""), Align::eCENTER}),
-            Button(Wawt::Layout::duplicate(1_wr,5).translate(4.0,2.0),
-                   mkClick(6),
-                   {S(""), Align::eCENTER}),
+          Button(Layout::duplicate(1_wr,5).translate(0.0,2.0),
+                  mkClick(4),
+                  {S(""), Align::eCENTER}),
+          Button(Layout::duplicate(1_wr,5).translate(2.0,2.0),
+                  mkClick(5),
+                  {S(""), Align::eCENTER}),
+          Button(Layout::duplicate(1_wr,5).translate(4.0,2.0),
+                  mkClick(6),
+                  {S(""), Align::eCENTER}),
 
-            Button(Wawt::Layout::duplicate(1_wr,5).translate(0.0,4.0),
-                   mkClick(7),
-                   {S(""), Align::eCENTER}),
-            Button(Wawt::Layout::duplicate(1_wr,5).translate(2.0,4.0),
-                   mkClick(8),
-                   {S(""), Align::eCENTER}),
-            Button(Wawt::Layout::duplicate(1_wr,5).translate(4.0,4.0),
-                   mkClick(9),
-                   {S(""), Align::eCENTER})
+          Button(Layout::duplicate(1_wr,5).translate(0.0,4.0),
+                  mkClick(7),
+                  {S(""), Align::eCENTER}),
+          Button(Layout::duplicate(1_wr,5).translate(2.0,4.0),
+                  mkClick(8),
+                  {S(""), Align::eCENTER}),
+          Button(Layout::duplicate(1_wr,5).translate(4.0,4.0),
+                  mkClick(9),
+                  {S(""), Align::eCENTER})
+          }),
+        Panel({{-1.0,-1.0,1_wr},{1.0,1.0,1_wr},5},
+              DrawOptions().lineColor(defaultScreenOptions().d_fillColor)),
+        Label(Layout::slice(false, 0.05, 0.15), S("Tic-Tac-DOH!"))
+        Label(&d_boardTimeMsg, Layout::slice(false,-0.17,-0.10), S(""))
         })
-        , Button({{},{-0.95,-0.95}, Vertex::eUPPER_LEFT},
-                 {[this](auto) { d_screen.serialize(std::cout);
-                                 d_notify();
-                                 return FocusCb();
-                               }, ActionType::eCLICK},
-                 {S("*")})
-    });
+    , Button({{},{-0.95,-0.95}, Vertex::eUPPER_LEFT},
+            {[this](auto) { d_screen.serialize(std::cout);
+            d_notify();
+            return FocusCb();
+            }, ActionType::eCLICK},
+            {S("*")})
+      });
 }
 
 void

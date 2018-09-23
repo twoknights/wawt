@@ -125,6 +125,7 @@ class WawtEventRouter {
     bool                      d_drawRequested   = false;
     std::atomic<DeferFn*>     d_deferredFn;
     std::atomic<Wawt::Panel*> d_alert;
+    std::atomic_bool          d_shutdownFlag;
     Wawt                      d_wawt;
     SetTimerFn                d_setTimedEvent;
 
@@ -156,12 +157,20 @@ class WawtEventRouter {
     
     void draw();
 
+    bool isShuttingDown() {
+        return d_shutdownFlag.load();
+    }
+
     void resize(double width, double height);
 
     void showAlert(Wawt::Panel      panel,
-                   double           width,
-                   double           height,
-                   int              borderThickness = 2);
+                   double           width           = 0.33,
+                   double           height          = 0.33,
+                   double           borderThickness = 2.0);
+
+    void shuttingDown() {
+        d_shutdownFlag = true;
+    }
 
     bool tick(std::chrono::milliseconds minimumTickInterval);
 };

@@ -48,8 +48,8 @@ SfmlEventLoop::run(sf::RenderWindow&                 window,
                    int                               minWidth,
                    int                               minHeight)
 {
-    Wawt::FocusCb   onKey;
-    Wawt::EventUpCb mouseUp;
+    Wawt::FocusCb     onKey;
+    Wawt::EventUpCb   mouseUp;
 
     while (window.isOpen()) {
         sf::Event event;
@@ -57,8 +57,13 @@ SfmlEventLoop::run(sf::RenderWindow&                 window,
         try {
             if (window.pollEvent(event)) {
                 if (event.type == sf::Event::Closed) {
-                    if (shutdown(&window)) {
+                    if (shutdown()) {
                         window.close();
+                    }
+                    else {
+                        window.clear();
+                        router.draw();
+                        window.display();
                     }
                 }
                 else if (event.type == sf::Event::Resized) {
@@ -135,6 +140,10 @@ SfmlEventLoop::run(sf::RenderWindow&                 window,
         }
         catch (Wawt::Exception& ex) {
             std::cerr << ex.what() << std::endl;
+            window.close();
+        }
+
+        if (router.isShuttingDown()) {
             window.close();
         }
     }

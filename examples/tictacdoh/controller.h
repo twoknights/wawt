@@ -42,7 +42,7 @@ class Controller : public SetupScreen::Calls {
     Handle              d_gameScreen;
     sf::TcpListener     d_listener{};
     sf::TcpSocket       d_connection{};
-    std::regex          d_addressRegex{R"(^([^:]+):(\d+)$)"}; // split on ':'
+    std::regex          d_addressRegex{R"(^([a-z.\-\d]+):(\d+)$)"};
     std::atomic_bool    d_cancel;
 
   public:
@@ -65,6 +65,8 @@ class Controller : public SetupScreen::Calls {
     void accept();
 
     void asyncConnect(sf::IpAddress address, int port);
+
+    bool shutdown();
 
     void startup();
 };

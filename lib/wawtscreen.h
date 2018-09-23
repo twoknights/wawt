@@ -64,6 +64,8 @@ class WawtScreen {
   private:
     // PRIVATE TYPES
 
+    // PRIVATE CLASS MEMBERS
+
     // PRIVATE DATA MEMBERS
     bool                    d_modalActive = false;
     SetTimerCb              d_setTimer{};
@@ -229,7 +231,7 @@ class WawtScreen {
                 return cb;
             }
             refresh();
-            return [this, cb](int xup, int yup, bool up) {
+            return [this, cb](int xup, int yup, bool up) { // !!HACK - FIX
                 auto ret = cb(xup, yup, up);
                 refresh();
                 return ret;
@@ -444,6 +446,7 @@ class WawtScreenImpl : public WawtScreen {
     WidgetType& lookup(WidgetId id);
 
     // PROTECTED ACCESSORS
+
     //! Get the draw options for the root screen panel.
     Option defaultScreenOptions()    const {
         return optionCast(d_wawt->defaultScreenOptions());

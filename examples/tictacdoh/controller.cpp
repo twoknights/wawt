@@ -193,6 +193,31 @@ Controller::listen(const Wawt::String_t& portString)
     return {true, S("Waiting for opponent to connect.")};             // RETURN
 }
 
+bool
+Controller::shutdown()
+{
+    d_router.showAlert(Wawt::Panel({},
+                       {
+                       Wawt::Label(Wawt::Layout::slice(false, 0.1, 0.3),
+                                  {S("Do you wish to exit the game?")}),
+                       Wawt::ButtonBar(Wawt::Layout::slice(false, -0.3, -0.1),
+                                      {
+                                        {{S("Yes")},
+                                         [this](auto) {
+                                            d_router.discardAlert();
+                                            d_router.shuttingDown();
+                                            return Wawt::FocusCb();
+                                         }},
+                                        {{S("No")},
+                                         [this](auto) {
+                                            d_router.discardAlert();
+                                            return Wawt::FocusCb();
+                                         }}
+                                      })
+                       }));
+    return false;                                                     // RETURN
+}
+
 void
 Controller::startup()
 {
@@ -203,7 +228,8 @@ Controller::startup()
     d_gameScreen  = d_router.create<GameScreen>("Game Screen", doSetup);
     /* ... additional screens here ...*/
 
-    d_router.activate<SetupScreen>(d_setupScreen);
+//    d_router.activate<SetupScreen>(d_setupScreen);
+    d_router.activate<GameScreen>(d_gameScreen);
     // Ready for events to be processed.
     return;                                                           // RETURN
 }

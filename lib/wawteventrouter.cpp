@@ -124,14 +124,37 @@ WawtEventRouter::WawtEventRouter(Wawt::DrawAdapter                 *adapter,
                     })
 {
     d_wawt.setWidgetOptionDefaults(defaults);
-    d_deferredFn = nullptr;
-    d_alert      = nullptr;
+    d_shutdownFlag = false;
+    d_deferredFn   = nullptr;
+    d_alert        = nullptr;
 }
 
 Wawt::EventUpCb
 WawtEventRouter::downEvent(int x, int y)
 {
     std::unique_lock<FifoMutex> guard(d_lock);
+
+    auto alert_p = d_alert.load();
+
+    if (alert_p) {
+        auto cb = alert_p->downEvent(x, y);
+        if (!cb) {
+            return cb;                                                // RETURN
+        }
+        d_wawt.refreshTextMetrics(alert_p);
+        return [this, cb](int xup, int yup, bool up) { // !!HACK - FIX
+            Wawt::FocusCb ret;
+            auto alert = d_alert.load();
+            if (alert) {
+                ret = cb(xup, yup, up);
+            }
+            alert = d_alert.load();
+            if (alert) {
+                d_wawt.refreshTextMetrics(alert);
+            }
+            return ret;
+        };                                                            // RETURN
+    }
 
     Wawt::EventUpCb eventUp;
 
@@ -150,6 +173,15 @@ void
 WawtEventRouter::draw()
 {
     std::unique_lock<FifoMutex> guard(d_lock);
+    d_drawRequested = false;
+
+    auto alert_p = d_alert.load();
+
+    if (alert_p) {
+        d_wawt.draw(*alert_p);
+        return;                                                       // RETURN
+    }
+
     // Screen changes do not happen between a 'downEvent' and a 'EventUpCb'.
 
     if (!d_downEventActive) {
@@ -164,13 +196,6 @@ WawtEventRouter::draw()
     if (d_current) {
         d_current->draw();
     }
-
-    auto alert_p = d_alert.load();
-
-    if (alert_p) {
-        d_wawt.draw(*alert_p);
-    }
-    d_drawRequested = false;
     return;                                                           // RETURN
 }
 
@@ -182,6 +207,13 @@ WawtEventRouter::resize(double width, double height)
     d_currentWidth  = width;
     d_currentHeight = height;
 
+    auto alert_p = d_alert.load();
+
+    if (alert_p) {
+        d_wawt.resizeRootPanel(alert_p, width, height);
+        return;                                                       // RETURN
+    }
+
     if (d_current) {
         d_current->resize(width, height);
     }
@@ -192,7 +224,7 @@ void
 WawtEventRouter::showAlert(Wawt::Panel      panel,
                            double           width,
                            double           height,
-                           int              borderThickness)
+                           double           borderThickness)
 {
     if (width <= 1.0 && height <= 1.0 && width >  0.1 && height >  0.1) {
         if (!panel.drawView().options().has_value()) {
@@ -201,7 +233,15 @@ WawtEventRouter::showAlert(Wawt::Panel      panel,
         }
         panel.layoutView()
             = Wawt::Layout::centered(width, height).border(borderThickness);
-        auto ptr = std::make_unique<Wawt::Panel>(std::move(panel));
+
+        auto ptr = std::make_unique<Wawt::Panel>(
+                    Wawt::Panel({},
+                            {
+                                Wawt::Canvas({{-1.0,-1.0},{1.0,1.0}}),
+                                std::move(panel)
+                            }));
+        d_wawt.resolveWidgetIds(ptr.get());
+        d_wawt.resizeRootPanel(ptr.get(), d_currentWidth, d_currentHeight);
         delete d_alert.exchange(ptr.release());
     }
     return;                                                           // RETURN

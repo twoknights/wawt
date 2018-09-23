@@ -32,7 +32,7 @@
 #undef  C
 //#define S(str) Wawt::String_t(str)      // ANSI strings  (std::string)
 //#define C(c) (c)
-//#define S(str) Wawt::String_t(L"" str)  // UCS-2 strings (std::wstring)
+//#define S(str) Wawt::String_t(L"" str)  // wide char strings (std::wstring)
 //#define C(c) (L ## c)
 #define S(str) Wawt::String_t(U"" str)  // UTF-32 strings (std::u32string)
 #define C(c) (U ## c)
