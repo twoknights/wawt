@@ -29,7 +29,7 @@ using namespace std::literals::chrono_literals;
 
 namespace {
 
-int stoi(const Wawt::String_t& s) {
+int stoint(const Wawt::String_t& s) {
     std::size_t pos;
     auto        converted = SfmlDrawAdapter::toAnsiString(s);
     int         num = -1;
@@ -171,7 +171,7 @@ Controller::connect(const Wawt::String_t& connectString)
 Controller::StatusPair
 Controller::listen(const Wawt::String_t& portString)
 {
-    auto port = stoi(portString);
+    auto port = stoint(portString);
 
     if (port < 0 || port > UINT16_MAX) {
         return {false,
@@ -221,21 +221,20 @@ Controller::shutdown()
 void
 Controller::startup()
 {
-    auto doSetup = [this]() { };
     d_setupScreen = d_router.create<SetupScreen>("Setup Screen",
                                                  this,
                                                  std::ref(d_mapper));
-    d_gameScreen  = d_router.create<GameScreen>("Game Screen", doSetup);
+    d_gameScreen  = d_router.create<GameScreen>("Game Screen");
     /* ... additional screens here ...*/
 
-//    d_router.activate<SetupScreen>(d_setupScreen);
-    d_router.activate<GameScreen>(d_gameScreen);
+    d_router.activate<SetupScreen>(d_setupScreen);
+//    d_router.activate<GameScreen>(d_gameScreen);
     // Ready for events to be processed.
     return;                                                           // RETURN
 }
 
 void
-Controller::showGameScreen(Wawt::Char_t marker)
+Controller::showGameScreen(int marker)
 {
 }
 

@@ -27,6 +27,7 @@
 #include <SFML/Window/Mouse.hpp>
 #include <SFML/Window/VideoMode.hpp>
 #include <SFML/Window/WindowStyle.hpp>
+#include <SFML/System/Utf.hpp>
 
 #include <chrono>
 #include <iostream>
@@ -35,6 +36,24 @@
 using namespace std::literals::chrono_literals;
 
 namespace BDS {
+
+namespace {
+
+inline void encodeKey(wchar_t& key, sf::Uint32 unicode) {
+    std::wstring s(sf::String(unicode).toWideString());
+    if (s.length() == 1) {
+        key = s[0];
+    }
+    else {
+        key = 0;
+    }
+}
+
+inline void encodeKey(char *key, sf::Uint32 unicode) {
+    sf::Utf8::encode(unicode, key);
+}
+
+} // unnamed namespace
 
                             //---------------------
                             // struct SfmlEventLoop
@@ -99,14 +118,14 @@ SfmlEventLoop::run(sf::RenderWindow&                 window,
                     if (event.mouseButton.button == sf::Mouse::Button::Left
                      && mouseUp) {
                         if (onKey) {
-                            onKey(Wawt::Char_t(0)); // erase cursor
+                            onKey(0); // erase cursor
                         }
                         onKey = mouseUp(event.mouseButton.x,
                                         event.mouseButton.y,
                                         true);
 
                         if (onKey) {
-                            onKey(Wawt::Char_t(0)); // show cursor
+                            onKey(0); // show cursor
                         }
                         window.clear();
                         router.draw();
@@ -117,8 +136,8 @@ SfmlEventLoop::run(sf::RenderWindow&                 window,
                     if (onKey) {
                         window.clear();
 
-                        auto key = static_cast<Wawt::Char_t>(event.text
-                                                                  .unicode);
+                        Wawt::Char_t key;
+                        encodeKey(key, event.text.unicode);
 
                         if (key) {
                             if (onKey(key)) { // focus lost?

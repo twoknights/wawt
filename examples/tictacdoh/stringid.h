@@ -30,12 +30,10 @@
 
 #undef  S
 #undef  C
-//#define S(str) Wawt::String_t(str)      // ANSI strings  (std::string)
-//#define C(c) (c)
+#define S(str) Wawt::String_t(u8"" str)      // UTF8 strings  (std::string)
+#define C(c) (u8 ## c)
 //#define S(str) Wawt::String_t(L"" str)  // wide char strings (std::wstring)
 //#define C(c) (L ## c)
-#define S(str) Wawt::String_t(U"" str)  // UTF-32 strings (std::u32string)
-#define C(c) (U ## c)
 
 
 using namespace BDS;

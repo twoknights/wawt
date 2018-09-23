@@ -67,40 +67,143 @@ std::ostream& operator<<(std::ostream& os, const Wawt::WidgetId id) {
     return os;
 }
 
-inline
-void outputXMLString(std::ostream& os, const Wawt::String_t& text) {
+inline int charLng(wchar_t) {
+    return 1;
+}
+
+inline int charLng(char ch) {
+    return (ch & 0340) == 0340 ? ((ch & 020) ? 4 : 3)
+                               : ((ch & 0200) ? 2 : 1);
+}
+
+inline int charLng(const char *ch) {
+    return charLng(ch[0]);
+}
+
+inline bool isBackspace(wchar_t ch) {
+    return ch == L'\b';
+}
+
+inline bool isBackspace(const char *c) {
+    return c[0] == '\b';
+}
+
+inline bool isEnter(wchar_t ch) {
+    return ch == L'\r';
+}
+
+inline bool isEnter(const char *c) {
+    return c[0] == '\r';
+}
+
+inline bool isEos(wchar_t ch) {
+    return ch == L'\0';
+}
+
+inline bool isEos(const char *c) {
+    return c[0] == '\0';
+}
+
+inline std::wstring makeString(wchar_t ch) {
+    return isEos(ch) ? std::wstring()
+                     : std::wstring(1, static_cast<wchar_t>(ch));
+}
+
+inline std::string makeString(const char *ch) {
+    return isEos(ch) ? std::string() : std::string(ch, charLng(ch));
+}
+
+inline auto makeString(char ch) {
+    if constexpr(std::is_same_v<Wawt::Char_t,wchar_t>) {
+        return makeString(wchar_t(ch));
+    }
+    else {
+        char u8[4] = {ch};
+        return makeString(u8);
+    }
+}
+
+inline int textLength(const std::wstring& text) {
+    return text.length();
+}
+
+inline int textLength(const std::string& text) {
+    int   length = 0;
+    auto  p      = text.c_str();
+    auto  end    = p + text.length();
+    while (p < end && *p) {
+        ++length;
+        p += charLng(*p);
+    }
+    return length;
+}
+
+void outputXMLString(std::ostream& os, const std::string& text) {
     // NOTE: std::codecvt is deprecated. So, to avoid compiler warnings,
     // and until this is sorted out, lets roll our own.
     // For anticipated use (i.e. test drivers), this is expected to be
     // good enough.
-    for (auto c : text) {
-        unsigned char ch = static_cast<char>(c);
+    for (auto it = text.begin(); it != text.end(); ) {
+        char ch = *it++;
+        if (ch == u8'"') {
+            os << "&quot;";
+        }
+        else if (ch == u'\'') {
+            os << "&apos;";
+        }
+        else if (ch == u'<') {
+            os << "&lt;";
+        }
+        else if (ch == u'>') {
+            os << "&gt;";
+        }
+        else if (ch == u'&') {
+            os << "&amp;";
+        }
+        else if ((ch & 0200) == 0) {
+            os.put(ch);
+        } // end of 7 bit ASCII
+        else if ((ch & 0340) == 0300) {
+            auto value = int(ch & 037) << 6;
+            
+            if (it != text.end()) {
+                value |= int(*it++ & 077);
+                os << "&#" << value << ';';
+            }
+        }
+        else if ((ch & 0360) == 0340) {
+            auto value = int(ch & 017) << 6;
+            
+            if (it != text.end()) {
+                value |= int(*it++ & 077);
 
-        if (static_cast<decltype(c)>(ch) == c) {
-            if (ch == '"') {
-                os << "&quot;";
+                if (it != text.end()) {
+                    value <<= 6;
+                    value  |= int(*it++ & 077);
+                    os << "&#" << value << ';';
+                }
             }
-            else if (ch == '\'') {
-                os << "&apos;";
-            }
-            else if (ch == '<') {
-                os << "&lt;";
-            }
-            else if (ch == '>') {
-                os << "&gt;";
-            }
-            else if (ch == '&') {
-                os << "&amp;";
-            }
-            else if (ch > 127) {
-                os << "&#" << unsigned(ch) << ';';
-            }
-            else {
-                os.put(ch);
+        }
+        else if ((ch & 0370) == 0360) {
+            auto value = int(ch & 07) << 6;
+            
+            if (it != text.end()) {
+                value |= int(*it++ & 077);
+
+                if (it != text.end()) {
+                    value <<= 6;
+                    value  |= int(*it++ & 077);
+
+                    if (it != text.end()) {
+                        value <<= 6;
+                        value  |= int(*it++ & 077);
+                        os << "&#" << value << ';';
+                    }
+                }
             }
         }
         else {
-            os << "&#" << unsigned(c) << ';'; // hope endianess doesn't matter
+            break;
         }
     }
 }
@@ -159,34 +262,40 @@ bool handleChar(Wawt::Base           *base,
                 Wawt::Char_t          pressed)
 {
     // Return 'true' if "focus" is lost; 'false' if it is retained.
-    auto text = base->textView().getText();
-    bool hasCursor = !text.empty() && text.back() == Wawt::s_cursor;
+    // Following handles utf8 and wchar_t
+    auto text      = base->textView().getText();
+    auto cursor    = makeString(Wawt::s_cursor);
+    auto pos       = text.rfind(cursor);
+    bool hasCursor = Wawt::String_t::npos != pos
+                  && pos == (text.length() - cursor.length()); // at end
 
     if (hasCursor) {
-        text.pop_back();
+        text.erase(pos, cursor.length());
         base->drawView().selected() = false;
     }
 
-    if (pressed) {
-        if (pressed == Wawt::Char_t('\b')) {
+    if (pressed && !isEos(pressed)) {
+        if (isBackspace(pressed)) {
             if (!text.empty()) {
                 text.pop_back();
             }
         }
-        else if (pressed == Wawt::Char_t('\r')) {
+        else if (isEnter(pressed)) {
             // Note that callback can modify the string before returning.
             bool ret = (*enterFn) ? (*enterFn)(&text) : true;
             base->textView().setText(text);
-            return ret;                                               // RETURN
+            if (ret) { // lost focus? Return without cursor in string
+                return true;                                          // RETURN
+            }
         }
-        else if (text.length() < maxChars) {
-            text.push_back(pressed);
+        else if (textLength(text) < maxChars) {
+            text.append(makeString(pressed));
         }
-        text.push_back(Wawt::s_cursor);
+        text.append(cursor);
         base->drawView().selected() = true;
     }
     else if (!hasCursor) {
-        text.push_back(Wawt::s_cursor);
+        text.append(cursor);
         base->drawView().selected() = true;
     }
     base->textView().setText(text);
@@ -1193,8 +1302,8 @@ Wawt::List::initButton(unsigned int index, bool lastButton)
             // Use to initialize drop-down selection:
             button.d_input.d_callback = [this](Text *clicked) {
                 d_buttons.back()
-                         .textView().setText(String_t(1, s_downArrow)
-                                             + Char_t(' ')
+                         .textView().setText(makeString(s_downArrow)
+                                             + makeString(' ')
                                              + clicked->textView().getText());
                 return FocusCb();
             };
@@ -1968,11 +2077,11 @@ Wawt::scrollableList(List          list,
     auto&     options   = listView.d_options;
     Button    scrollUp({{},{},   Vertex::eUPPER_LEFT,  border},
                        {scrollUpCb},
-                       {String_t(1, s_upArrow)},
+                       {makeString(s_upArrow)},
                        {options});
     Button  scrollDown({{},{}, Vertex::eLOWER_RIGHT, border},
                        {scrollDownCb},
-                       {String_t(1, s_downArrow)},
+                       {makeString(s_downArrow)},
                        {options});
 
     auto rowHeight  = 2.0/double(list.windowSize()); // as a scale factor
@@ -2034,9 +2143,9 @@ const Wawt::WidgetId   Wawt::kROOT(UINT16_MAX-1, true, true);
 
 const std::any        Wawt::s_noOptions;
 
-Wawt::Char_t Wawt::s_downArrow = Wawt::Char_t('v');
-Wawt::Char_t Wawt::s_upArrow   = Wawt::Char_t('^');
-Wawt::Char_t Wawt::s_cursor    = Wawt::Char_t('|');
+Wawt::Char_t Wawt::s_downArrow = {'v'};
+Wawt::Char_t Wawt::s_upArrow   = {'^'};
+Wawt::Char_t Wawt::s_cursor    = {'|'};
 
 // PUBLIC CONSTRUCTOR
 Wawt::Wawt(const TextMapper& mappingFn, DrawAdapter *adapter)

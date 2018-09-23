@@ -17,6 +17,7 @@
  * limitations under the License.
  */
 
+#include "stringid.h"
 #include "setupscreen.h"
 
 #include <chrono>
@@ -180,6 +181,8 @@ SetupScreen::connectionResult(bool             success,
     else {
         onClick =   [this](auto) {
                         dropModalDialogBox();
+                        d_connectEntry->textView().setText("");
+                        d_listenEntry->textView().setText("");
                         return FocusCb();
                     };
         buttonLabel = S("Done");

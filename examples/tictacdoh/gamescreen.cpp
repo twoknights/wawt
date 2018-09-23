@@ -77,12 +77,11 @@ GameScreen::createScreenPanel()
           }),
         Panel({{-1.0,-1.0,1_wr},{1.0,1.0,1_wr},5},
               DrawOptions().lineColor(defaultScreenOptions().d_fillColor)),
-        Label(Layout::slice(false, 0.05, 0.15), S("Tic-Tac-DOH!"))
-        Label(&d_boardTimeMsg, Layout::slice(false,-0.17,-0.10), S(""))
+        Label(Layout::slice(false, 0.05, 0.15), S("Tic-Tac-DOH!")),
+        Label(&d_timeLabel, Layout::slice(false,-0.17,-0.10), S(""))
         })
     , Button({{},{-0.95,-0.95}, Vertex::eUPPER_LEFT},
             {[this](auto) { d_screen.serialize(std::cout);
-            d_notify();
             return FocusCb();
             }, ActionType::eCLICK},
             {S("*")})
@@ -97,9 +96,7 @@ GameScreen::resetWidgets()
 Wawt::FocusCb
 GameScreen::click(int square, Wawt::Text *button)
 {
-    char         c = '0' + square;
-    Wawt::Char_t ch = static_cast<Wawt::Char_t>(c);
-    button->textView().setText(Wawt::String_t(1, ch));
+    button->textView().setText(Wawt::ToString(square));
     return FocusCb();
 }
 

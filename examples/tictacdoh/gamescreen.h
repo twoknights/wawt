@@ -42,8 +42,7 @@ class GameScreen : public WawtScreenImpl<GameScreen,DrawOptions> {
     // PUBLIC TYPES
 
     // PUBLIC CONSTRUCTORS
-    GameScreen(std::function<void()> doSetup)
-        : WawtScreenImpl(), d_notify(doSetup) {}
+    GameScreen() : WawtScreenImpl() { }
 
     // PUBLIC MANIPULATORS
     // Called by 'WawtScreenImpl::setup()':

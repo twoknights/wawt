@@ -57,12 +57,19 @@ class Wawt {
 
     // PUBLIC TYPES
 
-    // Char type:
-    // Note: fixed length encodings required. These would be: ANSI (char),
-    // UCS-2 (wchar_t), and UTF-32 (char32_t).
-    using Char_t       = char32_t;
-    using String_t     = std::basic_string<Char_t>;
-    using StringView_t = std::basic_string_view<Char_t>; // Not used here
+    // Char encodings: utf8 (char[4]) or wide char (wchar_t)
+    using Char_t       = char[4];
+    using String_t     = std::basic_string<char>;
+    using StringView_t = std::basic_string_view<char>; // Not used here
+    
+    static auto ToString(int n) {
+        if constexpr(std::is_same_v<String_t, std::string>) {
+            return std::to_string(n);
+        }
+        else {
+            return std::to_wstring(n);
+        }
+    }
 
     // Identifiers:
     struct WidgetId : WawtId::Id<WawtId::IntId<uint16_t>,

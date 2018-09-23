@@ -28,6 +28,7 @@
 #include <SFML/Graphics/Text.hpp>
 
 #include <cmath>
+#include <cstring>
 #include <chrono>
 #include <thread>
 #include <type_traits>
@@ -77,19 +78,33 @@ void drawCircle(sf::RenderWindow  *window,
 }
 
 inline
-sf::String toString(const Wawt::String_t& string) {
+sf::String toString(const Wawt::String_t& str) {
     if constexpr(std::is_same_v<Wawt::String_t, std::u32string>) {
-        return sf::String(reinterpret_cast<const sf::Uint32*>(string.data()));
+        return sf::String(reinterpret_cast<const sf::Uint32*>(str.data()));
     }
     else if constexpr(std::is_same_v<Wawt::String_t, std::wstring>) {
-        return sf::String(reinterpret_cast<const wchar_t*>(string.data()));
+        return sf::String(reinterpret_cast<const wchar_t*>(str.data()));
     }
     else if constexpr(std::is_same_v<Wawt::String_t, std::string>) {
-        return sf::String(reinterpret_cast<const char*>(string.data()));
+        std::basic_string<sf::Uint32> to;
+        sf::Utf8::toUtf32(str.begin(), str.end(), std::back_inserter(to));
+        return sf::String(to);
     }
     else {
         assert(!"Unsupported string type");
     }
+}
+
+inline
+void setArrows(wchar_t& up, wchar_t& down) {
+    down = L'\u25BC';
+    up   = L'\u25B2';
+}
+
+inline
+void setArrows(char up[4], char down[4]) {
+    std::memcpy(up,   u8"\u25B2", 4);
+    std::memcpy(down, u8"\u25BC", 4);
 }
 
 } // end unnamed namespace
@@ -140,14 +155,7 @@ SfmlDrawAdapter::SfmlDrawAdapter(sf::RenderWindow&   window,
     }
 
     if (!noArrow) {
-        if constexpr (std::is_same_v<Wawt::Char_t,wchar_t>) {
-            Wawt::s_downArrow = L'\u25BC';
-            Wawt::s_upArrow   = L'\u25B2';
-        }
-        else if constexpr (std::is_same_v<Wawt::Char_t,char32_t>) {
-            Wawt::s_downArrow = U'\u25BC';
-            Wawt::s_upArrow   = U'\u25B2';
-        }
+        setArrows(Wawt::s_downArrow, Wawt::s_upArrow);
     }
 }
 

@@ -59,7 +59,7 @@ class Controller : public SetupScreen::Calls {
 
     void       cancel()                                     override;
 
-    void       showGameScreen(Wawt::Char_t marker)          override;
+    void       showGameScreen(int  marker)                  override;
 
     // PUBLIC MANIPULATORS
     void accept();
