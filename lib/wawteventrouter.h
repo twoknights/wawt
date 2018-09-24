@@ -26,9 +26,11 @@
 #include <chrono>
 #include <condition_variable>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace BDS {
@@ -66,7 +68,7 @@ class WawtEventRouter {
         bool try_lock();
     };
     using ScreenVec  = std::vector<std::unique_ptr<WawtScreen>>;
-    using DeferFn    = std::function<void()>;
+    using DeferFn    = std::pair<WawtScreen*,std::function<void()>>;
     using SetTimerFn = WawtScreen::SetTimerCb;
 
     // PRIVATE CLASS MEMBERS
@@ -100,9 +102,6 @@ class WawtEventRouter {
         return ret;
     }
 
-    template<class Screen, typename... Args>
-    void deferredActivate(const Handle& screen, Args&&... args);
-
     Handle install(WawtScreen *screen, std::size_t hashCode);
 
     template<class Screen>
@@ -113,7 +112,6 @@ class WawtEventRouter {
 
     // PRIVATE DATA MEMBERS
     FifoMutex                 d_lock{};
-    std::mutex                d_defer{};
     ScreenVec                 d_installed{};
     std::function<void()>     d_timedCallback{};
     Time                      d_lastTick{};
@@ -141,7 +139,7 @@ class WawtEventRouter {
 
     // PUBLIC MANIPULATORS
     template<class Screen, typename... Args>
-    void activate(const Handle& screen, Args&&... args);
+    void activate(Handle screen, Args&&... args);
 
     template <typename R, class Screen, typename... Args>
     auto call(const Handle& screen, R(Screen::*fn), Args&&... args);
@@ -177,16 +175,15 @@ class WawtEventRouter {
 
 template<class Screen, typename... Args>
 void
-WawtEventRouter::activate(const Handle& screen, Args&&... args)
+WawtEventRouter::activate(Handle screen, Args&&... args)
 {
     // Defer activate until next draw() event.
     using namespace std;
-    auto mem_p = &WawtEventRouter::deferredActivate<Screen, Args...>;
-    auto fp    = make_unique<DeferFn>(bind(mem_p,
-                                           this,
-                                           screen,
-                                           forward<Args>(args)...));
-    delete d_deferredFn.exchange(fp.release());
+    Screen *ptr = resolve<Screen>(screen);
+
+    auto fp = bind(&Screen::resetWidgets, ptr, forward<Args>(args)...);
+    auto un_p  = make_unique<DeferFn>(ptr, move(fp));
+    delete d_deferredFn.exchange(un_p.release());
     return;                                                           // RETURN
 }
 
@@ -202,21 +199,6 @@ WawtEventRouter::create(std::string_view name, Args&&... args)
     ptr->setup();
 
     return install(static_cast<WawtScreen*>(ptr.release()), hash);
-}
-
-template<class Screen, typename... Args>
-void
-WawtEventRouter::deferredActivate(const Handle& screen, Args&&... args)
-{
-    auto ptr = resolve<Screen>(screen);
-    ptr->activate(d_currentWidth, d_currentHeight, args...);
-
-    if (d_current) {
-        d_current->dropModalDialogBox();
-        d_timedCallback  = std::function<void()>(); // cancel timed event too
-    }
-    d_current = ptr;
-    return;                                                           // RETURN
 }
 
 template <typename R, class Screen, typename... Args>

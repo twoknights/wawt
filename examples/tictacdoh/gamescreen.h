@@ -33,25 +33,42 @@
 // "rock-scissors-paper" round which continues until there is a winner.
 //
 class GameScreen : public WawtScreenImpl<GameScreen,DrawOptions> {
-    
-    // PRIVATE DATA MEMBERS
-    Label                  *d_timeLabel;
-    Panel                  *d_boardPanel;
-
   public:
     // PUBLIC TYPES
+    struct Calls {
+        virtual ~Calls() { }
+
+        virtual void showSetupScreen()                                     = 0;
+    };
+
+    enum GameResult { eFORFEIT };
 
     // PUBLIC CONSTRUCTORS
-    GameScreen() : WawtScreenImpl() { }
+    GameScreen(Calls *controller)
+        : WawtScreenImpl(), d_controller(controller) { }
 
     // PUBLIC MANIPULATORS
     // Called by 'WawtScreenImpl::setup()':
     Panel createScreenPanel();
 
     // Called by 'WawtScreenImpl::activate()':
-    void resetWidgets();
+    void gameOver(GameResult result);
+
+    void resetWidgets(const String_t& marker);
+
+    void startGame();
+
+    void showRemainingTime();
 
     FocusCb click(int square, Wawt::Text *button);
+    
+private:
+    // PRIVATE DATA MEMBERS
+    GameScreen::Calls      *d_controller;
+    Label                  *d_timeLabel;
+    Panel                  *d_boardPanel;
+    String_t                d_marker;
+    int                     d_countDown = -1;
 };
 
 #endif

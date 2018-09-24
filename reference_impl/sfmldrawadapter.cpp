@@ -102,9 +102,9 @@ void setArrows(wchar_t& up, wchar_t& down) {
 }
 
 inline
-void setArrows(char up[4], char down[4]) {
-    std::memcpy(up,   u8"\u25B2", 4);
-    std::memcpy(down, u8"\u25BC", 4);
+void setArrows(char *up, char *down) {
+    std::memcpy(up,   u8"\u25B2",   Wawt::sizeOfChar(u8"\u25B2"));
+    std::memcpy(down, u8"\u25BC",   Wawt::sizeOfChar(u8"\u25BC"));
 }
 
 } // end unnamed namespace

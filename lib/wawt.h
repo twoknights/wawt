@@ -57,7 +57,7 @@ class Wawt {
 
     // PUBLIC TYPES
 
-    // Char encodings: utf8 (char[4]) or wide char (wchar_t)
+    // Char encodings: utf8 (char[4] - including EoS) or wide char (wchar_t)
     using Char_t       = char[4];
     using String_t     = std::basic_string<char>;
     using StringView_t = std::basic_string_view<char>; // Not used here
@@ -68,6 +68,16 @@ class Wawt {
         }
         else {
             return std::to_wstring(n);
+        }
+    }
+
+    static constexpr std::size_t sizeOfChar(const Char_t ch) {
+        if constexpr(std::is_same_v<Char_t, wchar_t>) {
+            return sizeof(wchar_t);
+        }
+        else {
+            auto c = *ch;
+            return (c&0340) == 0340 ? ((c&020) ? 4 : 3) : ((c&0200) ? 2 : 1);
         }
     }
 

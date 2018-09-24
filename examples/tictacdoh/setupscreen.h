@@ -57,7 +57,7 @@ class SetupScreen : public WawtScreenImpl<SetupScreen,DrawOptions> {
 
         virtual StatusPair listen(const Wawt::String_t& port)           = 0;
 
-        virtual void       showGameScreen(int marker)                   = 0;
+        virtual void       showGameScreen(const Wawt::String_t&)        = 0;
     };
 
     // PUBLIC CONSTRUCTORS

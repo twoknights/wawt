@@ -224,18 +224,26 @@ Controller::startup()
     d_setupScreen = d_router.create<SetupScreen>("Setup Screen",
                                                  this,
                                                  std::ref(d_mapper));
-    d_gameScreen  = d_router.create<GameScreen>("Game Screen");
+    d_gameScreen  = d_router.create<GameScreen>("Game Screen",
+                                                 this);
     /* ... additional screens here ...*/
 
-    d_router.activate<SetupScreen>(d_setupScreen);
-//    d_router.activate<GameScreen>(d_gameScreen);
+//    d_router.activate<SetupScreen>(d_setupScreen);
+    d_router.activate<GameScreen>(d_gameScreen, Wawt::String_t("X"));
     // Ready for events to be processed.
     return;                                                           // RETURN
 }
 
 void
-Controller::showGameScreen(int marker)
+Controller::showSetupScreen()
 {
+    d_router.activate<SetupScreen>(d_setupScreen);
+}
+
+void
+Controller::showGameScreen(const Wawt::String_t& marker)
+{
+    d_router.activate<GameScreen>(d_gameScreen, marker);
 }
 
 // vim: ts=4:sw=4:et:ai

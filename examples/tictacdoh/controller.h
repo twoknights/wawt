@@ -33,20 +33,11 @@
                             // class Controller
                             //=================
 
-class Controller : public SetupScreen::Calls {
-    using Handle = WawtEventRouter::Handle;
-
-    WawtEventRouter&    d_router;
-    StringIdLookup&     d_mapper;
-    Handle              d_setupScreen;
-    Handle              d_gameScreen;
-    sf::TcpListener     d_listener{};
-    sf::TcpSocket       d_connection{};
-    std::regex          d_addressRegex{R"(^([a-z.\-\d]+):(\d+)$)"};
-    std::atomic_bool    d_cancel;
-
+class Controller : public SetupScreen::Calls
+                 , public GameScreen::Calls {
   public:
     // PUBLIC TYPES
+    using Handle = WawtEventRouter::Handle;
 
     // PUBLIC CONSTRUCTORS
     Controller(WawtEventRouter& router, StringIdLookup& mapper)
@@ -59,7 +50,11 @@ class Controller : public SetupScreen::Calls {
 
     void       cancel()                                     override;
 
-    void       showGameScreen(int  marker)                  override;
+    void       showGameScreen(const Wawt::String_t&)        override;
+
+    // SetupScreen::Calls Interface:
+
+    void       showSetupScreen()                            override;
 
     // PUBLIC MANIPULATORS
     void accept();
@@ -69,6 +64,16 @@ class Controller : public SetupScreen::Calls {
     bool shutdown();
 
     void startup();
+
+  private:
+    WawtEventRouter&    d_router;
+    StringIdLookup&     d_mapper;
+    Handle              d_setupScreen;
+    Handle              d_gameScreen;
+    sf::TcpListener     d_listener{};
+    sf::TcpSocket       d_connection{};
+    std::regex          d_addressRegex{R"(^([a-z.\-\d]+):(\d+)$)"};
+    std::atomic_bool    d_cancel;
 };
 
 #endif

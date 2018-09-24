@@ -128,14 +128,13 @@ SetupScreen::connectCallback(bool listen)
         auto status = listen ? d_controller->listen(*textString)
                              : d_controller->connect(*textString);
         auto id = addModalDialogBox(
-            Panel({}, defaultScreenOptions(),
             {
                 Label(Layout::slice(false, 0.1, 0.3), {S("")}),
                 ButtonBar(Layout::slice(false, -0.3, -0.1),
                           {
                             {{S("Cancel")}, [this](auto) { return FocusCb(); }}
                           })
-            }));
+            });
         lookup<Label>(id++).textView().setText(status.second);
         auto& btn = lookup<ButtonBar>(id).button(0);
         Wawt::SelectFn onClick;
@@ -169,7 +168,7 @@ SetupScreen::connectionResult(bool             success,
     Wawt::String_t  buttonLabel;
     auto selectedRows = d_playerMark->selectedRows();
     assert(selectedRows.size() == 1);
-    auto marker = selectedRows.front() == 0 ? C('X') : C('O');
+    auto marker = selectedRows.front() == 0 ? S("X") : S("O");
 
     if (success) {
         onClick =   [this,marker](auto) {
@@ -187,14 +186,13 @@ SetupScreen::connectionResult(bool             success,
                     };
         buttonLabel = S("Done");
     }
-    addModalDialogBox(Panel({}, defaultScreenOptions(),
-                      {
+    addModalDialogBox({
                           Label(Layout::slice(false, 0.1, 0.3), {message}),
                           ButtonBar(Layout::slice(false, -0.3, -0.1),
                                     {
                                       {{buttonLabel}, onClick}
                                     })
-                      }));
+                      });
 }
 
 // vim: ts=4:sw=4:et:ai

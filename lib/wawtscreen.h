@@ -79,6 +79,7 @@ class WawtScreen {
     using List          = Wawt::List;
     using Panel         = Wawt::Panel;
     using TextEntry     = Wawt::TextEntry;
+    using Widgets       = Wawt::Panel::Widgets;
 
     using Layout        = Wawt::Layout;
     using InputHandler  = Wawt::InputHandler;
@@ -93,6 +94,8 @@ class WawtScreen {
     using Normalize     = Wawt::Normalize;
     using Vertex        = Wawt::Vertex;
     using WidgetId      = Wawt::WidgetId;
+
+    using String_t      = Wawt::String_t;
 
     // PROTECTED CONSTRUCTOR
     /**
@@ -145,28 +148,36 @@ class WawtScreen {
     // PUBLIC MANIPULATORS
 
     /**
-     * @brief Extend the screen definition with an element which is drawn last.
+     * @brief Extend the screen definition with a pop dialog box.
      *
-     * @param panel Contains user interface elements to "pop-up".
+     * @param widgets A vector of "widgets" that are the dialog's contents.
      * @param width The width of the panel where 1.0 is the screen width.
      * @param height The height of the panel where 1.0 is the screen height.
      * @param borderThickness The panels border thickness, defaulting to 2.
+     * @param options Panel display options defaulting to the screen options.
      *
      * @return The widget ID of the first widget in 'panel' on success.
      * 
      * The 'width' and 'height' will be used to create a centered panel with
      * those dimensions (see: 'Wawt::Lahyout::centered'). Their values must
-     * be in the range of 0.1 and 1.0.
-     * If a modal pop-up is already active, then this method has no effect,
-     * and the returned widget ID is unset.
+     * be in the range of 0.1 and 1.0; the returned widget ID is unset if
+     * they are not. If a modal pop-up is already active, then this method
+     * replaces that one.
      * Note that the screen is overlayed with a transparent canvas which
      * prevents any user interface element other than the pop-up 'panel'
      * from receiving events.
      */
-    WidgetId addModalDialogBox(Wawt::Panel   panel,
-                               double        width           = 0.33,
-                               double        height          = 0.33,
-                               double        borderThickness = 2.0);
+    WidgetId addModalDialogBox(const Widgets&  widgets,
+                               double          width           = 0.33,
+                               double          height          = 0.33,
+                               double          borderThickness = 2.0,
+                               std::any        options         = std::any());
+
+    WidgetId addModalDialogBox(Widgets&&       widgets,
+                               double          width           = 0.33,
+                               double          height          = 0.33,
+                               double          borderThickness = 2.0,
+                               std::any        options         = std::any());
 
     /**
      * @brief Draw the current screen user interface elements.
@@ -491,10 +502,11 @@ class WawtScreenImpl : public WawtScreen {
 };
 
 inline Wawt::WidgetId
-WawtScreen::addModalDialogBox(Wawt::Panel   panel,
-                              double        width,
-                              double        height,
-                              double        borderThickness)
+WawtScreen::addModalDialogBox(const Widgets&  widgets,
+                              double          width,
+                              double          height,
+                              double          borderThickness,
+                              std::any        options)
 {
     Wawt::WidgetId ret;
 
@@ -502,15 +514,45 @@ WawtScreen::addModalDialogBox(Wawt::Panel   panel,
         if (d_modalActive) {
             dropModalDialogBox();
         }
-
-        if (!panel.drawView().options().has_value()) {
-            panel.drawView().options() = d_wawt->getWidgetOptionDefaults()
-                                               .d_screenOptions;
-        }
-        panel.layoutView()
-            = Wawt::Layout::centered(width, height).border(borderThickness);
-        ret = d_wawt->popUpModalDialogBox(&d_screen, std::move(panel));
         d_modalActive = true;
+
+        if (!options.has_value()) {
+            options = d_wawt->getWidgetOptionDefaults().d_screenOptions;
+        }
+        ret = d_wawt->popUpModalDialogBox(
+                &d_screen,
+                Panel(Wawt::Layout::centered(width, height)
+                                                      .border(borderThickness),
+                      std::move(options),
+                      widgets));
+    }
+    return ret;                                                       // RETURN
+}
+
+inline Wawt::WidgetId
+WawtScreen::addModalDialogBox(Widgets&&  widgets,
+                              double     width,
+                              double     height,
+                              double     borderThickness,
+                              std::any   options)
+{
+    Wawt::WidgetId ret;
+
+    if (width <= 1.0 && height <= 1.0 && width >  0.1 && height >  0.1) {
+        if (d_modalActive) {
+            dropModalDialogBox();
+        }
+        d_modalActive = true;
+
+        if (!options.has_value()) {
+            options = d_wawt->getWidgetOptionDefaults().d_screenOptions;
+        }
+        ret = d_wawt->popUpModalDialogBox(
+                &d_screen,
+                Panel(Wawt::Layout::centered(width, height)
+                                                      .border(borderThickness),
+                      std::move(options),
+                      std::move(widgets)));
     }
     return ret;                                                       // RETURN
 }
@@ -529,8 +571,8 @@ WawtScreenImpl<Derived,Option>::activate(double         width,
                                          Types&...      args)
 {
     try {
-        static_cast<Derived*>(this)->resetWidgets(args...);
         d_wawt->resizeRootPanel(&d_screen, width, height);
+        static_cast<Derived*>(this)->resetWidgets(args...);
     }
     catch (Wawt::Exception caught) {
             std::ostringstream os;

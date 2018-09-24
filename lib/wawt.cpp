@@ -67,19 +67,6 @@ std::ostream& operator<<(std::ostream& os, const Wawt::WidgetId id) {
     return os;
 }
 
-inline int charLng(wchar_t) {
-    return 1;
-}
-
-inline int charLng(char ch) {
-    return (ch & 0340) == 0340 ? ((ch & 020) ? 4 : 3)
-                               : ((ch & 0200) ? 2 : 1);
-}
-
-inline int charLng(const char *ch) {
-    return charLng(ch[0]);
-}
-
 inline bool isBackspace(wchar_t ch) {
     return ch == L'\b';
 }
@@ -110,7 +97,7 @@ inline std::wstring makeString(wchar_t ch) {
 }
 
 inline std::string makeString(const char *ch) {
-    return isEos(ch) ? std::string() : std::string(ch, charLng(ch));
+    return isEos(ch) ? std::string() : std::string(ch, Wawt::sizeOfChar(ch));
 }
 
 inline auto makeString(char ch) {
@@ -118,8 +105,7 @@ inline auto makeString(char ch) {
         return makeString(wchar_t(ch));
     }
     else {
-        char u8[4] = {ch};
-        return makeString(u8);
+        return makeString(&ch);
     }
 }
 
@@ -133,7 +119,7 @@ inline int textLength(const std::string& text) {
     auto  end    = p + text.length();
     while (p < end && *p) {
         ++length;
-        p += charLng(*p);
+        p += Wawt::sizeOfChar(p);
     }
     return length;
 }
@@ -2138,7 +2124,7 @@ Wawt::setScrollableListStartingRow(Wawt::List *list, unsigned int row)
     return;                                                           // RETURN
 }
 
-// PUBLIC DATA MEMBERS
+// PUBLIC CLASS MEMBERS
 const Wawt::WidgetId   Wawt::kROOT(UINT16_MAX-1, true, true);
 
 const std::any        Wawt::s_noOptions;

@@ -189,7 +189,13 @@ WawtEventRouter::draw()
             = std::unique_ptr<DeferFn>(d_deferredFn.exchange(nullptr));
 
         if (deferredActivate_p) {
-            (*deferredActivate_p)();
+            if (d_current) { // clear dialogs and timer (if anY)
+                d_current->dropModalDialogBox();
+                d_timedCallback  = std::function<void()>();
+            }
+            d_current = deferredActivate_p->first;
+            d_current->resize(d_currentWidth, d_currentHeight);
+            deferredActivate_p->second();
         }
     }
 

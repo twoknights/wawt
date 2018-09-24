@@ -89,15 +89,77 @@ GameScreen::createScreenPanel()
 }
 
 void
-GameScreen::resetWidgets()
+GameScreen::gameOver(GameResult result)
 {
+    String_t resultString;
+
+    if (result == GameResult::eFORFEIT) {
+        resultString = S("You have forfeited the game.");
+    }
+
+    addModalDialogBox(
+        {
+            Label(Layout::slice(false, 0.1, 0.3), resultString),
+            Label(Layout::slice(false, 0.35, 0.55),
+                  S("Would you like to play again?")),
+            ButtonBar(Layout::slice(false, -0.3, -0.1),
+                {
+                  {{S("Play")}, [this](auto) { dropModalDialogBox();
+                                               startGame();
+                                               return FocusCb();}},
+                  {{S("Quit")}, [this](auto) { dropModalDialogBox();
+                                               d_controller->showSetupScreen();
+                                               return FocusCb();}}
+                })
+        });
+}
+
+void
+GameScreen::resetWidgets(const String_t& marker)
+{
+    d_marker    = marker;
+    addModalDialogBox(
+        {
+            Label(Layout::slice(false, 0.1, 0.3),
+                S("Click 'Ready' to begin the game.")),
+            Label(Layout::slice(false, 0.35, 0.55),
+                  S("The round time is 10s.")),
+            ButtonBar(Layout::slice(false, -0.3, -0.1),
+                {
+                  {S("Ready"), [this](auto) { dropModalDialogBox();
+                                              startGame();
+                                              return FocusCb();}}
+                })
+        });
 }
 
 Wawt::FocusCb
-GameScreen::click(int square, Wawt::Text *button)
+GameScreen::click(int, Wawt::Text *button)
 {
-    button->textView().setText(Wawt::ToString(square));
+    button->textView().setText(d_marker);
     return FocusCb();
+}
+
+void
+GameScreen::showRemainingTime()
+{
+    if (d_countDown == 0) {
+        gameOver(eFORFEIT);
+    }
+    else {
+        String_t message
+            = S("Remaining time: ") + Wawt::ToString(d_countDown--);
+        d_timeLabel->textView().setText(message);
+        resize();
+        setTimedEvent(1000ms, [this]() { showRemainingTime(); });
+    }
+}
+
+void
+GameScreen::startGame()
+{
+    d_countDown = 10;
+    showRemainingTime();
 }
 
 // vim: ts=4:sw=4:et:ai
