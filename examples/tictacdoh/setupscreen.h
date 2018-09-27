@@ -51,11 +51,9 @@ class SetupScreen : public WawtScreenImpl<SetupScreen,DrawOptions> {
 
         virtual ~Calls() { }
 
-        virtual StatusPair connect(const Wawt::String_t& connectString) = 0;
+        virtual StatusPair connect(const Wawt::String_t& address)       = 0;
 
         virtual void       cancel()                                     = 0;
-
-        virtual StatusPair listen(const Wawt::String_t& port)           = 0;
 
         virtual void       startGame(const Wawt::String_t&)             = 0;
     };

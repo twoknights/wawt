@@ -39,103 +39,73 @@ namespace BDS {
 
 class SfmlIpcAdapter : public WawtIpcProtocol {
   public:
+    // PUBLIC TYPES
+
     // PUBLIC CLASS MEMBERS
 
-    // PUBLIC CREATORS
+    // PUBLIC CONSTRUCTORS
+
+    // PUBLIC DESTRUCTORS
+    ~SfmlIpcAdapter();
 
     // PUBLIC WawtIpcAdapter INTERFACE
-    bool closeConnection(ConnectionId id)                             override;
+    void            closeConnection(ConnectionId        id)           override;
 
-    //! Synchronous call to form a connection address from "instructions".
-    AddressStatus  makeAddress(Address             *address,
-                               std::string         *errorMessage,
-                               std::any             directions)       override;
+    AddressStatus   prepareConnection(Wawt::String_t   *diagnostic,
+                                      ConnectionId     *id,
+                                      ConnectCb         connectionUpdate,
+                                      MessageCb         receivedMessage,
+                                      std::any          address)      override;
 
-    //! Asynchronous call for "mutual" message exchange.
-    bool sendMessage(ConnectionId               id,
-                     Message&&                  message)              override;
+    bool            sendMessage(ConnectionId            id,
+                                Message&&               message)      override;
 
-    //! Asynchronous establishment of a connection.
-    ConnectionId establishConnection(std::string     *diagnostic,
-                                     ConnectCallback  connectionUpdate,
-                                     MessageCallback  receivedMessage,
-                                     const Address&   address)        override;
+    void            closeAll()                                        override;
+
+    bool            startConnection(Wawt::String_t     *diagnostic,
+                                    ConnectionId        connectionId) override;
 
 
     // PUBLIC ACCESSORS
 
   private:
     // PRIVATE TYPES
-    struct Connection {
-        ConnectionStatus                d_status = ConnectionStatus::eOK;
-        bool                            d_shutdown = false;
-        int                             d_id       = 0;
-        std::mutex                      d_lock{};
-        std::condition_variable         d_signal{};
-        std::deque<Message>             d_writeQ{};
-        ConnectCallback                 d_connectionCb{};
-        MessageCallback                 d_messageCb{};
-        sf::TcpSocket                   d_socket;
+    struct  Connection;
 
-        Connection(ConnectionId         id,
-                   ConnectCallback&&    ccb,
-                   MessageCallback&&    mcb)
-            : d_id(id)
-            , d_connectionCb(std::move(ccb))
-            , d_messageCb(std::move(mcb)) {
-            d_socket.setBlocking(false);
-        }
-
-        ~Connection() {
-            if (d_connectionCb) {
-                d_connectionCb(d_id, d_status);
-            }
-        }
-
-        void lock() { d_lock.lock(); }
-
-        void shutdown(ConnectionStatus status) {
-            // caller must hold connection lock.
-            d_shutdown = true;
-            if (d_status == ConnectionStatus::eOK) {
-                d_status = status;
-            }
-            d_socket.disconnect();
-            d_writeQ.clear();
-            d_signal.notify_one();
-        }
-
-        void unlock() { d_lock.unlock(); }
-    };
-    using ConnectionPtr             = std::weak_ptr<Connection>;
-    using ConnectionMap             = std::map<ConnectionId,ConnectionPtr>;
+    using   ConnectionPtr           = std::weak_ptr<Connection>;
+    using   ConnectionMap           = std::map<ConnectionId,ConnectionPtr>;
 
     // PRIVATE MANIPULATORS
-    void accept(Connection *connection, sf::TcpListener *listener);
+    void        accept(Connection                  *connection,
+                       sf::TcpListener             *listener);
 
-    void connect(sf::Uint32 ipV4, unsigned short port, Connection *connection);
+    void        connect(sf::IpAddress               ipV4,
+                        unsigned short              port,
+                        Connection                 *connection);
 
-    void readMsgLoop(Connection *connection);
+    void        readMsgLoop(Connection             *connection);
 
-    std::size_t readSizeHdr(sf::SocketSelector&  select,
-                            Connection          *connection);
+    std::size_t readSizeHdr(sf::SocketSelector&     select,
+                            Connection             *connection);
 
-    void readMsg(sf::SocketSelector&     select,
-                 Connection             *connection,
-                 uint16_t                msgSize);
+    void        readMsg(sf::SocketSelector&         select,
+                        Connection                 *connection,
+                        uint16_t                    msgSize);
 
-    bool writeMsg(Connection            *connection,
-                  const char            *message,
-                  uint16_t               msgSize);
+    bool        writeMsg(Connection                *connection,
+                         const char                *message,
+                         uint16_t                   msgSize);
 
-    void writeMsgLoop(Connection *connection);
+    void        writeMsgLoop(Connection            *connection);
 
 
     // PRIVATE DATA
     std::mutex                      d_lock{};
     ConnectionMap                   d_connections{};
-    ConnectionId                    d_next          = 1;
-    std::regex                      d_addressRegex{R"(^([a-z.\-\d]+):(\d+)$)"};
+    bool                            d_shutdown      = false;
+    ConnectionId                    d_next          = 0;
+    std::regex                      d_pattern{ // 1=type 2=ip|port 3=port|""
+          R"(^(connect|listen)=([a-z\.\-\d]+)(?:\:(\d+))?$)"};
 };
 
 } // end BDS namespace

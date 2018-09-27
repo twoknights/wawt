@@ -29,18 +29,6 @@ using namespace std::literals::chrono_literals;
 
 namespace {
 
-int stoint(const Wawt::String_t& s) {
-    std::size_t pos;
-    auto        converted = SfmlDrawAdapter::toAnsiString(s);
-    int         num = -1;
-    try {
-        num = std::stoi(converted, &pos);
-    }
-    catch (...) {
-    }
-    return converted.empty() || pos != converted.length() ? -1 : num;
-}
-
 } // unnamed namespace
 
                             //-----------------
@@ -48,149 +36,83 @@ int stoint(const Wawt::String_t& s) {
                             //-----------------
 
 void
-Controller::accept()
+Controller::cancel()
 {
-    // A timed "wait" operation is used to poll the cancel flag while watching
-    // for an indication that the listen socket has something to accept.
-    sf::SocketSelector select;
-    select.add(d_listener);
-
-    d_connection.disconnect();
-    d_connection.setBlocking(true);
-
-    while (!d_cancel) {
-        if (select.wait(sf::seconds(1.0f))) {
-            if (select.isReady(d_listener)
-             && sf::Socket::Done == d_listener.accept(d_connection)) {
-                d_listener.close();
-                auto callRet = d_router.call(d_setupScreen,
-                                             &SetupScreen::connectionResult,
-                                             true,
-                                             S("Connection established."),
-                                             &d_connection);
-
-                if (!callRet.has_value()) {
-                    d_connection.disconnect();
-                }
-                return;                                               // RETURN
-            }
-        }
-    }
-    d_router.call(d_setupScreen,
-                  &SetupScreen::connectionResult,
-                  false,
-                  S("Connect attempt cancelled."),
-                  nullptr);
-    d_listener.close();
-    return;                                                           // RETURN
+    std::lock_guard<std::mutex> guard(d_cbLock);
+    d_ipc->closeConnection(d_currentId);
 }
 
 void
-Controller::asyncConnect(sf::IpAddress address, int port)
+Controller::connectionChange(WawtIpcProtocol::ConnectionId     id,
+                             WawtIpcProtocol::ConnectionStatus status)
 {
-    unsigned short port_us = static_cast<unsigned short>(port);
-    d_connection.setBlocking(false);
+    // Note: no other connection update for 'id' can be delivered
+    // until this function returns.
+    std::lock_guard<std::mutex> guard(d_cbLock);
 
-    while (!d_cancel) {
-        sf::Socket::Status status = d_connection.connect(address, port_us);
+    if (d_currentId == id) {
+        if (WawtIpcProtocol::ConnectionStatus::eOK == status) {
+            d_cbLock.unlock();
 
-        if (sf::Socket::Done == status) {
-            d_connection.setBlocking(true);
             auto callRet = d_router.call(d_setupScreen,
                                          &SetupScreen::connectionResult,
                                          true,
                                          S("Connection established."),
                                          &d_connection);
+            d_cbLock.lock();
+
             if (!callRet.has_value()) {
-                d_connection.disconnect();
+                // No longer interested in this connection's updates.
+                if (d_currentId == id) { // Could have changed!
+                    d_currentId = WawtIpcProtocol::kINVALID_ID;
+                }
+                d_ipc->closeConnection(id);
             }
             return;                                                   // RETURN
         }
+        d_currentId = WawtIpcProtocol::kINVALID_ID;
 
-        if (sf::Socket::NotReady != status) {
-            d_connection.disconnect();
+        if (WawtIpcProtocol::ConnectionStatus::eCLOSED == status) {
+            d_cbLock.unlock();
+            d_router.call(d_setupScreen,
+                          &SetupScreen::connectionResult,
+                          false,
+                          S("Connect attempt cancelled."),
+                          nullptr);
+            d_cbLock.lock();
         }
-        std::this_thread::sleep_for(1s);
+        // TBD: DISCONNECT
     }
-    d_connection.disconnect();
-
-    d_router.call(d_setupScreen,
-                  &SetupScreen::connectionResult,
-                  false,
-                  S("Connect attempt cancelled."),
-                  nullptr);
     return;                                                           // RETURN
-}
-
-void
-Controller::cancel()
-{
-    d_cancel = true;
 }
 
 Controller::StatusPair
 Controller::connect(const Wawt::String_t& connectString)
 {
-    std::string destination = SfmlDrawAdapter::toAnsiString(connectString);
-    std::size_t pos;
-    std::smatch addressAndPort;
-    int         port;
-    // parse based on <host>:<port>:
+    Wawt::String_t           diagnostic;
 
-    if (!std::regex_match(destination, addressAndPort, d_addressRegex)
-     || (port = std::stoi(addressAndPort.str(2),&pos)
-         , pos != addressAndPort.str(2).length())) {
-        return {false, S("The destination string is malformed.")};
+    WawtIpcProtocol::ConnectionId id;
+
+    auto status = d_ipc->prepareConnection(&diagnostic,
+                                           &id,
+                                           [this](auto cid, auto info) {
+                                              connectionChange(cid, info);
+                                           },
+                                           [this](auto, auto) {
+                                           },
+                                           connectString);
+
+    if (WawtIpcProtocol::AddressStatus::eOK != status) {
+        return {false, diagnostic};
     }
-    // This can result in a DNS lookup:
-    sf::IpAddress ipV4(addressAndPort.str(1));
+    std::lock_guard<std::mutex> guard(d_cbLock);
 
-    if (sf::IpAddress::Any       == ipV4
-     || sf::IpAddress::Broadcast == ipV4
-     || port < 0
-     || port > UINT16_MAX) {
-        return {false, S("The destination host or port is invalid.")};
+    if (!d_ipc->startConnection(&diagnostic, id)) {
+        return {false, diagnostic};
     }
+    d_currentId = id;
 
-    if (sf::IpAddress::None == ipV4) {
-        return {false, S("The destination host is unknown.")};
-    }
-    d_cancel = false;
-
-    auto thread = std::thread(  [this, ipV4, port]() {
-                                    asyncConnect(ipV4, port);
-                                });
-
-    if (!thread.joinable()) {
-        return {false, S("Failed to request connection.")};
-    }
-    thread.detach();
     return {true, S("Attempting to connect to opponent.")};           // RETURN
-}
-
-Controller::StatusPair
-Controller::listen(const Wawt::String_t& portString)
-{
-    auto port = stoint(portString);
-
-    if (port < 0 || port > UINT16_MAX) {
-        return {false,
-                S("A port number between 0 and 65535 must be used.")};
-    }
-    d_listener.close();
-    
-    if (sf::Socket::Error == d_listener.listen(port)) {
-        return {false,
-                S("Failed to listen on port. It may be already in use.")};
-    }
-    d_cancel = false;
-    auto thread = std::thread([this]() { accept(); });
-    
-    if (!thread.joinable()) {
-        return {false, S("Failed to wait for a connection.")};
-    }
-    thread.detach();
-    return {true, S("Waiting for opponent to connect.")};             // RETURN
 }
 
 bool
@@ -204,6 +126,7 @@ Controller::shutdown()
                                       {
                                         {{S("Yes")},
                                          [this](auto) {
+                                            d_ipc->closeAll();
                                             d_router.discardAlert();
                                             d_router.shuttingDown();
                                             return Wawt::FocusCb();
@@ -228,8 +151,8 @@ Controller::startup()
                                                  this);
     /* ... additional screens here ...*/
 
-//    d_router.activate<SetupScreen>(d_setupScreen);
-    d_router.activate<GameScreen>(d_gameScreen, Wawt::String_t("X"));
+    d_router.activate<SetupScreen>(d_setupScreen);
+//    d_router.activate<GameScreen>(d_gameScreen, Wawt::String_t("X"));
     // Ready for events to be processed.
     return;                                                           // RETURN
 }

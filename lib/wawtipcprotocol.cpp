@@ -28,6 +28,7 @@ namespace {
                         // class ThreadAdapter
                         //--------------------
 
+#if 0
 bool
 ThreadAdapter::closeConnection(ConnectionId)
 {
@@ -115,6 +116,7 @@ ThreadAdapter::establishConnection(std::string           *diagnostic,
     connectionUpdate(1, ConnectionStatus::eOK);
     return 1;
 }
+#endif
 
 }  // namespace BDS
 // vim: ts=4:sw=4:et:ai

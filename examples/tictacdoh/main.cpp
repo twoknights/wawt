@@ -23,6 +23,7 @@
 
 #include <sfmldrawadapter.h>
 #include <sfmleventloop.h>
+#include <sfmlipcadapter.h>
 
 #include <fontconfig/fontconfig.h>
 
@@ -78,10 +79,11 @@ int main()
 
     StringIdLookup   idMapper;
     SfmlDrawAdapter  drawAdapter(window, path, arial);
+    SfmlIpcAdapter   ipcAdapter;
 
     WawtEventRouter  router(&drawAdapter, idMapper, DrawOptions::defaults());
 
-    Controller       controller(router, idMapper);
+    Controller       controller(router, idMapper, &ipcAdapter);
     auto shutdown = [&controller]() {
                         return controller.shutdown();
                     };

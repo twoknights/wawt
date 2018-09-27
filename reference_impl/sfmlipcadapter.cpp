@@ -17,13 +17,23 @@
  */
 
 #include "sfmlipcadapter.h"
-#include "sfmldrawadapter.h"
 
+#include <SFML/Network/IpAddress.hpp>
+#include <SFML/Network/SocketSelector.hpp>
 #include <SFML/Network/SocketSelector.hpp>
 #include <SFML/Network/TcpListener.hpp>
+#include <SFML/System/String.hpp>
 
 #include <cassert>
 #include <regex>
+#include <iostream>
+
+#undef  S
+#undef  C
+#define S(str) Wawt::String_t(u8"" str)      // UTF8 strings  (std::string)
+#define C(c) (u8 ## c)
+//#define S(str) Wawt::String_t(L"" str)  // wide char strings (std::wstring)
+//#define C(c) (L ## c)
 
 namespace BDS {
 
@@ -34,9 +44,118 @@ static constexpr unsigned char BYTE2 = '\252';
 
 } // end unnamed namespace
 
+
+                        //=================================
+                        // class SfmlIpcAdapter::Connection
+                        //=================================
+
+struct SfmlIpcAdapter::Connection {
+    using Address = std::pair<unsigned short, sf::IpAddress>;
+
+    std::thread                     d_reader;
+    std::thread                     d_writer;
+    sf::TcpSocket                   d_socket;
+    std::shared_ptr<Connection>     d_self;
+    ConnectionStatus                d_status    = ConnectionStatus::eOK;
+    bool                            d_shutdown  = false;
+    std::mutex                      d_lock{};
+    std::condition_variable         d_signal{};
+    std::deque<Message>             d_writeQ{};
+    ConnectionId                    d_id;
+    SfmlIpcAdapter                 *d_adapter;
+    bool                            d_listen;
+    Address                         d_address;
+    ConnectCb                       d_connectionCb;
+    MessageCb                       d_messageCb;
+
+    Connection(ConnectionId         id,
+               SfmlIpcAdapter      *adapter,
+               bool                 listen,
+               Address              address,
+               ConnectCb&&          ccb,
+               MessageCb&&          mcb)
+        : d_id(id)
+        , d_adapter(adapter)
+        , d_listen(listen)
+        , d_address(std::move(address))
+        , d_connectionCb(std::move(ccb))
+        , d_messageCb(std::move(mcb)) {
+        d_socket.setBlocking(false);
+    }
+
+    ~Connection() {
+        if (d_connectionCb) {
+            d_connectionCb(d_id, d_status);
+        }
+
+        if (d_reader.joinable()) {
+            if (d_reader.get_id() == std::this_thread::get_id()) {
+                d_reader.detach();
+            }
+            else {
+                d_reader.join();
+            }
+        }
+
+        if (d_writer.joinable()) {
+            if (d_writer.get_id() == std::this_thread::get_id()) {
+                d_writer.detach();
+            }
+            else {
+                d_writer.join();
+            }
+        }
+    }
+
+    void lock() { d_lock.lock(); }
+
+    void shutdown(ConnectionStatus status) {
+        // caller must hold connection lock.
+        d_shutdown = true;
+        if (d_status == ConnectionStatus::eOK) {
+            d_status = status;
+        }
+        d_socket.disconnect();
+        d_writeQ.clear();
+        d_signal.notify_one();
+    }
+
+    void unlock() { d_lock.unlock(); }
+};
+
                                 //----------------------
                                 // class SfmlIpcAdapter
                                 //----------------------
+
+SfmlIpcAdapter::~SfmlIpcAdapter()
+{
+    for (auto& pair : d_connections) {
+        auto connection = pair.second.lock();
+
+        if (connection) {
+            connection->lock();
+
+            connection->d_messageCb    = MessageCb();
+            connection->d_connectionCb = ConnectCb();
+            connection->shutdown(ConnectionStatus::eCLOSED);
+            connection->d_self.reset();   // 'connection' COULD be the only ref.
+
+            connection->unlock();
+
+            // The only other join's are in the Connection destructor, so
+            // those can't be called.
+
+            if (connection->d_reader.joinable()) {
+                connection->d_reader.join();
+            }
+
+            if (connection->d_writer.joinable()) {
+                connection->d_writer.join();
+            }
+        }
+    }
+}
+
 void
 SfmlIpcAdapter::accept(Connection *connection, sf::TcpListener *listener)
 {
@@ -47,11 +166,11 @@ SfmlIpcAdapter::accept(Connection *connection, sf::TcpListener *listener)
     sf::SocketSelector select;
     select.add(*listener);
 
-    connection->lock(); /*LOCK*/
+    std::unique_lock<Connection> guard(*connection);
 
     auto attempts = 0u;
 
-    while (!connection->d_shutdown) { // break from while with lock held!
+    while (!connection->d_shutdown) { // exit/break from while with lock held!
 
         assert(++attempts < 1000);
 
@@ -60,55 +179,88 @@ SfmlIpcAdapter::accept(Connection *connection, sf::TcpListener *listener)
         if (select.wait(sf::seconds(1.0f))) {
             auto status = listener->accept(connection->d_socket);
 
+            connection->lock();/*LOCK*/
+
+            auto cb = connection->d_connectionCb;
+
+            if (!cb) {
+                break;                                                 // BREAK
+            }
+
             if (sf::Socket::Done == status) {
-                connection->d_connectionCb(connection->d_id,
-                                           ConnectionStatus::eOK);
+
+                guard.release()->unlock(); /*UNLOCK*/
+
+                cb(connection->d_id, ConnectionStatus::eOK);
                 readMsgLoop(connection);
-                return;                                           // RETURN
+                return;                                               // RETURN
             }
 
             if (sf::Socket::Error == status) {
-                connection->lock(); /*LOCK*/
                 connection->shutdown(ConnectionStatus::eERROR);
-                break;                                            // BREAK
+                break;                                                 // BREAK
             }
         }
-        connection->lock(); /*LOCK*/
+        else {
+            connection->lock(); /*LOCK*/
+        }
     }
     listener->close();
-
-    connection->unlock();/*UNLOCK*/
 
     return;                                                           // RETURN
 }
 
-bool
+void
+SfmlIpcAdapter::closeAll()
+{
+    std::lock_guard<std::mutex>  guard(d_lock);
+    d_shutdown = true;
+
+    for (auto& pair : d_connections) {
+        auto connection = pair.second.lock();
+        
+        if (connection) {
+            connection->lock();
+
+            connection->d_messageCb    = MessageCb();
+            connection->d_connectionCb = ConnectCb();
+            connection->shutdown(ConnectionStatus::eCLOSED);
+            connection->d_self.reset();
+            
+            connection->unlock();
+        }
+    }
+    return;                                                           // RETURN
+}
+
+void
 SfmlIpcAdapter::closeConnection(ConnectionId id)
 {
-    std::unique_lock<std::mutex>  guard(d_lock);
+    std::lock_guard<std::mutex>  guard(d_lock);
     auto it = d_connections.find(id);
 
     if (it != d_connections.end()) {
         auto connection = it->second.lock();
-        std::lock_guard<std::mutex> cn_guard(connection->d_lock);
+        
+        connection->lock();
+
         connection->shutdown(ConnectionStatus::eCLOSED);
         d_connections.erase(it);
-        return true;                                                  // RETURN
+        
+        connection->unlock();
     }
-    return false;                                                     // RETURN
+    return;                                                           // RETURN
 }
 
 void
-SfmlIpcAdapter::connect(sf::Uint32      ipV4,
+SfmlIpcAdapter::connect(sf::IpAddress   ipV4,
                         unsigned short  port,
                         Connection     *connection)
 {
-    sf::IpAddress address(ipV4);
-
     sf::SocketSelector select;
     select.add(connection->d_socket);
 
-    connection->lock(); /*LOCK*/
+    std::unique_lock<Connection> guard(*connection);
     auto attempts = 0u;
 
     while (!connection->d_shutdown) {
@@ -116,25 +268,34 @@ SfmlIpcAdapter::connect(sf::Uint32      ipV4,
 
         connection->unlock(); /*UNLOCK*/
 
-        auto status = connection->d_socket.connect(address, port);
+        auto status = connection->d_socket.connect(ipV4, port);
 
         if (sf::Socket::Done == status) {
-            connection->d_connectionCb(connection->d_id,
-                                       ConnectionStatus::eOK);
-            readMsgLoop(connection);
-            return;                                                   // RETURN
-        }
 
-        if (sf::Socket::NotReady != status) {
-            // Connect rejections are often immediate, so sleep before retry
-            connection->d_socket.disconnect();
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            connection->lock(); /*LOCK*/
+
+            auto cb = connection->d_connectionCb;
+
+            if (cb) {
+                guard.release()->unlock(); /*UNLOCK*/
+
+                cb(connection->d_id, ConnectionStatus::eOK);
+                readMsgLoop(connection);
+                return;                                               // RETURN
+            }
         }
         else {
-            select.wait(sf::seconds(1.0f)); // poll for shutdown.
-        }
+            if (sf::Socket::NotReady != status) {
+                // Connect rejections are often immediate, so sleep before retry
+                connection->d_socket.disconnect();
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            }
+            else {
+                select.wait(sf::seconds(1.0f)); // poll for shutdown.
+            }
 
-        connection->lock(); /*LOCK*/
+            connection->lock(); /*LOCK*/
+        }
     }
     connection->d_socket.disconnect();
 
@@ -143,147 +304,122 @@ SfmlIpcAdapter::connect(sf::Uint32      ipV4,
     return;                                                           // RETURN
 }
 
-WawtIpcProtocol::ConnectionId
-SfmlIpcAdapter::establishConnection(std::string     *diagnostic,
-                                    ConnectCallback  connectionUpdate,
-                                    MessageCallback  messageCallback,
-                                    const Address&   address)
-{
-    using IpPortPair = std::pair<sf::Uint32,unsigned short>;
-
-    if (!connectionUpdate || !messageCallback) {
-        *diagnostic = "Required functionals not supplied.";
-        return 0;                                                     // RETURN
-    }
-
-    std::unique_lock<std::mutex>  guard(d_lock);
-    auto connection = std::make_shared<Connection>(d_next,
-                                                   std::move(connectionUpdate),
-                                                   std::move(messageCallback));
-
-    auto sender     = std::thread(  [this, connection] {
-                                        writeMsgLoop(connection.get());
-                                    });
-
-    if (!sender.joinable()) {
-        connection->d_connectionCb = ConnectCallback();
-        *diagnostic = "Failed to start message sender.";
-        return 0;                                                     // RETURN
-    }
-    sender.detach();
-
-    std::function<void()> task;
-
-    if (address.type() == typeid(unsigned short)) {
-        auto port = std::any_cast<unsigned short>(address);
-        auto l    = std::make_unique<sf::TcpListener>();
-
-        if (sf::Socket::Error == l->listen(port)) {
-            *diagnostic =
-                    "Failed to listen on port. It may be already in use.";
-            return 0;                                                 // RETURN
-        }
-        task =  [this, connection, lp = l.release()] {
-                    std::unique_ptr<sf::TcpListener> listener(lp);
-                    accept(connection.get(), listener.get());
-                };
-    }
-    else if (address.type() == typeid(IpPortPair)) {
-        auto [ipV4, port] = std::any_cast<IpPortPair>(address);
-        task = [this, ipV4, port, connection] {
-                   connect(ipV4, port, connection.get());
-               };
-    }
-    else {
-        *diagnostic = "Unrecognized address.";
-        return 0;                                                     // RETURN
-    }
-    auto reader  = std::thread(task);
-    
-    if (!reader.joinable()) {
-        std::lock_guard<std::mutex> cn_guard(connection->d_lock);
-        connection->d_connectionCb = ConnectCallback();
-        connection->shutdown(ConnectionStatus::eERROR);
-        *diagnostic = "Failed to start connection.";
-        return 0;                                                     // RETURN
-    }
-    reader.detach();
-
-    d_connections.emplace(d_next, connection).first;
-    *diagnostic = "Waiting on connection.";
-    return d_next++;                                                  // RETURN
-}
-
 WawtIpcProtocol::AddressStatus
-SfmlIpcAdapter::makeAddress(Address        *address,
-                            std::string    *errorMessage,
-                            std::any        directive)
+SfmlIpcAdapter::prepareConnection(Wawt::String_t *diagnostic,
+                                  ConnectionId   *id,
+                                  ConnectCb       connectionUpdate,
+                                  MessageCb       receivedMessage,
+                                  std::any        address)
 {
-    // handle [0-9]+ as listen port, regex match as connect adress.
     std::string string;
+    // Preliminaries
+
+    assert(connectionUpdate && receivedMessage);
     
     try {
-        if (directive.type() == typeid(std::string)) {
-            string = std::any_cast<std::string>(directive);
+        if (address.type() == typeid(std::string)) {
+            string = std::any_cast<std::string>(address);
         }
-        else if (directive.type() == typeid(std::wstring)) {
-            string = SfmlDrawAdapter
-                        ::toAnsiString(std::any_cast<std::wstring>(directive));
+        else if (address.type() == typeid(std::wstring)) {
+            string = sf::String(
+                        std::any_cast<std::wstring>(address)).toAnsiString();
         }
     }
     catch (...) {
     }
 
     if (string.empty()) {
-        *errorMessage = "Expected address to be a string.";
-        return WawtIpcProtocol::AddressStatus::eMALFORMED;
+        *diagnostic = S("Expected address to be a string.");
+        return AddressStatus::eMALFORMED;                             // RETURN
     }
+    // Address parse (regex):
+    std::smatch parse;
 
-    if (string.find_first_not_of("0123456789") == std::string::npos) {
-        int port = std::stoi(string);
+    if (!std::regex_match(string, parse, d_pattern)) {
+        *diagnostic = S("The address string is malformed.");
+        return AddressStatus::eMALFORMED;                             // RETURN
+    }
+    bool            listen = false;
+    std::string     ipStr;
+    std::string     portStr;
 
-        if (port < 0 || port > UINT16_MAX) {
-            *errorMessage = "A port number between 0 and 65535 must be used.";
-            return WawtIpcProtocol::AddressStatus::eINVALID;
-        }
-        *address = static_cast<unsigned short>(port);
+    if (parse.str(1) == "listen") {
+        listen = true;
+    }
+    else if (parse.str(1) != "connect") {
+        *diagnostic = S("The connection type is invalid.");
+        return AddressStatus::eINVALID;                               // RETURN
+    }
+    assert(parse.size() == 4);
+
+    if (parse.str(3).empty()) {
+        portStr = parse.str(2);
     }
     else {
-        std::size_t pos;
-        std::smatch addressAndPort;
-        int         port;
-        // parse based on <host>:<port>:
-
-        if (!std::regex_match(string, addressAndPort, d_addressRegex)
-         || (port = std::stoi(addressAndPort.str(2),&pos)
-             , pos != addressAndPort.str(2).length())) {
-            *errorMessage = "The destination string is malformed.";
-            return WawtIpcProtocol::AddressStatus::eMALFORMED;
-        }
-        // This can result in a DNS lookup:
-        sf::IpAddress ipV4(addressAndPort.str(1));
-
-        if (sf::IpAddress::Any       == ipV4
-         || sf::IpAddress::Broadcast == ipV4
-         || port < 0
-         || port > UINT16_MAX) {
-            *errorMessage = "The destination string is invalid.";
-            return WawtIpcProtocol::AddressStatus::eINVALID;
-        }
-
-        if (sf::IpAddress::None == ipV4) {
-            *errorMessage = "The destination host is unknown.";
-            return WawtIpcProtocol::AddressStatus::eUNKNOWN;
-        }
-        sf::Uint32 ip = ipV4.toInteger();
-        *address = std::pair(ip, static_cast<unsigned short>(port));
+        ipStr   = parse.str(2);
+        portStr = parse.str(3);
     }
+    std::size_t     pos;
+    int             port;
+
+    try {
+        port = std::stoi(portStr, &pos);
+    }
+    catch (...) {
+        port = -1;
+    }
+
+    if (port < 0 || port > UINT16_MAX || pos != portStr.length()) {
+        *diagnostic
+            = S("A port number between 0 and 65535 must be used.");
+        return AddressStatus::eINVALID;                               // RETURN
+    }
+    // This can result in a DNS lookup:
+    sf::IpAddress   ipAddress = ipStr.empty() ? sf::IpAddress::Any
+                                              : sf::IpAddress(ipStr);
+
+    if (listen) {
+        if (sf::IpAddress::Any               != ipAddress
+         && sf::IpAddress::getLocalAddress() != ipAddress
+         && sf::IpAddress(127u,0u,0u,1u)     != ipAddress) {
+            *diagnostic
+                = S("Can only bind listen to this computer.");
+            return AddressStatus::eINVALID;                           // RETURN
+        }
+    }
+    else {
+        if (sf::IpAddress::Any               == ipAddress
+         && sf::IpAddress::Broadcast         == ipAddress) {
+            *diagnostic
+                = S("Cannot connect to broadcast or '0.0.0.0' address.");
+            return AddressStatus::eINVALID;                           // RETURN
+        }
+
+        if (sf::IpAddress::None == ipAddress) {
+            *diagnostic = S("The destination host is malformed or unknown.");
+            return AddressStatus::eUNKNOWN;                           // RETURN
+        }
+    }
+    unsigned short port_us = static_cast<unsigned short>(port);
+    *id = d_next++;
+    auto connection
+        = std::make_shared<Connection>(*id,
+                                       this,
+                                       listen,
+                                       std::pair(port_us, ipAddress),
+                                       std::move(connectionUpdate),
+                                       std::move(receivedMessage));
+    connection->d_self = connection; // to keep "alive" until startConnection
+    d_connections[*id] = connection; // a weak pointer.
+
     return AddressStatus::eOK;
 }
 
 void
 SfmlIpcAdapter::readMsgLoop(Connection *connection)
 {
+    assert(sf::IpAddress::None != connection->d_socket.getRemoteAddress());
+
     sf::SocketSelector select;
     select.add(connection->d_socket);
 
@@ -316,8 +452,12 @@ SfmlIpcAdapter::readSizeHdr(sf::SocketSelector& select, Connection *connection)
     auto attempts = 0u;
     auto code = ConnectionStatus::eOK;
 
-    do {
+    std::unique_lock<Connection> guard(*connection);
+
+    while (!connection->d_shutdown) {
         assert(++attempts < 1000);
+
+        connection->unlock(); /*UNLOCK*/
 
         if (select.wait(sf::seconds(1.0f))) { // poll for shutdown.
             std::size_t readsize = 0;
@@ -326,12 +466,13 @@ SfmlIpcAdapter::readSizeHdr(sf::SocketSelector& select, Connection *connection)
                                                        sizeof(header)-bufsize,
                                                        readsize);
 
+            connection->lock(); /*LOCK*/
+
             bufsize += readsize;
 
             if (sf::Socket::Done == status || sf::Socket::Partial == status) {
                 if (bufsize == sizeof(header)) {
                     if (header[0] != BYTE1 || header[1] != BYTE2) {
-                        connection->lock(); /*LOCK*/
                         break;                                         // BREAK
                     }
                     auto byte3      = uint16_t(header[2]);
@@ -342,18 +483,17 @@ SfmlIpcAdapter::readSizeHdr(sf::SocketSelector& select, Connection *connection)
             }
             else if (sf::Socket::Disconnected == status) {
                 code = ConnectionStatus::eDISCONNECT;
-                connection->lock(); /*LOCK*/
                 break;                                                 // BREAK
             }
             else if (sf::Socket::Error == status) {
                 code = ConnectionStatus::eERROR;
-                connection->lock(); /*LOCK*/
                 break;                                                 // BREAK
             }
         }
-        connection->lock(); /*LOCK*/
+        else {
+            connection->lock(); /*LOCK*/
+        }
     }
-    while (!connection->d_shutdown);
 
     connection->shutdown(code);
     connection->unlock(); /*UNLOCK*/
@@ -369,9 +509,13 @@ SfmlIpcAdapter::readMsg(sf::SocketSelector&     select,
     std::size_t bufsize     = 0;
     auto        code        = ConnectionStatus::eOK;
     auto attempts = 0u;
+    
+    std::unique_lock<Connection> guard(*connection);
 
-    do {
+    while (!connection->d_shutdown) {
         assert(++attempts < 1000);
+
+        connection->unlock();/*UNLOCK*/
 
         if (select.wait(sf::seconds(1.0f))) { // poll for shutdown.
             std::size_t readsize = 0;
@@ -380,33 +524,35 @@ SfmlIpcAdapter::readMsg(sf::SocketSelector&     select,
                                                        msgSize-bufsize,
                                                        readsize);
 
+            connection->lock(); /*LOCK*/
             bufsize += readsize;
 
             if (sf::Socket::Done == status || sf::Socket::Partial == status) {
-                if (bufsize == msgSize) {
-                    connection->d_messageCb(connection->d_id,
-                                            std::pair(std::move(buffer),
-                                                      msgSize));
+                auto cb = connection->d_messageCb;
+
+                if (bufsize == msgSize && cb) {
+
+                    guard.release()->unlock(); /*UNLOCK*/
+                    
+                    cb(connection->d_id, std::pair(std::move(buffer),msgSize));
                     return;                                           // RETURN
                 }
             }
             else if (sf::Socket::Disconnected == status) {
                 code = ConnectionStatus::eDISCONNECT;
-                connection->lock(); /*LOCK*/
                 break;                                                 // BREAK
             }
             else if (sf::Socket::Error == status) {
                 code = ConnectionStatus::eERROR;
-                connection->lock(); /*LOCK*/
                 break;                                                 // BREAK
             }
         }
-        connection->lock(); /*LOCK*/
+        else {
+            connection->lock(); /*LOCK*/
+        }
     }
-    while (!connection->d_shutdown);
 
     connection->shutdown(code);
-    connection->unlock(); /*UNLOCK*/
     return;                                                           // RETURN
 }
 
@@ -414,23 +560,102 @@ bool
 SfmlIpcAdapter::sendMessage(ConnectionId id, Message&& message)
 {
     std::lock_guard<std::mutex>  guard(d_lock);
-    auto it = d_connections.find(id);
 
-    if (it != d_connections.end()) {
-        auto connection = it->second.lock();
-        std::lock_guard<std::mutex> cn_guard(connection->d_lock);
+    if (!d_shutdown) {
+        auto it = d_connections.find(id);
 
-        if (!connection->d_shutdown) {
-            bool empty = connection->d_writeQ.empty();
-            connection->d_writeQ.emplace_front(std::move(message));
+        if (it != d_connections.end()) {
+            auto connection = it->second.lock();
 
-            if (empty) {
-                connection->d_signal.notify_one();
+            if (connection) {
+                std::lock_guard<Connection> cn_guard(*connection);
+
+                if (!connection->d_self && !connection->d_shutdown) {
+                    // Start was done but shutdown was not
+                    bool empty = connection->d_writeQ.empty();
+                    connection->d_writeQ.emplace_front(std::move(message));
+
+                    if (empty) {
+                        connection->d_signal.notify_one();
+                    }
+                    return true;                                      // RETURN
+                }
             }
-            return true;                                              // RETURN
+            else {
+                d_connections.erase(it);
+            }
         }
     }
     return false;                                                     // RETURN
+}
+
+bool
+SfmlIpcAdapter::startConnection(Wawt::String_t *diagnostic, ConnectionId id)
+{
+    std::unique_lock<std::mutex>  guard(d_lock);
+
+    if (d_shutdown) {
+        *diagnostic = S("IPC is shutting down.");
+        return false;                                                 // RETURN
+    }
+    auto it = d_connections.find(id);
+
+    if (it == d_connections.end()) {
+        *diagnostic = S("Invalid connection identifier.");
+        return false;                                                 // RETURN
+    }
+    auto connection = it->second.lock(); // shared ptr
+
+    if (!connection) {
+        d_connections.erase(it);
+        *diagnostic = S("Invalid connection identifier.");
+        return false;                                                 // RETURN
+    }
+    connection->d_self.reset(); // Now connection deletes when threads exit.
+    connection->d_writer = std::thread( [this, connection] {
+                                            writeMsgLoop(connection.get());
+                                        });
+
+    if (!connection->d_writer.joinable()) {
+        connection->d_connectionCb = ConnectCb();
+        d_connections.erase(it);
+        *diagnostic = S("Failed to start message sender.");
+        return false;                                                 // RETURN
+    }
+    auto [port, ipV4] = connection->d_address;
+
+    std::function<void()> task;
+
+    if (connection->d_listen) {
+        auto listener     = std::make_shared<sf::TcpListener>();
+
+        if (sf::Socket::Error == listener->listen(port, ipV4)) {
+            *diagnostic =
+                    S("Failed to listen on port. It may be already in use.");
+            return false;                                             // RETURN
+        }
+        task =  [this, connection, listener] {
+                    accept(connection.get(), listener.get());
+                };
+    }
+    else {
+        task = [this, port, ipV4, connection] {
+                   connect(ipV4, port, connection.get());
+               };
+    }
+    connection->d_reader  = std::thread(std::move(task));
+    
+    if (!connection->d_reader.joinable()) {
+        std::lock_guard<Connection> cn_guard(*connection);
+        connection->d_connectionCb = ConnectCb();
+        connection->shutdown(ConnectionStatus::eERROR); // wake-up writer
+        d_connections.erase(it);
+        *diagnostic = S("Failed to start connection.");
+        return false;                                                 // RETURN
+    }
+
+    *diagnostic = S("");
+    return true;                                                      // RETURN
 }
 
 bool
@@ -505,11 +730,12 @@ SfmlIpcAdapter::writeMsgLoop(Connection *connection)
         connection->d_writeQ.pop_back();
 
         connection->unlock(); /*UNLOCK*/
+
         char header[4];
         header[0] = BYTE1;
         header[1] = BYTE2;
-        header[3] = char(msgsize >> 8);
-        header[4] = char(msgsize & 0377);
+        header[2] = char(msgsize >> 8);
+        header[3] = char(msgsize & 0377);
 
         if (writeMsg(connection, header, sizeof(header))) {
             writeMsg(connection, uptr.get(), msgsize);

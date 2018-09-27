@@ -20,12 +20,15 @@
 #define BDS_WAWTIPCPROTOCOL_H
 
 #include <any>
+#include <cstdint>
 #include <deque>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
+
+#include "wawt.h"
 
 namespace BDS {
 
@@ -41,40 +44,43 @@ class WawtIpcProtocol {
   public:
     // PUBLIC TYPES
     enum class AddressStatus    { eOK, eMALFORMED, eINVALID, eUNKNOWN };
-    enum class ConnectionStatus { eOK, eDISCONNECT, eCLOSED, eCANCEL, eERROR };
+    enum class ConnectionStatus { eOK, eDISCONNECT, eCLOSED, eERROR };
 
-    using ConnectionId     = int;
-
-    using Address          = std::any;
+    using ConnectionId     = uint32_t;
 
     using Message          = std::pair<std::unique_ptr<char[]>,uint16_t>;
 
-    using ConnectCallback  = std::function<void(ConnectionId,
+    using ConnectCb        = std::function<void(ConnectionId,
                                                 ConnectionStatus)>;
 
-    using MessageCallback  = std::function<void(ConnectionId, Message&&)>;
+    using MessageCb        = std::function<void(ConnectionId, Message&&)>;
+
+    constexpr static ConnectionId kINVALID_ID = UINT32_MAX;
 
     //! Asynchronous close of connection.
-    virtual bool closeConnection(ConnectionId id)                           =0;
+    virtual void            closeConnection(ConnectionId    id)             =0;
 
-    //! Synchronous call to form a connection address from "instructions".
-    virtual AddressStatus  makeAddress(Address             *address,
-                                       std::string         *errorMessage,
-                                       std::any             directions)     =0;
+    //! Synchronous call to associate a "connection" to an "address".
+    virtual AddressStatus   prepareConnection(Wawt::String_t *diagnostic,
+                                              ConnectionId   *id,
+                                              ConnectCb       connectionUpdate,
+                                              MessageCb       receivedMessage,
+                                              std::any        address)      =0;
 
-    //! Asynchronous call for "mutual" message exchange.
-    virtual bool sendMessage(ConnectionId               id,
-                             Message&&                  message)            =0;
+    //! Asynchronous call to send a message on a connection
+    virtual bool            sendMessage(ConnectionId        id,
+                                        Message&&           message)        =0;
+
+    // Asynchronous close of all connections. No new ones permitted.
+    virtual void            closeAll()                                      =0;
 
     //! Asynchronous establishment of a connection.
-    virtual ConnectionId establishConnection(
-                                     std::string           *diagnostic,
-                                     ConnectCallback        connectionUpdate,
-                                     MessageCallback        receivedMessage,
-                                     const Address&         address)        =0;
+    virtual bool            startConnection(Wawt::String_t *diagnostic,
+                                            ConnectionId    connectionId)   =0;
 
 };
 
+#if 0
 class ThreadAdapter : public WawtIpcProtocol {
   public:
     // PUBLIC TYPES
@@ -108,6 +114,7 @@ class ThreadAdapter : public WawtIpcProtocol {
     MessageCallback         d_messageCallback{};
     std::deque<Message>     d_processorFifo{};
 };
+#endif
                             
 } // end BDS namespace
 

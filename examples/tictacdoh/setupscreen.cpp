@@ -125,8 +125,9 @@ Wawt::EnterFn
 SetupScreen::connectCallback(bool listen)
 {
     return [this, listen](auto textString) {
-        auto status = listen ? d_controller->listen(*textString)
-                             : d_controller->connect(*textString);
+        auto status = d_controller->connect((listen ? S("listen=")
+                                                    : S("connect="))
+                                             + *textString);
         auto id = addModalDialogBox(
             {
                 Label(Layout::slice(false, 0.1, 0.3), {S("")}),

@@ -23,6 +23,8 @@
 #include "gamescreen.h"
 #include "setupscreen.h"
 
+#include <wawtipcprotocol.h>
+
 #include <SFML/Network/TcpListener.hpp>
 #include <SFML/Network/TcpSocket.hpp>
 
@@ -38,15 +40,16 @@ class Controller : public SetupScreen::Calls, public GameScreen::Calls {
   public:
     // PUBLIC TYPES
     using Handle = WawtEventRouter::Handle;
+    using ConnId = WawtIpcProtocol::ConnectionId;
 
     // PUBLIC CONSTRUCTORS
-    Controller(WawtEventRouter& router, StringIdLookup& mapper)
-        : d_router(router), d_mapper(mapper) { }
+    Controller(WawtEventRouter&     router,
+               StringIdLookup&      mapper,
+               WawtIpcProtocol     *ipcAdapter)
+        : d_router(router), d_mapper(mapper), d_ipc(ipcAdapter) { }
 
     // SetupScreen::Calls Interface:
-    StatusPair listen(const Wawt::String_t& port)           override;
-
-    StatusPair connect(const Wawt::String_t& connectString) override;
+    StatusPair connect(const Wawt::String_t& address)       override;
 
     void       cancel()                                     override;
 
@@ -66,13 +69,19 @@ class Controller : public SetupScreen::Calls, public GameScreen::Calls {
     void startup();
 
   private:
+    void connectionChange(WawtIpcProtocol::ConnectionId     id,
+                          WawtIpcProtocol::ConnectionStatus status);
+
     WawtEventRouter&    d_router;
     StringIdLookup&     d_mapper;
+    WawtIpcProtocol    *d_ipc;
+    std::mutex          d_cbLock;
     Handle              d_setupScreen;
     Handle              d_gameScreen;
     std::thread         d_gameThread;
     sf::TcpListener     d_listener{};
     sf::TcpSocket       d_connection{};
+    ConnId              d_currentId = WawtIpcProtocol::kINVALID_ID;
     std::regex          d_addressRegex{R"(^([a-z.\-\d]+):(\d+)$)"};
     std::atomic_bool    d_cancel;
 };
