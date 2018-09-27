@@ -129,13 +129,16 @@ class WawtEventRouter {
 
   public:
     // PUBLIC CONSTRUCTORS
-    WawtEventRouter(Wawt::DrawAdapter                 *adapter,
+    WawtEventRouter(Wawt::DrawProtocol                *adapter,
                     const Wawt::TextMapper&            textMapper,
                     const Wawt::WidgetOptionDefaults&  defaults);
 
-    WawtEventRouter(Wawt::DrawAdapter                 *adapter,
+    WawtEventRouter(Wawt::DrawProtocol                *adapter,
                     const Wawt::WidgetOptionDefaults&  defaults)
         : WawtEventRouter(adapter, Wawt::TextMapper(), defaults) { }
+
+    // PUBLIC DESTRUCTORS
+    ~WawtEventRouter();
 
     // PUBLIC MANIPULATORS
     template<class Screen, typename... Args>

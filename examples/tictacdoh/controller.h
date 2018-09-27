@@ -28,13 +28,13 @@
 
 #include <atomic>
 #include <regex>
+#include <thread>
 
                             //=================
                             // class Controller
                             //=================
 
-class Controller : public SetupScreen::Calls
-                 , public GameScreen::Calls {
+class Controller : public SetupScreen::Calls, public GameScreen::Calls {
   public:
     // PUBLIC TYPES
     using Handle = WawtEventRouter::Handle;
@@ -50,11 +50,11 @@ class Controller : public SetupScreen::Calls
 
     void       cancel()                                     override;
 
-    void       showGameScreen(const Wawt::String_t&)        override;
+    void       startGame(const Wawt::String_t&)             override;
 
-    // SetupScreen::Calls Interface:
+    // GameScreen::Calls Interface:
 
-    void       showSetupScreen()                            override;
+    void showSetupScreen()                                  override;
 
     // PUBLIC MANIPULATORS
     void accept();
@@ -70,6 +70,7 @@ class Controller : public SetupScreen::Calls
     StringIdLookup&     d_mapper;
     Handle              d_setupScreen;
     Handle              d_gameScreen;
+    std::thread         d_gameThread;
     sf::TcpListener     d_listener{};
     sf::TcpSocket       d_connection{};
     std::regex          d_addressRegex{R"(^([a-z.\-\d]+):(\d+)$)"};

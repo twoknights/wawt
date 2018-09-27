@@ -125,9 +125,23 @@ SfmlDrawAdapter::getFont(uint8_t index)
 
 // PUBLIC CLASS MEMBERS
 std::string
-SfmlDrawAdapter::toAnsiString(const Wawt::String_t& string)
+SfmlDrawAdapter::toAnsiString(const std::wstring& string)
 {
-    return toString(string).toAnsiString();
+    return sf::String(string).toAnsiString();
+}
+
+std::string
+SfmlDrawAdapter::toAnsiString(const std::string& string)
+{
+    std::string result;
+
+    for (auto it = string.begin(); it != string.end(); ) {
+        char c   = *it;
+        auto lng = (c&0340) == 0340 ? ((c&020) ? 4 : 3) : ((c&0200) ? 2 : 1);
+        result += (c & 0177);
+        it += lng;
+    }
+    return result;
 }
 
 // PUBLIC CONSTRUCTORS

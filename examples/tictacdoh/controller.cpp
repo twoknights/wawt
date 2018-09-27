@@ -241,7 +241,7 @@ Controller::showSetupScreen()
 }
 
 void
-Controller::showGameScreen(const Wawt::String_t& marker)
+Controller::startGame(const Wawt::String_t& marker)
 {
     d_router.activate<GameScreen>(d_gameScreen, marker);
 }

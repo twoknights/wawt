@@ -49,7 +49,7 @@ class Wawt {
   public:
     class  Base;
     class  Button;
-    class  DrawAdapter;
+    class  DrawProtocol;
     class  List;
     class  Canvas;
     class  Text;
@@ -169,7 +169,7 @@ class Wawt {
         bool                d_hidden;
         PaintFn             d_paintFn;
 
-        bool draw(DrawAdapter *adapter, const String_t& txt) const;
+        bool draw(DrawProtocol *adapter, const String_t& txt) const;
 
       public:
         DrawSettings() : DrawDirective() , d_hidden(false) , d_paintFn() { }
@@ -561,7 +561,7 @@ class Wawt {
         }
 
         void initTextMetricValues(DrawDirective      *args,
-                                  DrawAdapter        *adapter,
+                                  DrawProtocol       *adapter,
                                   uint16_t            upperLimit = 0);
 
         void setText(TextId id);
@@ -674,7 +674,7 @@ class Wawt {
             return static_cast<const DrawDirective&>(d_draw);
         }
 
-        bool draw(DrawAdapter *adapter)    const {
+        bool draw(DrawProtocol *adapter)    const {
             return d_draw.draw(adapter, d_text.getText());
         }
 
@@ -876,7 +876,7 @@ class Wawt {
     class  ButtonBar final : public Base {
         friend class Wawt;
 
-        void draw(DrawAdapter *adapter) const;
+        void draw(DrawProtocol *adapter) const;
 
       public:
         std::vector<Button>        d_buttons;
@@ -937,7 +937,7 @@ class Wawt {
 
         void   initButton(unsigned int index, bool finalButton);
 
-        void   draw(DrawAdapter *adapter) const;
+        void   draw(DrawProtocol *adapter) const;
 
       public:
         // PUBLIC TYPES
@@ -1232,13 +1232,13 @@ class Wawt {
         std::list<Widget> d_widgets;
     };
 
-                                    //==================
-                                    // class DrawAdapter
-                                    //==================
+                                    //===================
+                                    // class DrawProtocol
+                                    //===================
 
-    class  DrawAdapter {
+    class  DrawProtocol {
       public:
-        virtual ~DrawAdapter() { }
+        virtual ~DrawProtocol() { }
 
         virtual void  draw(const Wawt::DrawDirective&  parameters,
                            const String_t&             text)               = 0;
@@ -1314,9 +1314,9 @@ class Wawt {
 
     // PUBLIC CONSTRUCTOR
     explicit Wawt(const TextMapper&  mappingFn = TextMapper(),
-                  DrawAdapter       *adapter   = 0);
+                  DrawProtocol      *adapter   = 0);
 
-    explicit Wawt(DrawAdapter *adapter) : Wawt(TextMapper(), adapter) { }
+    explicit Wawt(DrawProtocol *adapter) : Wawt(TextMapper(), adapter) { }
 
     // PUBLIC MANIPULATORS
     void     draw(const Panel& panel);
@@ -1401,7 +1401,7 @@ class Wawt {
     void  setTextAndFontValues(Panel *root);
 
     // PRIVATE DATA
-    DrawAdapter             *d_adapter_p;
+    DrawProtocol            *d_adapter_p;
     TextMapper               d_idToString;
     FontIdMap                d_fontIdToSize;
     BorderThicknessDefaults  d_borderDefaults;
@@ -1432,7 +1432,7 @@ Wawt::Panel::lookup(Wawt::WidgetId id, const std::string& whatInfo)
                             // class  WawtDump
                             //================
 
-class  WawtDump : public Wawt::DrawAdapter {
+class  WawtDump : public Wawt::DrawProtocol {
   public:
     struct Indent {
         unsigned int d_indent;

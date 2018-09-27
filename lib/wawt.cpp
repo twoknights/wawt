@@ -342,7 +342,7 @@ Wawt::DrawPosition makeAbsolute(const Wawt::Position& position,
 
 void refreshTextMetric(Wawt::DrawDirective           *args,
                        Wawt::TextBlock               *block,
-                       Wawt::DrawAdapter             *adapter_p,
+                       Wawt::DrawProtocol            *adapter_p,
                        FontIdMap&                     fontIdToSize,
                        const Wawt::TextMapper&        textLookup) {
     auto  id         = block->fontSizeGrp();
@@ -648,7 +648,7 @@ Wawt::Base::serialize(std::ostream&  os,
                             //----------------------
 
 void
-Wawt::ButtonBar::draw(DrawAdapter *adapter) const
+Wawt::ButtonBar::draw(DrawProtocol *adapter) const
 {
     if (Base::draw(adapter)) {
         for (auto& btn : d_buttons) {
@@ -715,7 +715,7 @@ Wawt::ButtonBar::serialize(std::ostream& os, unsigned int indent) const
                             //--------------------------
 
 bool
-Wawt::DrawSettings::draw(DrawAdapter *adapter, const String_t& text) const
+Wawt::DrawSettings::draw(DrawProtocol *adapter, const String_t& text) const
 {
     if (!d_hidden) {
 
@@ -983,7 +983,7 @@ Wawt::Layout::slice(bool vertical, double begin, double end)
                             //-----------------
 
 void
-Wawt::List::draw(DrawAdapter *adapter) const
+Wawt::List::draw(DrawProtocol *adapter) const
 {
     if (Base::draw(adapter)) {
         for (auto& btn : d_buttons) {
@@ -1489,7 +1489,7 @@ Wawt::List::serialize(std::ostream& os, unsigned int indent) const
 
 void
 Wawt::TextBlock::initTextMetricValues(Wawt::DrawDirective      *args,
-                                      Wawt::DrawAdapter        *adapter,
+                                      Wawt::DrawProtocol       *adapter,
                                       uint16_t                  upperLimit)
 {
     int  width  = args->interiorWidth();
@@ -2134,7 +2134,7 @@ Wawt::Char_t Wawt::s_upArrow   = {'^'};
 Wawt::Char_t Wawt::s_cursor    = {'|'};
 
 // PUBLIC CONSTRUCTOR
-Wawt::Wawt(const TextMapper& mappingFn, DrawAdapter *adapter)
+Wawt::Wawt(const TextMapper& mappingFn, DrawProtocol *adapter)
 : d_adapter_p(adapter ? adapter : &s_defaultAdapter)
 , d_idToString(mappingFn)
 , d_fontIdToSize()

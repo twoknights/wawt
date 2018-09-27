@@ -172,7 +172,7 @@ SetupScreen::connectionResult(bool             success,
 
     if (success) {
         onClick =   [this,marker](auto) {
-                        d_controller->showGameScreen(marker);
+                        d_controller->startGame(marker);
                         return FocusCb();
                     };
         buttonLabel = S("Play");

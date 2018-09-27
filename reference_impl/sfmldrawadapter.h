@@ -31,13 +31,15 @@ namespace BDS {
                             // class SfmlDrawAdapter
                             //======================
 
-class SfmlDrawAdapter : public Wawt::DrawAdapter {
+class SfmlDrawAdapter : public Wawt::DrawProtocol {
     // PRIVATE MANIPULATORS
     sf::Font& getFont(uint8_t index);
 
   public:
     // PUBLIC CLASS MEMBERS
-    static std::string toAnsiString(const Wawt::String_t& string);
+    static std::string toAnsiString(const std::wstring& string);
+
+    static std::string toAnsiString(const std::string& string); // utf8?
 
     // PUBLIC CREATORS
     SfmlDrawAdapter(sf::RenderWindow&   window,

@@ -41,7 +41,7 @@ GameScreen::createScreenPanel()
     double third   = 1.0/3.0;
     return Panel({},
       {
-      Panel({{-1.0,-1.0},{1.0,1.0}, Vertex::eUPPER_CENTER, 0.0},
+      Panel(&d_boardPanel,{{-1.0,-1.0},{1.0,1.0}, Vertex::eUPPER_CENTER, 0.0},
         {
         Panel(Layout::centered(0.6, 0.6).border(0),
           {
@@ -99,10 +99,10 @@ GameScreen::gameOver(GameResult result)
 
     addModalDialogBox(
         {
-            Label(Layout::slice(false, 0.1, 0.3), resultString),
+            Label(Layout::slice(false, 0.1, 0.3), {resultString, 254_F}),
             Label(Layout::slice(false, 0.35, 0.55),
-                  S("Would you like to play again?")),
-            ButtonBar(Layout::slice(false, -0.3, -0.1),
+                    {S("Would you like to play again?"), 254_F}),
+            ButtonBar(Layout::slice(false, -0.25, -0.08),
                 {
                   {{S("Play")}, [this](auto) { dropModalDialogBox();
                                                startGame();
@@ -118,13 +118,14 @@ void
 GameScreen::resetWidgets(const String_t& marker)
 {
     d_marker    = marker;
+    d_boardPanel->setEnablement(Enablement::eHIDDEN);
     addModalDialogBox(
         {
             Label(Layout::slice(false, 0.1, 0.3),
-                S("Click 'Ready' to begin the game.")),
+                    {S("Click 'Ready' to begin the game."), 255_F}),
             Label(Layout::slice(false, 0.35, 0.55),
-                  S("The round time is 10s.")),
-            ButtonBar(Layout::slice(false, -0.3, -0.1),
+                    {S("The round time is 10s."), 255_F}),
+            ButtonBar(Layout::slice(false, -0.25, -0.08),
                 {
                   {S("Ready"), [this](auto) { dropModalDialogBox();
                                               startGame();
@@ -158,6 +159,7 @@ GameScreen::showRemainingTime()
 void
 GameScreen::startGame()
 {
+    d_boardPanel->setEnablement(Enablement::eACTIVE);
     d_countDown = 10;
     showRemainingTime();
 }

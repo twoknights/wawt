@@ -112,7 +112,7 @@ WawtEventRouter::install(WawtScreen *screen, std::size_t hashCode)
 }
 
 // PUBLIC MEMBERS
-WawtEventRouter::WawtEventRouter(Wawt::DrawAdapter                 *adapter,
+WawtEventRouter::WawtEventRouter(Wawt::DrawProtocol                *adapter,
                                  const Wawt::TextMapper&            textMapper,
                                  const Wawt::WidgetOptionDefaults&  defaults)
 : d_wawt(textMapper, adapter)
@@ -127,6 +127,12 @@ WawtEventRouter::WawtEventRouter(Wawt::DrawAdapter                 *adapter,
     d_shutdownFlag = false;
     d_deferredFn   = nullptr;
     d_alert        = nullptr;
+}
+
+WawtEventRouter::~WawtEventRouter()
+{
+    delete d_deferredFn.load();
+    delete d_alert.load();
 }
 
 Wawt::EventUpCb
