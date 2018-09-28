@@ -125,14 +125,11 @@ WawtEventRouter::WawtEventRouter(Wawt::DrawProtocol                *adapter,
 {
     d_wawt.setWidgetOptionDefaults(defaults);
     d_shutdownFlag = false;
-    d_deferredFn   = nullptr;
-    d_alert        = nullptr;
+    d_spinLock.clear();
 }
 
 WawtEventRouter::~WawtEventRouter()
 {
-    delete d_deferredFn.load();
-    delete d_alert.load();
 }
 
 Wawt::EventUpCb
@@ -140,23 +137,21 @@ WawtEventRouter::downEvent(int x, int y)
 {
     std::unique_lock<FifoMutex> guard(d_lock);
 
-    auto alert_p = d_alert.load();
+    while (d_spinLock.test_and_set());
+    auto alert_p = d_alert;
+    d_spinLock.clear();
 
     if (alert_p) {
         auto cb = alert_p->downEvent(x, y);
         if (!cb) {
             return cb;                                                // RETURN
         }
-        d_wawt.refreshTextMetrics(alert_p);
-        return [this, cb](int xup, int yup, bool up) { // !!HACK - FIX
+        d_wawt.refreshTextMetrics(alert_p.get());
+        return [this, cb, alert_p](int xup, int yup, bool up) {
             Wawt::FocusCb ret;
-            auto alert = d_alert.load();
-            if (alert) {
-                ret = cb(xup, yup, up);
-            }
-            alert = d_alert.load();
-            if (alert) {
-                d_wawt.refreshTextMetrics(alert);
+            ret = cb(xup, yup, up);
+            if (alert_p.use_count() > 1) {
+                d_wawt.refreshTextMetrics(alert_p.get());
             }
             return ret;
         };                                                            // RETURN
@@ -181,7 +176,9 @@ WawtEventRouter::draw()
     std::unique_lock<FifoMutex> guard(d_lock);
     d_drawRequested = false;
 
-    auto alert_p = d_alert.load();
+    while (d_spinLock.test_and_set());
+    auto alert_p = d_alert; // noexcept
+    d_spinLock.clear();
 
     if (alert_p) {
         d_wawt.draw(*alert_p);
@@ -191,8 +188,9 @@ WawtEventRouter::draw()
     // Screen changes do not happen between a 'downEvent' and a 'EventUpCb'.
 
     if (!d_downEventActive) {
-        auto deferredActivate_p
-            = std::unique_ptr<DeferFn>(d_deferredFn.exchange(nullptr));
+        while (d_spinLock.test_and_set());
+        auto deferredActivate_p = std::move(d_deferredFn); // noexcept
+        d_spinLock.clear();
 
         if (deferredActivate_p) {
             if (d_current) { // clear dialogs and timer (if anY)
@@ -219,10 +217,12 @@ WawtEventRouter::resize(double width, double height)
     d_currentWidth  = width;
     d_currentHeight = height;
 
-    auto alert_p = d_alert.load();
+    while (d_spinLock.test_and_set());
+    auto alert_p = d_alert; // noexcept
+    d_spinLock.clear();
 
     if (alert_p) {
-        d_wawt.resizeRootPanel(alert_p, width, height);
+        d_wawt.resizeRootPanel(alert_p.get(), width, height);
         return;                                                       // RETURN
     }
 
@@ -246,7 +246,7 @@ WawtEventRouter::showAlert(Wawt::Panel      panel,
         panel.layoutView()
             = Wawt::Layout::centered(width, height).border(borderThickness);
 
-        auto ptr = std::make_unique<Wawt::Panel>(
+        auto ptr = std::make_shared<Wawt::Panel>(
                     Wawt::Panel({},
                             {
                                 Wawt::Canvas({{-1.0,-1.0},{1.0,1.0}}),
@@ -254,7 +254,10 @@ WawtEventRouter::showAlert(Wawt::Panel      panel,
                             }));
         d_wawt.resolveWidgetIds(ptr.get());
         d_wawt.resizeRootPanel(ptr.get(), d_currentWidth, d_currentHeight);
-        delete d_alert.exchange(ptr.release());
+
+        while (d_spinLock.test_and_set());
+        d_alert = std::move(ptr); // noexcept
+        d_spinLock.clear();
     }
     return;                                                           // RETURN
 }

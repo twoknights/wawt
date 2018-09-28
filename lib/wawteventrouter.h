@@ -111,21 +111,22 @@ class WawtEventRouter {
     }
 
     // PRIVATE DATA MEMBERS
-    FifoMutex                 d_lock{};
-    ScreenVec                 d_installed{};
-    std::function<void()>     d_timedCallback{};
-    Time                      d_lastTick{};
-    Time                      d_nextTimedEvent{};
-    WawtScreen               *d_current         = nullptr;
-    double                    d_currentWidth    = 1280.0;
-    double                    d_currentHeight   =  720.0;
-    bool                      d_downEventActive = false;
-    bool                      d_drawRequested   = false;
-    std::atomic<DeferFn*>     d_deferredFn;
-    std::atomic<Wawt::Panel*> d_alert;
-    std::atomic_bool          d_shutdownFlag;
-    Wawt                      d_wawt;
-    SetTimerFn                d_setTimedEvent;
+    FifoMutex                    d_lock{};
+    ScreenVec                    d_installed{};
+    std::function<void()>        d_timedCallback{};
+    Time                         d_lastTick{};
+    Time                         d_nextTimedEvent{};
+    WawtScreen                  *d_current         = nullptr;
+    double                       d_currentWidth    = 1280.0;
+    double                       d_currentHeight   =  720.0;
+    bool                         d_downEventActive = false;
+    bool                         d_drawRequested   = false;
+    std::unique_ptr<DeferFn>     d_deferredFn{};
+    std::shared_ptr<Wawt::Panel> d_alert{};
+    std::atomic_flag             d_spinLock;
+    std::atomic_bool             d_shutdownFlag;
+    Wawt                         d_wawt;
+    SetTimerFn                   d_setTimedEvent;
 
   public:
     // PUBLIC CONSTRUCTORS
@@ -151,7 +152,9 @@ class WawtEventRouter {
     Handle create(std::string_view name, Args&&... args);
 
     void discardAlert() {
-        delete d_alert.exchange(nullptr);
+        while (d_spinLock.test_and_set());
+        d_alert.reset(); // noexcept
+        d_spinLock.clear();
     }
 
     Wawt::EventUpCb downEvent(int x, int y);
@@ -186,7 +189,10 @@ WawtEventRouter::activate(Handle screen, Args&&... args)
 
     auto fp = bind(&Screen::resetWidgets, ptr, forward<Args>(args)...);
     auto un_p  = make_unique<DeferFn>(ptr, move(fp));
-    delete d_deferredFn.exchange(un_p.release());
+    
+    while (d_spinLock.test_and_set());
+    d_deferredFn = std::move(un_p); // noexcept
+    d_spinLock.clear();
     return;                                                           // RETURN
 }
 
