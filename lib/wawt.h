@@ -62,7 +62,7 @@ class Wawt {
     using String_t     = std::basic_string<char>;
     using StringView_t = std::basic_string_view<char>; // Not used here
     
-    static auto ToString(int n) {
+    static auto toString(int n) {
         if constexpr(std::is_same_v<String_t, std::string>) {
             return std::to_string(n);
         }
@@ -235,7 +235,7 @@ class Wawt {
                                 // class InputHandler  
                                 //===================
 
-    using EnterFn     = std::function<bool(String_t*)>;
+    using EnterFn     = std::function<bool(String_t*, bool)>;
 
     using FocusCb     = std::function<bool(Char_t)>;
 
@@ -794,6 +794,29 @@ class Wawt {
                    std::move(text).defaultAlignment(Align::eLEFT),
                    std::move(options)) { }
 
+        TextEntry(TextEntry       **indirect,
+                  Layout&&          layout,
+                  unsigned int      maxChars,
+                  TextString&&      text        = TextString(),
+                  DrawSettings&&    options     = DrawSettings())
+            : Text(reinterpret_cast<Base**>(indirect),
+                   std::move(layout),
+                   InputHandler(std::pair(EnterFn(),maxChars),
+                                ActionType::eENTRY),
+                   std::move(text).defaultAlignment(Align::eLEFT),
+                   std::move(options)) { }
+
+        TextEntry(Layout&&          layout,
+                  unsigned int      maxChars,
+                  TextString&&      text        = TextString(),
+                  DrawSettings&&    options     = DrawSettings())
+            : Text(nullptr,
+                   std::move(layout),
+                   InputHandler(std::pair(EnterFn(),maxChars),
+                                ActionType::eENTRY),
+                   std::move(text).defaultAlignment(Align::eLEFT),
+                   std::move(options)) { }
+
         FocusCb getFocusCb() {
             return d_input.callSelectFn(this);
         }
@@ -1296,11 +1319,12 @@ class Wawt {
     };
 
     // PUBLIC CLASS DATA
-    static Char_t   s_downArrow;
-    static Char_t   s_upArrow;
-    static Char_t   s_cursor;
+    static Char_t   kDownArrow;
+    static Char_t   kUpArrow;
+    static Char_t   kCursor;
+    static Char_t   kFocusChg;
 
-    static const std::any  s_noOptions;
+    static const std::any  kNoOptions;
 
     // PUBLIC CLASS MEMBERS
     static Panel   scrollableList(List          list,

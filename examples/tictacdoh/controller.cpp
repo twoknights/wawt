@@ -57,8 +57,7 @@ Controller::connectionChange(WawtIpcProtocol::ConnectionId     id,
             auto callRet = d_router.call(d_setupScreen,
                                          &SetupScreen::connectionResult,
                                          true,
-                                         S("Connection established."),
-                                         &d_connection);
+                                         S("Connection established."));
             d_cbLock.lock();
 
             if (!callRet.has_value()) {
@@ -77,8 +76,7 @@ Controller::connectionChange(WawtIpcProtocol::ConnectionId     id,
             d_router.call(d_setupScreen,
                           &SetupScreen::connectionResult,
                           false,
-                          S("Connect attempt cancelled."),
-                          nullptr);
+                          S("Connect attempt cancelled."));
             d_cbLock.lock();
         }
         // TBD: DISCONNECT
@@ -164,7 +162,7 @@ Controller::showSetupScreen()
 }
 
 void
-Controller::startGame(const Wawt::String_t& marker)
+Controller::startGame(const Wawt::String_t& marker, int)
 {
     d_router.activate<GameScreen>(d_gameScreen, marker);
 }

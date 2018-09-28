@@ -55,7 +55,7 @@ class SetupScreen : public WawtScreenImpl<SetupScreen,DrawOptions> {
 
         virtual void       cancel()                                     = 0;
 
-        virtual void       startGame(const Wawt::String_t&)             = 0;
+        virtual void       startGame(const Wawt::String_t&, int)        = 0;
     };
 
     // PUBLIC CONSTRUCTORS
@@ -73,9 +73,7 @@ class SetupScreen : public WawtScreenImpl<SetupScreen,DrawOptions> {
 
     Wawt::EnterFn connectCallback(bool listen);
 
-    void connectionResult(bool             success,
-                          Wawt::String_t   status,
-                          sf::TcpSocket   *socket); // NO optional arguments
+    void connectionResult(bool success, Wawt::String_t status);
 
   private:  
     // PRIVATE DATA MEMBERS
@@ -83,6 +81,7 @@ class SetupScreen : public WawtScreenImpl<SetupScreen,DrawOptions> {
     TextEntry              *d_listenEntry;
     List                   *d_playerMark;
     Calls                  *d_controller;
+    int                     d_moveTime = 10;
     StringIdLookup&         d_mapper;
 };
 

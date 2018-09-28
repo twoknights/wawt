@@ -169,7 +169,7 @@ SfmlDrawAdapter::SfmlDrawAdapter(sf::RenderWindow&   window,
     }
 
     if (!noArrow) {
-        setArrows(Wawt::s_downArrow, Wawt::s_upArrow);
+        setArrows(Wawt::kDownArrow, Wawt::kUpArrow);
     }
 }
 

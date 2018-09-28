@@ -250,7 +250,7 @@ bool handleChar(Wawt::Base           *base,
     // Return 'true' if "focus" is lost; 'false' if it is retained.
     // Following handles utf8 and wchar_t
     auto text      = base->textView().getText();
-    auto cursor    = makeString(Wawt::s_cursor);
+    auto cursor    = makeString(Wawt::kCursor);
     auto pos       = text.rfind(cursor);
     bool hasCursor = Wawt::String_t::npos != pos
                   && pos == (text.length() - cursor.length()); // at end
@@ -260,7 +260,7 @@ bool handleChar(Wawt::Base           *base,
         base->drawView().selected() = false;
     }
 
-    if (pressed && !isEos(pressed)) {
+    if (!isEos(pressed)) { // i.e. kFocusChg
         if (isBackspace(pressed)) {
             if (!text.empty()) {
                 text.pop_back();
@@ -268,7 +268,7 @@ bool handleChar(Wawt::Base           *base,
         }
         else if (isEnter(pressed)) {
             // Note that callback can modify the string before returning.
-            bool ret = (*enterFn) ? (*enterFn)(&text) : true;
+            bool ret = (*enterFn) ? (*enterFn)(&text, true) : true;
             base->textView().setText(text);
             if (ret) { // lost focus? Return without cursor in string
                 return true;                                          // RETURN
@@ -280,7 +280,16 @@ bool handleChar(Wawt::Base           *base,
         text.append(cursor);
         base->drawView().selected() = true;
     }
-    else if (!hasCursor) {
+    else if (hasCursor) { 
+        bool ret = (*enterFn) ? (*enterFn)(&text, false) : true;
+        base->textView().setText(text);
+        if (ret) { // lost focus? Return without cursor in string
+            return true;                                          // RETURN
+        }
+        text.append(cursor);
+        base->drawView().selected() = true;
+    }
+    else {
         text.append(cursor);
         base->drawView().selected() = true;
     }
@@ -1288,7 +1297,7 @@ Wawt::List::initButton(unsigned int index, bool lastButton)
             // Use to initialize drop-down selection:
             button.d_input.d_callback = [this](Text *clicked) {
                 d_buttons.back()
-                         .textView().setText(makeString(s_downArrow)
+                         .textView().setText(makeString(kDownArrow)
                                              + makeString(' ')
                                              + clicked->textView().getText());
                 return FocusCb();
@@ -2063,11 +2072,11 @@ Wawt::scrollableList(List          list,
     auto&     options   = listView.d_options;
     Button    scrollUp({{},{},   Vertex::eUPPER_LEFT,  border},
                        {scrollUpCb},
-                       {makeString(s_upArrow)},
+                       {makeString(kUpArrow)},
                        {options});
     Button  scrollDown({{},{}, Vertex::eLOWER_RIGHT, border},
                        {scrollDownCb},
-                       {makeString(s_downArrow)},
+                       {makeString(kDownArrow)},
                        {options});
 
     auto rowHeight  = 2.0/double(list.windowSize()); // as a scale factor
@@ -2127,11 +2136,12 @@ Wawt::setScrollableListStartingRow(Wawt::List *list, unsigned int row)
 // PUBLIC CLASS MEMBERS
 const Wawt::WidgetId   Wawt::kROOT(UINT16_MAX-1, true, true);
 
-const std::any        Wawt::s_noOptions;
+const std::any        Wawt::kNoOptions;
 
-Wawt::Char_t Wawt::s_downArrow = {'v'};
-Wawt::Char_t Wawt::s_upArrow   = {'^'};
-Wawt::Char_t Wawt::s_cursor    = {'|'};
+Wawt::Char_t Wawt::kDownArrow = {'v'};
+Wawt::Char_t Wawt::kUpArrow   = {'^'};
+Wawt::Char_t Wawt::kCursor    = {'|'};
+Wawt::Char_t Wawt::kFocusChg  = {'\0'};
 
 // PUBLIC CONSTRUCTOR
 Wawt::Wawt(const TextMapper& mappingFn, DrawProtocol *adapter)

@@ -48,6 +48,22 @@ SetupScreen::createScreenPanel()
         return Wawt::FocusCb(); // no text entry block gets the focus
     };
 
+    auto changeMoveTime =   [this](auto *text, bool onEnter)
+                            {
+                                try {
+                                    int time = std::stoi(*text);
+
+                                    if (time >= 5 && time <= 15) {
+                                        d_moveTime = time;
+                                        return true; // give up focus
+                                    }
+                                }
+                                catch(...) {
+                                }
+                                *text = Wawt::toString(d_moveTime);
+                                return !onEnter;
+                            };
+
     Panel::Widgets selectLanguage = // 2 widgets
         {
             Label(Layout::slice(false, 0.25, 0.45),
@@ -87,14 +103,14 @@ SetupScreen::createScreenPanel()
 
     return Panel({},
         {
-/* 1 */     Label(Layout::slice(false, 0.1, 0.2),
+/* 1 */     Label(Layout::slice(false, 0.1, 0.2), // Header
                   {StringId::eGameSettings}),
-/* 5 */     Panel(Layout::slice(true, 0.0, 0.5),
+/* 5 */     Panel(Layout::slice(true, 0.05, 0.5), // Left half of screen
             {
 /* 4(2,3) */    Panel(Layout::centered(0.5, 0.75).translate(0.,-.25),
                       selectLanguage)
             }),
-            Panel(Layout::slice(true, 0.5, 0.95),
+            Panel(Layout::slice(true, 0.5, 0.95), // right half of screen
             {
 /* 6 */         List(&d_playerMark,
                      Layout::slice(false, 0.25, 0.40),
@@ -104,7 +120,11 @@ SetupScreen::createScreenPanel()
                          { StringId::ePlayAsX, true },
                          { StringId::ePlayAsO}
                      }),
-/* 11(7-10)*/   Panel(Layout::slice(false, 0.5, 0.7), networkConnect)
+                 TextEntry({{-1.0,-0.05},{-0.9,0.05}}, 2, changeMoveTime,
+                           {S("10"), 2_F, Align::eCENTER}),
+                 Label({{1.5,-1.0,2_wr},{1.0,0.05}},
+                       {S(": Move timer (seconds)"), 2_F, Align::eLEFT}),
+                Panel(Layout::slice(false, 0.6, 0.8), networkConnect)
             })
             , Button({{},{-0.95,-0.95}, Vertex::eUPPER_LEFT},
                      {[this](auto) { d_screen.serialize(std::cout);
@@ -124,7 +144,15 @@ SetupScreen::resetWidgets()
 Wawt::EnterFn
 SetupScreen::connectCallback(bool listen)
 {
-    return [this, listen](auto textString) {
+    // Create a functor to handle both "listen" and "connect" methods of
+    // creating a connection.  Call the "controller" to initiate the
+    // connection (showing the returned information string), handle the
+    // button requestng the connection attempt be canceled.
+    return [this, listen](auto textString, bool onEnter) {
+        if (!onEnter) { // click another widget
+            *textString = S("");
+            return true;
+        }
         auto status = d_controller->connect((listen ? S("listen=")
                                                     : S("connect="))
                                              + *textString);
@@ -133,7 +161,12 @@ SetupScreen::connectCallback(bool listen)
                 Label(Layout::slice(false, 0.1, 0.3), {S("")}),
                 ButtonBar(Layout::slice(false, -0.3, -0.1),
                           {
-                            {{S("Cancel")}, [this](auto) { return FocusCb(); }}
+                            {{S("Cancel")},
+                                [this](auto) {
+                                    d_controller->cancel();
+                                    return FocusCb();
+                                }
+                            }
                           })
             });
         lookup<Label>(id++).textView().setText(status.second);
@@ -161,9 +194,7 @@ SetupScreen::connectCallback(bool listen)
 }
 
 void
-SetupScreen::connectionResult(bool             success,
-                              Wawt::String_t   message,
-                              sf::TcpSocket*)
+SetupScreen::connectionResult(bool success, Wawt::String_t  message)
 {
     Wawt::SelectFn  onClick;
     Wawt::String_t  buttonLabel;
@@ -173,7 +204,7 @@ SetupScreen::connectionResult(bool             success,
 
     if (success) {
         onClick =   [this,marker](auto) {
-                        d_controller->startGame(marker);
+                        d_controller->startGame(marker, d_moveTime);
                         return FocusCb();
                     };
         buttonLabel = S("Play");

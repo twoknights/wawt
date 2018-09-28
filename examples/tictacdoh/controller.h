@@ -53,7 +53,7 @@ class Controller : public SetupScreen::Calls, public GameScreen::Calls {
 
     void       cancel()                                     override;
 
-    void       startGame(const Wawt::String_t&)             override;
+    void       startGame(const Wawt::String_t&, int)        override;
 
     // GameScreen::Calls Interface:
 

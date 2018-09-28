@@ -149,7 +149,7 @@ GameScreen::showRemainingTime()
     }
     else {
         String_t message
-            = S("Remaining time: ") + Wawt::ToString(d_countDown--);
+            = S("Remaining time: ") + Wawt::toString(d_countDown--);
         d_timeLabel->textView().setText(message);
         resize();
         setTimedEvent(1000ms, [this]() { showRemainingTime(); });
