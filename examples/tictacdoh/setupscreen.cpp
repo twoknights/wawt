@@ -147,9 +147,11 @@ SetupScreen::connectCallback(bool listen)
     // Create a functor to handle both "listen" and "connect" methods of
     // creating a connection.  Call the "controller" to initiate the
     // connection (showing the returned information string), handle the
-    // button requestng the connection attempt be canceled.
+    // button requestng the connection attempt be canceled. The controller
+    // will also perform the coin "toss", determine the move timeout,
+    // and retur the results to this screen.
     return [this, listen](auto textString, bool onEnter) {
-        if (!onEnter) { // click another widget
+        if (!onEnter) { // clicked another widget...
             *textString = S("");
             return true;
         }

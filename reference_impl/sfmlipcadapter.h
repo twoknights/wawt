@@ -37,7 +37,7 @@ namespace BDS {
                             // class SfmlIpcAdapter
                             //=====================
 
-class SfmlIpcAdapter : public WawtIpcProtocol {
+class SfmlIpcAdapter : public WawtIpcConnectionProtocol {
   public:
     // PUBLIC TYPES
 
@@ -49,21 +49,21 @@ class SfmlIpcAdapter : public WawtIpcProtocol {
     ~SfmlIpcAdapter();
 
     // PUBLIC WawtIpcAdapter INTERFACE
-    void            closeConnection(ConnectionId        id)           override;
+    void            closeConnection(ConnectionId        id)           noexcept;
 
     AddressStatus   prepareConnection(Wawt::String_t   *diagnostic,
                                       ConnectionId     *id,
                                       ConnectCb         connectionUpdate,
                                       MessageCb         receivedMessage,
-                                      std::any          address)      override;
+                                      std::any          address)      noexcept;
 
     bool            sendMessage(ConnectionId            id,
-                                Message&&               message)      override;
+                                Message&&               message)      noexcept;
 
-    void            closeAll()                                        override;
+    void            closeAll()                                        noexcept;
 
     bool            startConnection(Wawt::String_t     *diagnostic,
-                                    ConnectionId        connectionId) override;
+                                    ConnectionId        connectionId) noexcept;
 
 
     // PUBLIC ACCESSORS

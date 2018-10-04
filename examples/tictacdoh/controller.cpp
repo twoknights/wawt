@@ -60,11 +60,8 @@ Controller::connectionChange(WawtIpcProtocol::ConnectionId     id,
                                          S("Connection established."));
             d_cbLock.lock();
 
-            if (!callRet.has_value()) {
+            if (!callRet) {
                 // No longer interested in this connection's updates.
-                if (d_currentId == id) { // Could have changed!
-                    d_currentId = WawtIpcProtocol::kINVALID_ID;
-                }
                 d_ipc->closeConnection(id);
             }
             return;                                                   // RETURN

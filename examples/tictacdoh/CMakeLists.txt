@@ -10,7 +10,7 @@ include_directories(../../reference_impl)
 add_executable(tictacdoh
                controller.cpp
                gamescreen.cpp
-               main.cpp
+               sfmlmain.cpp
                setupscreen.cpp
                stringid.cpp)
 

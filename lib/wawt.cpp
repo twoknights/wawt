@@ -356,14 +356,14 @@ void refreshTextMetric(Wawt::DrawDirective           *args,
                        const Wawt::TextMapper&        textLookup) {
     auto  id         = block->fontSizeGrp();
     auto  textHeight = args->interiorHeight();
-    auto  fontSize   = id.has_value() ? fontIdToSize.find(*id)->second : 0;
+    auto  fontSize   = id ? fontIdToSize.find(*id)->second : 0;
     auto  charSize   = fontSize > 0   ? fontSize : textHeight;
 
     if (charSize != args->d_charSize || block->needRefresh()) {
         block->setText(textLookup);
         block->initTextMetricValues(args, adapter_p, charSize);
 
-        if (fontSize == 0 && id.has_value()) {
+        if (fontSize == 0 && id) {
             fontIdToSize[*id] = args->d_charSize;
         }
     }
@@ -614,7 +614,7 @@ Wawt::Base::serialize(std::ostream&  os,
        << "' align='"       << int(d_text.d_block.d_alignment)
        << "' group='";
 
-    if (d_text.d_block.d_fontSizeGrp.has_value()) {
+    if (d_text.d_block.d_fontSizeGrp) {
         os << d_text.d_block.d_fontSizeGrp.value();
     }
     os << "' string='";
@@ -2255,7 +2255,7 @@ Wawt::refreshTextMetrics(Panel *panel)
                     auto width = button.d_text.d_metrics.d_textWidth
                                     + 2*button.d_draw.d_borderThickness + 4;
 
-                    if (!maxWidth.has_value() || maxWidth.value() < width) {
+                    if (!maxWidth || maxWidth.value() < width) {
                         maxWidth = width;
                     }
                 }
@@ -2352,7 +2352,7 @@ Wawt::setFontSizeEntry(Base *base)
 {
     auto& id = base->textView().fontSizeGrp();
 
-    if (id.has_value()) {
+    if (id) {
         FontIdMap::iterator it = d_fontIdToSize.insert({id, 0}).first;
         base->textView().initTextMetricValues(&base->d_draw,
                                               d_adapter_p,

@@ -56,7 +56,7 @@ struct SfmlIpcAdapter::Connection {
     std::thread                     d_writer;
     sf::TcpSocket                   d_socket;
     std::shared_ptr<Connection>     d_self;
-    ConnectionStatus                d_status    = ConnectionStatus::eOK;
+    ConnectStatus                   d_status    = ConnectStatus::eOK;
     bool                            d_shutdown  = false;
     std::mutex                      d_lock{};
     std::condition_variable         d_signal{};
@@ -109,10 +109,10 @@ struct SfmlIpcAdapter::Connection {
 
     void lock() { d_lock.lock(); }
 
-    void shutdown(ConnectionStatus status) {
+    void shutdown(ConnectStatus status) noexcept {
         // caller must hold connection lock.
         d_shutdown = true;
-        if (d_status == ConnectionStatus::eOK) {
+        if (d_status == ConnectStatus::eOK) {
             d_status = status;
         }
         d_socket.disconnect();
@@ -137,7 +137,7 @@ SfmlIpcAdapter::~SfmlIpcAdapter()
 
             connection->d_messageCb    = MessageCb();
             connection->d_connectionCb = ConnectCb();
-            connection->shutdown(ConnectionStatus::eCLOSED);
+            connection->shutdown(ConnectStatus::eCLOSED);
             connection->d_self.reset();   // 'connection' COULD be the only ref.
 
             connection->unlock();
@@ -191,13 +191,13 @@ SfmlIpcAdapter::accept(Connection *connection, sf::TcpListener *listener)
 
                 guard.release()->unlock(); /*UNLOCK*/
 
-                cb(connection->d_id, ConnectionStatus::eOK);
+                cb(connection->d_id, ConnectStatus::eOK);
                 readMsgLoop(connection);
                 return;                                               // RETURN
             }
 
             if (sf::Socket::Error == status) {
-                connection->shutdown(ConnectionStatus::eERROR);
+                connection->shutdown(ConnectStatus::eERROR);
                 break;                                                 // BREAK
             }
         }
@@ -224,7 +224,7 @@ SfmlIpcAdapter::closeAll()
 
             connection->d_messageCb    = MessageCb();
             connection->d_connectionCb = ConnectCb();
-            connection->shutdown(ConnectionStatus::eCLOSED);
+            connection->shutdown(ConnectStatus::eCLOSED);
             connection->d_self.reset();
             
             connection->unlock();
@@ -244,7 +244,7 @@ SfmlIpcAdapter::closeConnection(ConnectionId id)
         
         connection->lock();
 
-        connection->shutdown(ConnectionStatus::eCLOSED);
+        connection->shutdown(ConnectStatus::eCLOSED);
         d_connections.erase(it);
         
         connection->unlock();
@@ -279,7 +279,7 @@ SfmlIpcAdapter::connect(sf::IpAddress   ipV4,
             if (cb) {
                 guard.release()->unlock(); /*UNLOCK*/
 
-                cb(connection->d_id, ConnectionStatus::eOK);
+                cb(connection->d_id, ConnectStatus::eOK);
                 readMsgLoop(connection);
                 return;                                               // RETURN
             }
@@ -314,7 +314,10 @@ SfmlIpcAdapter::prepareConnection(Wawt::String_t *diagnostic,
     std::string string;
     // Preliminaries
 
-    assert(connectionUpdate && receivedMessage);
+    if (!connectionUpdate || !receivedMessage) {
+        *diagnostic = S("IPC is shutting down.");
+        return AddressStatus::eINVALID;                               // RETURN
+    }
     
     try {
         if (address.type() == typeid(std::string)) {
@@ -325,17 +328,22 @@ SfmlIpcAdapter::prepareConnection(Wawt::String_t *diagnostic,
                         std::any_cast<std::wstring>(address)).toAnsiString();
         }
     }
-    catch (...) {
-    }
+    catch (...) { }
 
     if (string.empty()) {
         *diagnostic = S("Expected address to be a string.");
         return AddressStatus::eMALFORMED;                             // RETURN
     }
     // Address parse (regex):
+    bool        matched = false;
     std::smatch parse;
 
-    if (!std::regex_match(string, parse, d_pattern)) {
+    try {
+        matched = std::regex_match(string, parse, d_pattern);
+    }
+    catch (...) { }
+
+    if (!matched) {
         *diagnostic = S("The address string is malformed.");
         return AddressStatus::eMALFORMED;                             // RETURN
     }
@@ -374,7 +382,7 @@ SfmlIpcAdapter::prepareConnection(Wawt::String_t *diagnostic,
             = S("A port number between 0 and 65535 must be used.");
         return AddressStatus::eINVALID;                               // RETURN
     }
-    // This can result in a DNS lookup:
+    // This can result in a DNS lookup (this COULD be SLOW :-( ):
     sf::IpAddress   ipAddress = ipStr.empty() ? sf::IpAddress::Any
                                               : sf::IpAddress(ipStr);
 
@@ -399,6 +407,13 @@ SfmlIpcAdapter::prepareConnection(Wawt::String_t *diagnostic,
             *diagnostic = S("The destination host is malformed or unknown.");
             return AddressStatus::eUNKNOWN;                           // RETURN
         }
+    }
+
+    std::lock_guard<std::mutex>  guard(d_lock);
+
+    if (d_shutdown) {
+        *diagnostic = S("IPC is shutting down.");
+        return AddressStatus::eINVALID;                               // RETURN
     }
     unsigned short port_us = static_cast<unsigned short>(port);
     *id = d_next++;
@@ -450,7 +465,7 @@ SfmlIpcAdapter::readSizeHdr(sf::SocketSelector& select, Connection *connection)
     unsigned char header[4];
     std::size_t   bufsize = 0;
     auto attempts = 0u;
-    auto code = ConnectionStatus::eOK;
+    auto code = ConnectStatus::eOK;
 
     std::unique_lock<Connection> guard(*connection);
 
@@ -473,6 +488,7 @@ SfmlIpcAdapter::readSizeHdr(sf::SocketSelector& select, Connection *connection)
             if (sf::Socket::Done == status || sf::Socket::Partial == status) {
                 if (bufsize == sizeof(header)) {
                     if (header[0] != BYTE1 || header[1] != BYTE2) {
+                        code = ConnectStatus::ePROTCOL;
                         break;                                         // BREAK
                     }
                     auto byte3      = uint16_t(header[2]);
@@ -482,11 +498,11 @@ SfmlIpcAdapter::readSizeHdr(sf::SocketSelector& select, Connection *connection)
                 }
             }
             else if (sf::Socket::Disconnected == status) {
-                code = ConnectionStatus::eDISCONNECT;
+                code = ConnectStatus::eDISCONNECT;
                 break;                                                 // BREAK
             }
             else if (sf::Socket::Error == status) {
-                code = ConnectionStatus::eERROR;
+                code = ConnectStatus::eERROR;
                 break;                                                 // BREAK
             }
         }
@@ -507,7 +523,7 @@ SfmlIpcAdapter::readMsg(sf::SocketSelector&     select,
 {
     auto        buffer      = std::make_unique<char[]>(msgSize);
     std::size_t bufsize     = 0;
-    auto        code        = ConnectionStatus::eOK;
+    auto        code        = ConnectStatus::eOK;
     auto attempts = 0u;
     
     std::unique_lock<Connection> guard(*connection);
@@ -539,11 +555,11 @@ SfmlIpcAdapter::readMsg(sf::SocketSelector&     select,
                 }
             }
             else if (sf::Socket::Disconnected == status) {
-                code = ConnectionStatus::eDISCONNECT;
+                code = ConnectStatus::eDISCONNECT;
                 break;                                                 // BREAK
             }
             else if (sf::Socket::Error == status) {
-                code = ConnectionStatus::eERROR;
+                code = ConnectStatus::eERROR;
                 break;                                                 // BREAK
             }
         }
@@ -573,7 +589,14 @@ SfmlIpcAdapter::sendMessage(ConnectionId id, Message&& message)
                 if (!connection->d_self && !connection->d_shutdown) {
                     // Start was done but shutdown was not
                     bool empty = connection->d_writeQ.empty();
-                    connection->d_writeQ.emplace_front(std::move(message));
+
+                    try {
+                        connection->d_writeQ.emplace_front(std::move(message));
+                    }
+                    catch(...) {
+                        connection->shutdown(ConnectStatus::eERROR);
+                        return false;
+                    }
 
                     if (empty) {
                         connection->d_signal.notify_one();
@@ -612,9 +635,13 @@ SfmlIpcAdapter::startConnection(Wawt::String_t *diagnostic, ConnectionId id)
         return false;                                                 // RETURN
     }
     connection->d_self.reset(); // Now connection deletes when threads exit.
-    connection->d_writer = std::thread( [this, connection] {
-                                            writeMsgLoop(connection.get());
-                                        });
+    try {
+        connection->d_writer = std::thread( [this, connection] {
+                                                writeMsgLoop(connection.get());
+                                            });
+    }
+    catch (...) {
+    }
 
     if (!connection->d_writer.joinable()) {
         connection->d_connectionCb = ConnectCb();
@@ -643,12 +670,17 @@ SfmlIpcAdapter::startConnection(Wawt::String_t *diagnostic, ConnectionId id)
                    connect(ipV4, port, connection.get());
                };
     }
-    connection->d_reader  = std::thread(std::move(task));
+
+    try {
+        connection->d_reader  = std::thread(std::move(task));
+    }
+    catch (...) {
+    }
     
     if (!connection->d_reader.joinable()) {
         std::lock_guard<Connection> cn_guard(*connection);
         connection->d_connectionCb = ConnectCb();
-        connection->shutdown(ConnectionStatus::eERROR); // wake-up writer
+        connection->shutdown(ConnectStatus::eERROR); // wake-up writer
         d_connections.erase(it);
         *diagnostic = S("Failed to start connection.");
         return false;                                                 // RETURN
@@ -664,7 +696,7 @@ SfmlIpcAdapter::writeMsg(Connection            *connection,
                          uint16_t               msgSize)
 {
     std::size_t sent = 0;
-    auto        code = ConnectionStatus::eOK;
+    auto        code = ConnectStatus::eOK;
 
     do {
         std::size_t size = 0;
@@ -680,12 +712,12 @@ SfmlIpcAdapter::writeMsg(Connection            *connection,
             }
         }
         else if (sf::Socket::Disconnected   == status) {
-            code = ConnectionStatus::eDISCONNECT;
+            code = ConnectStatus::eDISCONNECT;
             connection->lock(); /*LOCK*/
             break;                                                     // BREAK
         }
         else if (sf::Socket::Error          == status) {
-            code = ConnectionStatus::eERROR;
+            code = ConnectStatus::eERROR;
             connection->lock(); /*LOCK*/
             break;                                                     // BREAK
         }
