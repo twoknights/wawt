@@ -50,6 +50,12 @@ struct WawtIpcMessage {
         data.copy(d_data.get(), d_size);
     }
 
+    WawtIpcMessage(const char* data, uint16_t length) {
+        : d_data(std::make_unique<uint8_t[]>(length)
+        , d_size(length) {
+        std::memcpy(d_data.get(), data, length);
+    }
+
     WawtIpcMessage(const WawtIpcMessage& copy)
         : d_data(std::make_unique<uint8_t[]>(copy.d_size)
         , d_size(copy.d_size)
@@ -94,7 +100,7 @@ class WawtIpcConnectionProtocol {
     // PUBLIC TYPES
     enum class ConfigureStatus { eOK, eMALFORMED, eINVALID, eUNKNOWN };
     enum class ConnectStatus   { eOK, eDROP, eCLOSE, eERROR, ePROTOCOL };
-    enum class ConnectRole     { eCREATOR, eACCEPTOR, eUNUSED };
+    enum class ConnectRole     { eINITIATOR, eACCEPTOR, eUNUSED };
 
     using IpcMessage        = WawtIpcMessage;
 
@@ -102,10 +108,12 @@ class WawtIpcConnectionProtocol {
 
     using MessageChain      = std::forward<IpcMessage>;
 
+    // Calling thread must not hold locks.
     using ConnectCb         = std::function<void(ConnectionId,
                                                  ConnectStatus,
                                                  ConnectRole)>;
 
+    // Calling thread must not hold locks.
     using MessageCb         = std::function<void(ConnectionId, IpcMessage&&)>;
 
     constexpr static ConnectionId kINVALID_ID = UINT32_MAX;
@@ -146,14 +154,14 @@ class WawtIpcQueue
 {
   public:
     // PUBLIC TYPES
-    struct  Session;
+    class  Session;
 
     struct Shutdown { };                    ///< Shutdown exception.
 
     using IpcConnectionProtocol = WawtIpcConnectionProtocol;
     using IpcMessage            = WawtIpcMessage;
     using Protocol              = IpcConnectionProtocol;
-    using Signature             = std::unique_ptr<uint8_t[]>;
+    using Header                = std::unique_ptr<uint8_t[]>;
 
     using   SessionId = Protocol::ConnectionId;
     static constexpr static SessionId kLOCAL_SSNID = Protocol::kINVALID_ID;
@@ -161,7 +169,7 @@ class WawtIpcQueue
     // Methods are NOT thread-safe
     class ReplyQueue {
         friend class WawtIpcQueue;
-        std::shared_ptr<Session>    d_session;
+        std::weak_ptr<Session>      d_session;
         bool                        d_winner;
         SessionId                   d_sessionId;
         std::atomic_flag            d_flag;
@@ -170,22 +178,21 @@ class WawtIpcQueue
 
       public:
         // PUBLIC CONSTRUCTORS
-        ReplyQueue(std::shared_ptr<Session>             session,
+        ReplyQueue(const std::shared_ptr<Session>&      session,
                    bool                                 winner,
                    int                                  sessionId);
 
         // PUBLIC MANIPULATORS
         bool            enqueue(IpcMessage&&            message,
-                                Signature&&             signature= Signature())
+                                Header&&                header = Header())
                                                                       noexcept;
 
-        bool            enqueueDigest(Signature        *signature,
+        bool            enqueueDigest(Header           *header,
                                       const IpcMessage& message)      noexcept;
 
         // Can no longer enqueue or dequeue messages on session.
         // connection not dropped until peer echos back the close message.
-        void            closeQueue(IpcMessage&&         message = IpcMessage())
-                                                                      noexcept;
+        void            closeQueue()                                  noexcept;
 
         // PUBLIC ACCESSORS
         bool            tossResult() const noexcept {
@@ -193,7 +200,7 @@ class WawtIpcQueue
         }
 
         bool            isClosed() const noexcept {
-            return safeGet() == nullptr;
+            return d_session.expired();
         }
 
         bool            isLocal() const noexcept {
@@ -212,6 +219,9 @@ class WawtIpcQueue
 
     using MessageNumber = uint32_t;
     using Indication    = std::tuple<ReplyQueue, IpcMessage, MessageType>;
+    using TimerId       = uint32_t;
+
+    static constexpr TimerId kINVALID_TIMERID = UINT32_MAX;
 
     // PUBLIC CONSTRUCTORS
     WawtIpcQueue(Protocol *adapter);
@@ -220,6 +230,10 @@ class WawtIpcQueue
     Protocol       *adapter() {
         return d_adapter;
     }
+    bool            cancelDelayedEnqueue(TimerId id);
+
+    TimerId         delayedLocalEnqueue(IpcMessage&&                message,
+                                        std::chrono::milliseconds   delay);
 
     bool            localEnqueue(IpcMessage&& message);
     
@@ -238,6 +252,20 @@ class WawtIpcQueue
 
     using SessionMap    = std::unordered_map<Protocol::ConnectionId,
                                              std::shared_ptr<Session>>;
+    using TimerMap      = std::unordered_map<TimerId, IpcMessage>;
+    using Clock         = std::chrono::high_resolution_clock;
+    using TimerPair     = std::pair<Clock::time_point,TimerId>;
+
+    // PRIVATE CLASS MEMBERS
+    static constexpr bool timerCompare(const TimerPair& lhs,
+                                       const TimerPair& rhs) {
+        return lhs.first > rhs.first;
+    }
+
+    using TimerCompare  = decltype(timerCompare);
+    using TimerQueue    = std::priority_queue<TimerPair,
+                                              std::deque<TimerPair>,
+                                              TimerCompare>;
 
     // PRIVATE MANIPULATORS
     void connectionUpdate(Protocol::ConnectionId  id,
@@ -248,11 +276,14 @@ class WawtIpcQueue
 
     void processMessage(ConnectionId id, IpcMessage&& message);
 
+    void timerThread();
+
     bool try_lock() { return d_mutex.try_lock(); }
 
     void unlock()   { d_mutex.unlock(); }
 
     // PRIVATE DATA MEMBERS
+
     std::unique_ptr<CryptoPrng>     d_prng_p{};
     bool                            d_opened    = false; // adapter was opened
     bool                            d_shutdown  = false;
@@ -260,6 +291,9 @@ class WawtIpcQueue
     std::condition_variable         d_signal{};
     std::deque<Indication>          d_incoming{};
     SessionMap                      d_sessionMap{};
+    TimerId                         d_timerId   = 0;
+    TimerMap                        d_timerIdMap{};
+    TimerQueue                      d_timerQueue{timerCompare};
     IpcMessage                      d_handshake{};
     IpcMessage                      d_disconnect{};
     Protocol::ConnectionId          d_startupId = Protocol::kINVALID_ID;
@@ -286,8 +320,8 @@ struct WawtIpcUtilities
 
     MessageNumber   messageNumber(const IpcMessage& message);
 
-    bool            verifySignedMessage(const IpcMessage&    digest,
-                                        const IpcMessage&    signedMessage);
+    bool            verifyDigestPair(const IpcMessage&    digest,
+                                     const IpcMessage&    digestMessage);
 };
 
 template<typename... Args>

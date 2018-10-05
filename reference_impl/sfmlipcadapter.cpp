@@ -743,7 +743,7 @@ SfmlIpcAdapter::writeMsgLoop(Connection *connection)
     // Note: connection may not be established at this point.
     bool socketConnected = false;
 
-    std::unique_lock<std::mutex> guard(connection->d_lock);
+    auto guard = std::unique_lock<std::mutex>(connection->d_lock);
 
     while (!connection->d_shutdown) {
         if (connection->d_writeQ.empty()) {

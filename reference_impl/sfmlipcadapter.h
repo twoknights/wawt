@@ -49,6 +49,7 @@ class SfmlIpcAdapter : public WawtIpcConnectionProtocol {
     ~SfmlIpcAdapter();
 
     // PUBLIC WawtIpcAdapter INTERFACE
+    // No callbacks invoked in the calling thread's context.
     void            closeConnection(ConnectionId        id)           noexcept;
 
     AddressStatus   prepareConnection(Wawt::String_t   *diagnostic,
@@ -57,6 +58,7 @@ class SfmlIpcAdapter : public WawtIpcConnectionProtocol {
                                       MessageCb         receivedMessage,
                                       std::any          address)      noexcept;
 
+    // No callbacks invoked in the calling thread's context.
     bool            sendMessage(ConnectionId            id,
                                 Message&&               message)      noexcept;
 
