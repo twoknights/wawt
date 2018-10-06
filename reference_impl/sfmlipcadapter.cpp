@@ -42,6 +42,8 @@ namespace {
 static constexpr unsigned char BYTE1 = '\125';
 static constexpr unsigned char BYTE2 = '\252';
 
+using MessageChain = WawtIpcConnectionProtocol::MessageChain;
+
 } // end unnamed namespace
 
 
@@ -51,6 +53,7 @@ static constexpr unsigned char BYTE2 = '\252';
 
 struct SfmlIpcAdapter::Connection {
     using Address = std::pair<unsigned short, sf::IpAddress>;
+    using Role    = WawtIpcConnectionProtocol::ConnectRole;
 
     std::thread                     d_reader;
     std::thread                     d_writer;
@@ -60,32 +63,34 @@ struct SfmlIpcAdapter::Connection {
     bool                            d_shutdown  = false;
     std::mutex                      d_lock{};
     std::condition_variable         d_signal{};
-    std::deque<Message>             d_writeQ{};
+    std::deque<MessageChain>        d_writeQ{};
     ConnectionId                    d_id;
     SfmlIpcAdapter                 *d_adapter;
     bool                            d_listen;
     Address                         d_address;
     ConnectCb                       d_connectionCb;
     MessageCb                       d_messageCb;
+    Role                            d_role;
 
     Connection(ConnectionId         id,
                SfmlIpcAdapter      *adapter,
                bool                 listen,
                Address              address,
-               ConnectCb&&          ccb,
-               MessageCb&&          mcb)
+               const ConnectCb&     ccb,
+               const MessageCb&     mcb)
         : d_id(id)
         , d_adapter(adapter)
         , d_listen(listen)
         , d_address(std::move(address))
-        , d_connectionCb(std::move(ccb))
-        , d_messageCb(std::move(mcb)) {
+        , d_connectionCb(ccb)
+        , d_messageCb(mcb)
+        , d_role(listen ? Role::eACCEPTOR : Role::eINITIATOR) {
         d_socket.setBlocking(false);
     }
 
     ~Connection() {
         if (d_connectionCb) {
-            d_connectionCb(d_id, d_status);
+            d_connectionCb(d_id, d_status, d_role);
         }
 
         if (d_reader.joinable()) {
@@ -137,7 +142,7 @@ SfmlIpcAdapter::~SfmlIpcAdapter()
 
             connection->d_messageCb    = MessageCb();
             connection->d_connectionCb = ConnectCb();
-            connection->shutdown(ConnectStatus::eCLOSED);
+            connection->shutdown(ConnectStatus::eCLOSE);
             connection->d_self.reset();   // 'connection' COULD be the only ref.
 
             connection->unlock();
@@ -166,7 +171,7 @@ SfmlIpcAdapter::accept(Connection *connection, sf::TcpListener *listener)
     sf::SocketSelector select;
     select.add(*listener);
 
-    std::unique_lock<Connection> guard(*connection);
+    auto guard = std::unique_lock(*connection);
 
     auto attempts = 0u;
 
@@ -191,7 +196,7 @@ SfmlIpcAdapter::accept(Connection *connection, sf::TcpListener *listener)
 
                 guard.release()->unlock(); /*UNLOCK*/
 
-                cb(connection->d_id, ConnectStatus::eOK);
+                cb(connection->d_id, ConnectStatus::eOK, connection->d_role);
                 readMsgLoop(connection);
                 return;                                               // RETURN
             }
@@ -211,9 +216,9 @@ SfmlIpcAdapter::accept(Connection *connection, sf::TcpListener *listener)
 }
 
 void
-SfmlIpcAdapter::closeAll()
+SfmlIpcAdapter::closeAdapter() noexcept
 {
-    std::lock_guard<std::mutex>  guard(d_lock);
+    auto guard = std::lock_guard(d_lock);
     d_shutdown = true;
 
     for (auto& pair : d_connections) {
@@ -224,7 +229,7 @@ SfmlIpcAdapter::closeAll()
 
             connection->d_messageCb    = MessageCb();
             connection->d_connectionCb = ConnectCb();
-            connection->shutdown(ConnectStatus::eCLOSED);
+            connection->shutdown(ConnectStatus::eCLOSE);
             connection->d_self.reset();
             
             connection->unlock();
@@ -234,9 +239,9 @@ SfmlIpcAdapter::closeAll()
 }
 
 void
-SfmlIpcAdapter::closeConnection(ConnectionId id)
+SfmlIpcAdapter::closeConnection(ConnectionId id) noexcept
 {
-    std::lock_guard<std::mutex>  guard(d_lock);
+    auto guard = std::lock_guard(d_lock);
     auto it = d_connections.find(id);
 
     if (it != d_connections.end()) {
@@ -244,7 +249,7 @@ SfmlIpcAdapter::closeConnection(ConnectionId id)
         
         connection->lock();
 
-        connection->shutdown(ConnectStatus::eCLOSED);
+        connection->shutdown(ConnectStatus::eCLOSE);
         d_connections.erase(it);
         
         connection->unlock();
@@ -260,7 +265,7 @@ SfmlIpcAdapter::connect(sf::IpAddress   ipV4,
     sf::SocketSelector select;
     select.add(connection->d_socket);
 
-    std::unique_lock<Connection> guard(*connection);
+    auto guard = std::unique_lock(*connection);
     auto attempts = 0u;
 
     while (!connection->d_shutdown) {
@@ -279,7 +284,7 @@ SfmlIpcAdapter::connect(sf::IpAddress   ipV4,
             if (cb) {
                 guard.release()->unlock(); /*UNLOCK*/
 
-                cb(connection->d_id, ConnectStatus::eOK);
+                cb(connection->d_id, ConnectStatus::eOK, connection->d_role);
                 readMsgLoop(connection);
                 return;                                               // RETURN
             }
@@ -304,21 +309,28 @@ SfmlIpcAdapter::connect(sf::IpAddress   ipV4,
     return;                                                           // RETURN
 }
 
-WawtIpcProtocol::AddressStatus
-SfmlIpcAdapter::prepareConnection(Wawt::String_t *diagnostic,
-                                  ConnectionId   *id,
-                                  ConnectCb       connectionUpdate,
-                                  MessageCb       receivedMessage,
-                                  std::any        address)
+void
+SfmlIpcAdapter::installCallbacks(ConnectCb       connectionUpdate,
+                                 MessageCb       receivedMessage) noexcept
+{
+    if (connectionUpdate && receivedMessage) {
+        auto guard = std::lock_guard(d_lock);
+        d_connectCb = connectionUpdate;
+        d_messageCb = receivedMessage;
+    }
+    else {
+        assert(!"Invalid callbacks installed.");
+    }
+    return;                                                           // RETURN
+}
+
+WawtIpcConnectionProtocol::ConfigureStatus
+SfmlIpcAdapter::configureAdapter(Wawt::String_t *diagnostic,
+                                 std::any        address) noexcept
 {
     std::string string;
     // Preliminaries
 
-    if (!connectionUpdate || !receivedMessage) {
-        *diagnostic = S("IPC is shutting down.");
-        return AddressStatus::eINVALID;                               // RETURN
-    }
-    
     try {
         if (address.type() == typeid(std::string)) {
             string = std::any_cast<std::string>(address);
@@ -332,7 +344,7 @@ SfmlIpcAdapter::prepareConnection(Wawt::String_t *diagnostic,
 
     if (string.empty()) {
         *diagnostic = S("Expected address to be a string.");
-        return AddressStatus::eMALFORMED;                             // RETURN
+        return ConfigureStatus::eMALFORMED;                           // RETURN
     }
     // Address parse (regex):
     bool        matched = false;
@@ -345,7 +357,7 @@ SfmlIpcAdapter::prepareConnection(Wawt::String_t *diagnostic,
 
     if (!matched) {
         *diagnostic = S("The address string is malformed.");
-        return AddressStatus::eMALFORMED;                             // RETURN
+        return ConfigureStatus::eMALFORMED;                           // RETURN
     }
     bool            listen = false;
     std::string     ipStr;
@@ -356,7 +368,7 @@ SfmlIpcAdapter::prepareConnection(Wawt::String_t *diagnostic,
     }
     else if (parse.str(1) != "connect") {
         *diagnostic = S("The connection type is invalid.");
-        return AddressStatus::eINVALID;                               // RETURN
+        return ConfigureStatus::eINVALID;                             // RETURN
     }
     assert(parse.size() == 4);
 
@@ -380,7 +392,7 @@ SfmlIpcAdapter::prepareConnection(Wawt::String_t *diagnostic,
     if (port < 0 || port > UINT16_MAX || pos != portStr.length()) {
         *diagnostic
             = S("A port number between 0 and 65535 must be used.");
-        return AddressStatus::eINVALID;                               // RETURN
+        return ConfigureStatus::eINVALID;                             // RETURN
     }
     // This can result in a DNS lookup (this COULD be SLOW :-( ):
     sf::IpAddress   ipAddress = ipStr.empty() ? sf::IpAddress::Any
@@ -392,7 +404,7 @@ SfmlIpcAdapter::prepareConnection(Wawt::String_t *diagnostic,
          && sf::IpAddress(127u,0u,0u,1u)     != ipAddress) {
             *diagnostic
                 = S("Can only bind listen to this computer.");
-            return AddressStatus::eINVALID;                           // RETURN
+            return ConfigureStatus::eINVALID;                         // RETURN
         }
     }
     else {
@@ -400,34 +412,39 @@ SfmlIpcAdapter::prepareConnection(Wawt::String_t *diagnostic,
          && sf::IpAddress::Broadcast         == ipAddress) {
             *diagnostic
                 = S("Cannot connect to broadcast or '0.0.0.0' address.");
-            return AddressStatus::eINVALID;                           // RETURN
+            return ConfigureStatus::eINVALID;                         // RETURN
         }
 
         if (sf::IpAddress::None == ipAddress) {
             *diagnostic = S("The destination host is malformed or unknown.");
-            return AddressStatus::eUNKNOWN;                           // RETURN
+            return ConfigureStatus::eUNKNOWN;                         // RETURN
         }
     }
 
-    std::lock_guard<std::mutex>  guard(d_lock);
+    auto guard = std::lock_guard(d_lock);
 
     if (d_shutdown) {
         *diagnostic = S("IPC is shutting down.");
-        return AddressStatus::eINVALID;                               // RETURN
+        return ConfigureStatus::eINVALID;                             // RETURN
     }
     unsigned short port_us = static_cast<unsigned short>(port);
-    *id = d_next++;
+    auto id = d_next++;
     auto connection
-        = std::make_shared<Connection>(*id,
+        = std::make_shared<Connection>(id,
                                        this,
                                        listen,
                                        std::pair(port_us, ipAddress),
-                                       std::move(connectionUpdate),
-                                       std::move(receivedMessage));
+                                       d_connectCb,
+                                       d_messageCb);
     connection->d_self = connection; // to keep "alive" until startConnection
-    d_connections[*id] = connection; // a weak pointer.
+    d_connections[id] = connection; // a weak pointer.
 
-    return AddressStatus::eOK;
+    return ConfigureStatus::eOK;                                      // RETURN
+}
+
+void
+SfmlIpcAdapter::dropNewConnections()
+{
 }
 
 void
@@ -467,7 +484,7 @@ SfmlIpcAdapter::readSizeHdr(sf::SocketSelector& select, Connection *connection)
     auto attempts = 0u;
     auto code = ConnectStatus::eOK;
 
-    std::unique_lock<Connection> guard(*connection);
+    auto guard = std::unique_lock(*connection);
 
     while (!connection->d_shutdown) {
         assert(++attempts < 1000);
@@ -488,7 +505,7 @@ SfmlIpcAdapter::readSizeHdr(sf::SocketSelector& select, Connection *connection)
             if (sf::Socket::Done == status || sf::Socket::Partial == status) {
                 if (bufsize == sizeof(header)) {
                     if (header[0] != BYTE1 || header[1] != BYTE2) {
-                        code = ConnectStatus::ePROTCOL;
+                        code = ConnectStatus::ePROTOCOL;
                         break;                                         // BREAK
                     }
                     auto byte3      = uint16_t(header[2]);
@@ -498,7 +515,7 @@ SfmlIpcAdapter::readSizeHdr(sf::SocketSelector& select, Connection *connection)
                 }
             }
             else if (sf::Socket::Disconnected == status) {
-                code = ConnectStatus::eDISCONNECT;
+                code = ConnectStatus::eDROP;
                 break;                                                 // BREAK
             }
             else if (sf::Socket::Error == status) {
@@ -526,7 +543,7 @@ SfmlIpcAdapter::readMsg(sf::SocketSelector&     select,
     auto        code        = ConnectStatus::eOK;
     auto attempts = 0u;
     
-    std::unique_lock<Connection> guard(*connection);
+    auto guard = std::unique_lock(*connection);
 
     while (!connection->d_shutdown) {
         assert(++attempts < 1000);
@@ -550,12 +567,13 @@ SfmlIpcAdapter::readMsg(sf::SocketSelector&     select,
 
                     guard.release()->unlock(); /*UNLOCK*/
                     
-                    cb(connection->d_id, std::pair(std::move(buffer),msgSize));
+                    cb(connection->d_id,
+                       WawtIpcMessage(std::move(buffer), msgSize, 0));
                     return;                                           // RETURN
                 }
             }
             else if (sf::Socket::Disconnected == status) {
-                code = ConnectStatus::eDISCONNECT;
+                code = ConnectStatus::eDROP;
                 break;                                                 // BREAK
             }
             else if (sf::Socket::Error == status) {
@@ -573,9 +591,9 @@ SfmlIpcAdapter::readMsg(sf::SocketSelector&     select,
 }
 
 bool
-SfmlIpcAdapter::sendMessage(ConnectionId id, Message&& message)
+SfmlIpcAdapter::sendMessage(ConnectionId id, MessageChain&& chain) noexcept
 {
-    std::lock_guard<std::mutex>  guard(d_lock);
+    auto guard = std::lock_guard(d_lock);
 
     if (!d_shutdown) {
         auto it = d_connections.find(id);
@@ -584,14 +602,14 @@ SfmlIpcAdapter::sendMessage(ConnectionId id, Message&& message)
             auto connection = it->second.lock();
 
             if (connection) {
-                std::lock_guard<Connection> cn_guard(*connection);
+                auto guard2 = std::lock_guard(d_lock);
 
                 if (!connection->d_self && !connection->d_shutdown) {
                     // Start was done but shutdown was not
                     bool empty = connection->d_writeQ.empty();
 
                     try {
-                        connection->d_writeQ.emplace_front(std::move(message));
+                        connection->d_writeQ.emplace_front(std::move(chain));
                     }
                     catch(...) {
                         connection->shutdown(ConnectStatus::eERROR);
@@ -613,15 +631,15 @@ SfmlIpcAdapter::sendMessage(ConnectionId id, Message&& message)
 }
 
 bool
-SfmlIpcAdapter::startConnection(Wawt::String_t *diagnostic, ConnectionId id)
+SfmlIpcAdapter::openAdapter(Wawt::String_t *diagnostic) noexcept
 {
-    std::unique_lock<std::mutex>  guard(d_lock);
+    auto guard = std::unique_lock(d_lock);
 
     if (d_shutdown) {
         *diagnostic = S("IPC is shutting down.");
         return false;                                                 // RETURN
     }
-    auto it = d_connections.find(id);
+    auto it = d_connections.begin(); // TBF
 
     if (it == d_connections.end()) {
         *diagnostic = S("Invalid connection identifier.");
@@ -678,7 +696,7 @@ SfmlIpcAdapter::startConnection(Wawt::String_t *diagnostic, ConnectionId id)
     }
     
     if (!connection->d_reader.joinable()) {
-        std::lock_guard<Connection> cn_guard(*connection);
+        auto guard2 = std::lock_guard(d_lock);
         connection->d_connectionCb = ConnectCb();
         connection->shutdown(ConnectStatus::eERROR); // wake-up writer
         d_connections.erase(it);
@@ -712,7 +730,7 @@ SfmlIpcAdapter::writeMsg(Connection            *connection,
             }
         }
         else if (sf::Socket::Disconnected   == status) {
-            code = ConnectStatus::eDISCONNECT;
+            code = ConnectStatus::eDROP;
             connection->lock(); /*LOCK*/
             break;                                                     // BREAK
         }
@@ -743,7 +761,7 @@ SfmlIpcAdapter::writeMsgLoop(Connection *connection)
     // Note: connection may not be established at this point.
     bool socketConnected = false;
 
-    auto guard = std::unique_lock<std::mutex>(connection->d_lock);
+    auto guard = std::unique_lock(connection->d_lock);
 
     while (!connection->d_shutdown) {
         if (connection->d_writeQ.empty()) {
@@ -758,19 +776,27 @@ SfmlIpcAdapter::writeMsgLoop(Connection *connection)
         }
         socketConnected = true;
 
-        auto [uptr, msgsize] = std::move(connection->d_writeQ.back());
+        auto chain = std::move(connection->d_writeQ.back());
         connection->d_writeQ.pop_back();
 
         connection->unlock(); /*UNLOCK*/
+
+        auto msgsize = uint16_t{};
+
+        for (auto& fragment : chain) {
+            msgsize += fragment.length();
+        }
 
         char header[4];
         header[0] = BYTE1;
         header[1] = BYTE2;
         header[2] = char(msgsize >> 8);
-        header[3] = char(msgsize & 0377);
+        header[3] = char(msgsize);
 
         if (writeMsg(connection, header, sizeof(header))) {
-            writeMsg(connection, uptr.get(), msgsize);
+            for (auto& fragment : chain) {
+                writeMsg(connection, fragment.cbegin(), fragment.length());
+            }
         }
 
         connection->lock(); /*LOCK*/

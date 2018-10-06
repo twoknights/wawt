@@ -32,142 +32,152 @@ namespace BDS {
 
 namespace {
 
-using IpcMessage    = WawtIpcMessage;
+using IpcMessage            = WawtIpcMessage;
 
 using IpcConnectionProtocol = WawtIpcConnectionProtocol;
 
-using IpcQueue      = WawtIpcQueue;
+using IpcQueue              = WawtIpcQueue;
 
-using IpcUtilities  = WawtIpcUtilities;
+using IpcUtilities          = WawtIpcUtilities;
 
-using MessageChain  = std::forward<IpcMessage>;
+using MessageChain          = std::forward_list<IpcMessage>;
 
 
-const uint8_t kSALT    = '\005';
+const char kSALT    = '\005';
 
-const uint8_t kSTARTUP = '\146';
-const uint8_t kDIGEST  = '\012';
-const uint8_t kDATA    = '\055';
-const uint8_t kDIGDATA = '\201';
-const uint8_t kCLOSE   = '\303';
+const char kSTARTUP = '\146';
+const char kDIGEST  = '\012';
+const char kDATA    = '\055';
+const char kDIGDATA = '\201';
+const char kCLOSE   = '\303';
 
-constexpr auto hdrsz  = 1 + sizeof(uint16_t);
-constexpr auto prefixsz  = saltsz + hdrsz;
-constexpr auto saltsz = 1 + sizeof(uint16_t) + sizeof(uint32_t);
+constexpr auto hdrsz    = int(sizeof(char) + sizeof(uint16_t));
+constexpr auto numsz    = int(sizeof(uint32_t));
+constexpr auto saltsz   = hdrsz    + numsz;
+constexpr auto prefixsz = saltsz   + hdrsz;
+constexpr auto digestsz = prefixsz + CryptoPP::SHA256::DIGESTSIZE;
 
-IpcMessage dataPrefix(uint32_t salt, uint16_t dataSize, uint8_t prefix) {
-    IpcMessage message = { std::make_unique<uint8_t>(prefixsz); prefixsz, 0 };
-
-    auto p  = message.d_data.get();
-    *p++    =  kSALT              & 0xFF;
-    *p++    = (saltsz      >>  8) & 0xFF;
-    *p++    =  saltsz             & 0xFF;
-    *p++    = (salt        >> 24) & 0xFF;
-    *p++    = (salt        >> 16) & 0xFF;
-    *p++    = (salt        >>  8) & 0xFF;
-    *p++    =  salt               & 0xFF;
-    *p++    =  prefix             & 0xFF;
-    *p++    = (dataSize    >>  8) & 0xFF;
-    *p++    =  dataSize           & 0xFF;
-    return message;
+inline
+bool extractHdr(char *type, uint16_t *size, const char **p, const char *end)
+{
+    if (end - *p >= hdrsz) {
+        auto a = *p;
+        *type = a[0];
+        *size = (uint8_t(a[1]) << 8) | uint8_t(a[2]);
+        *p += hdrsz;
+        return true;                                                  // RETURN
+    }
+    return false;                                                     // RETURN
 }
 
-bool extractSalt(uint32_t *salt, uint8_t **p, uint8_t *end)
+inline
+bool extractValue(uint32_t *value, const char **p, const char *end)
 {
-    if (end - *p >= saltsz) {
+    if (end - *p >= numsz) {
         auto a = *p;
+        *value = (uint8_t(a[0]) << 24) | (uint8_t(a[1]) << 16)
+               | (uint8_t(a[2]) <<  8) |  uint8_t(a[3]);
+        *p += numsz;
+        return true;                                                  // RETURN
+    }
+    return false;                                                     // RETURN
+}
 
-        if (a[0] == kSALT) {
-            auto length = (uint16_t(a[1]) << 8) | uint16_t(a[2]);
+inline
+bool extractSalt(uint32_t *salt, const char **p, const char *end)
+{
+    auto type   = char{};
+    auto size   = uint16_t{};
 
-            if (sizeof(*salt) == length - hdrsz) {
-                if (salt) {
-                    *salt = (uint32_t(a[3]) << 24 | (uint32_t(a[4] << 16)
-                                                  | (uint32_t(a[5] << 8)
-                                                  |  uint32_t(a[6]);
-                }
-                *p += length;
+    if (extractHdr(&type, &size, p, end) && type == kSALT && size == saltsz) {
+        if (salt) {
+            extractValue(salt, p, end);
+        }
+        return true;                                                  // RETURN
+    }
+    return false;                                                     // RETURN
+}
+
+bool checkMessage(uint32_t             *salt,
+                  uint32_t             *random,
+                  char                 *type,
+                  const IpcMessage&     message) {
+    auto p      = message.cbegin();
+    auto end    = message.cend();
+    auto bytes  = uint16_t{};
+    
+    if (extractSalt(salt, &p, end) && extractHdr(type, &bytes, &p, end)) {
+        bytes -= hdrsz;
+        if (p + bytes == end) {
+            if (*type == kDATA || *type == kDIGDATA || *type == kCLOSE) {
                 return true;                                          // RETURN
             }
+
+            if (*type == kDIGEST) {
+                return bytes == CryptoPP::SHA256::DIGESTSIZE;         // RETURN
+            }
+
+            if (*type == kSTARTUP) {
+                return extractValue(random, &p, end);                  // RETURN
+            }
         }
     }
     return false;                                                     // RETURN
 }
 
-int  addPrefix(WawtIpcMessage *message,
-               uint8_t          header,
-               uint32_t         random1,
-               uint32_t         random2,
-               uint32_t         salt)
-{
-    constexpr auto prefixsz = sizeof(header)    + sizeof(uint16_t)
-                            + sizeof(random1)   + sizeof(random2)
-                            + sizeof(salt);
-
-    MessageFragment prefix{ std::make_unique<char[]>(prefixsz), prefixsz, 0 };
-
-    auto p  = prefix.d_data.get();
-    *p++    =  header             & 0xFF;
-    *p++    = (prefixsz    >>  8) & 0xFF;
-    *p++    =  prefixsz           & 0xFF;
-    *p++    = (random1     >> 24) & 0xFF;
-    *p++    = (random1     >> 16) & 0xFF;
-    *p++    = (random1     >>  8) & 0xFF;
-    *p++    =  random1            & 0xFF;
-    *p++    = (random2     >> 24) & 0xFF;
-    *p++    = (random2     >> 16) & 0xFF;
-    *p++    = (random2     >>  8) & 0xFF;
-    *p++    =  random2            & 0xFF;
-    *p++    = (salt        >> 24) & 0xFF;
-    *p++    = (salt        >> 16) & 0xFF;
-    *p++    = (salt        >>  8) & 0xFF;
-    *p++    =  salt               & 0xFF;
-    
-    message->emplace_front(std::move(prefix));
-    return prefixsz;
+inline
+char *initHeader(char *p, uint16_t size, char type) {
+    *p++    =  type;
+    *p++    =  char(size >>  8);
+    *p++    =  char(size);
+    return p;
 }
 
-constexpr auto sha256sz =  hdrsz  + CryptoPP::SHA256::DIGESTSIZE;
-constexpr auto digestsz =  saltsz + sha256sz;
+inline
+char *initValue(char *p, uint32_t value) {
+    *p++    = char(value  >> 24);
+    *p++    = char(value  >> 16);
+    *p++    = char(value  >>  8);
+    *p++    = char(value);
+    return p;
+}
 
-IpcMessage digest(uint32_t salt, CryptoPP::SHA256& hash) {
-    IpcMessage message = { std::make_unique<uint8_t>(digestsz); digestsz, 0 };
+char *initPrefix(char *p, uint32_t salt, uint16_t size, char type) {
+    size   += hdrsz;
 
-    auto p  = message.d_data.get();
-    *p++    =  kSALT              & 0xFF;
-    *p++    = (saltsz      >>  8) & 0xFF;
-    *p++    =  saltsz             & 0xFF;
-    *p++    = (salt        >> 24) & 0xFF;
-    *p++    = (salt        >> 16) & 0xFF;
-    *p++    = (salt        >>  8) & 0xFF;
-    *p++    =  salt               & 0xFF;
-    *p++    =  kDIGEST            & 0xFF;
-    *p++    = (sha256sz    >>  8) & 0xFF;
-    *p++    =  sha256sz           & 0xFF;
+    p = initHeader(p, sizeof(salt), kSALT);
+    p = initValue( p, salt);
+    p = initHeader(p, size, type);
+    return p;
+}
 
-    hash.Final(p);
+IpcMessage makeDigest(uint32_t salt, CryptoPP::SHA256& hash) {
+    auto message = IpcMessage(std::make_unique<char[]>(digestsz), digestsz, 0);
+    auto p       = message.data();
+    p            = initPrefix(p, salt, CryptoPP::SHA256::DIGESTSIZE, kDIGEST);
+    hash.Final(reinterpret_cast<uint8_t*>(p));
     return message;
 }
 
-bool validateMessage(uint32_t          *salt,
-                     uint8_t           *type,
-                     const IpcMessage&  message) {
-    auto& [buffer, size, offset] = message;
-    auto p      = buffer.get() + offset;
-    auto end    = buffer.get() + size;
-    
-    if (extractSalt(salt, &p, end)) {
-        *type = p[0];
-        auto bytes = (uint16_t(p[1]) << 8) | uint16_t(p[2]);
+IpcMessage makeHandshake(uint32_t           random1,
+                         uint32_t           random2,
+                         const IpcMessage&  data)
+{
+    auto length     = data.length();
+    auto size       = length + sizeof(random2) + prefixsz;
+    auto message    = IpcMessage(std::make_unique<char[]>(size), size, 0);
+    auto p          = message.data();
+    p               = initPrefix(p, random1, length-prefixsz, kSTARTUP);
+    p               = initValue( p, random2);
+    std::memcpy(p, data.cbegin(), length); 
+    return message;
+}
 
-        if (p + bytes == end) {
-            if (*type == kDIGEST) {
-                return bytes == sha256sz;
-            }
-            return true;                                              // RETURN
-        }
-    }
-    return false;                                                     // RETURN
+IpcMessage makePrefix(uint32_t salt, uint16_t dataSize, char type) {
+    auto message = IpcMessage(std::make_unique<char[]>(prefixsz), prefixsz, 0);
+
+    initPrefix(message.data(), salt, dataSize, type);
+    return message;
 }
 
 }  // unnamed namespace
@@ -180,8 +190,8 @@ bool validateMessage(uint32_t          *salt,
 struct IpcQueue::CryptoPrng {
     CryptoPP::AutoSeededRandomPool  d_prng;
 
-    CryptoPP::AutoSeededRandomPool& operator()() {
-        return d_prng;
+    uint32_t random32() {
+        return d_prng.GenerateWord32();
     }
 };
 
@@ -189,7 +199,7 @@ struct IpcQueue::CryptoPrng {
                             // class IpcQueue::Session
                             //========================
 
-class Session {
+class IpcQueue::Session {
   public:
     // PUBLIC TYPES
     enum class State {
@@ -207,21 +217,25 @@ class Session {
     Session& operator=(const Session&)      = delete;
 
     Session(const IpcMessage&       handshake,
+            uint32_t                random1,
+            uint32_t                random2,
             IpcConnectionProtocol  *adapter,
             ConnectionId            id,
             Role                    role)
-        : d_handshake(makeStartupMessage(handshake)) TBD
+        : d_handshake(makeHandshake(random1, random2, handshake))
+        , d_rcvSalt(random1)
         , d_adapter(adapter)
         , d_sessionId(id)
+        , d_random(random2)
         , d_role(role) { }
 
 
     // PUBLIC MANIPULATORS
     IpcQueue::MessageNumber nextSalt() {
-        return d_sendSalt++;
+        return ++d_sendSalt;
     }
 
-    void enqueue(IpcConnectionProtocol::MessageChain&& chain, bool close) {
+    bool enqueue(MessageChain&& chain, bool close) {
         auto ret = d_state == State::eOPEN
                 && d_adapter->sendMessage(d_sessionId, std::move(chain));
         if (ret && close) {
@@ -231,28 +245,51 @@ class Session {
     }
 
     void lock() {
-        d_mutex.lock();
+        d_lock.lock();
     }
 
-    IpcMessage getStartupDigest() const {
+    MessageChain getStartupDigest() {
         assert(d_state == State::eWAITING_ON_CONNECT);
-        d_state = State::eWAITING_ON_DIGEST;
-        return makeStartupDigest(d_handshake); TBD
+        d_state         = State::eWAITING_ON_DIGEST;
+        auto    chain   = MessageChain{};
+        auto    hash    = CryptoPP::SHA256{};
+        hash.Update(reinterpret_cast<const uint8_t*>(d_handshake.cbegin()),
+                    d_handshake.length());
+        chain.emplace_front(makeDigest(d_rcvSalt, hash));
+        return chain;
     }
 
     void setClosed() {
         d_state = State::eWAITING_ON_DISC;
     }
 
-    IpcMessage saveStartupDigest(IpcMessage&& receivedDigest) {
+    MessageChain saveStartupDigest(IpcQueue::MessageNumber  initialValue,
+                                   IpcMessage&&             receivedDigest) {
         assert(d_state == State::eWAITING_ON_DIGEST);
-        d_digest = std::move(receivedDigest);
-        d_state = State::eWAITING_ON_START;
-        return std::move(d_handshake);
+        d_sendSalt  = initialValue;
+        d_state     = State::eWAITING_ON_START;
+        d_digest    = std::move(receivedDigest);
+        d_digest.d_offset += prefixsz;
+        auto chain  = MessageChain{};
+        chain.emplace_front(std::move(d_handshake));
+        return chain;
+    }
+
+    bool verifyStartupMessage(IpcQueue::MessageNumber   digestValue,
+                              uint32_t                  random,
+                              const IpcMessage&         message) {
+        d_random ^= random;
+        d_winner  = ((d_random & 8) == 0) == (d_role == Role::eINITIATOR);
+
+        return digestValue == d_sendSalt
+            && CryptoPP::SHA256().VerifyDigest(
+                    reinterpret_cast<const uint8_t*>(d_digest.cbegin()),
+                    reinterpret_cast<const uint8_t*>(message.cbegin()),
+                    message.length());     // RETURN
     }
 
     void unlock() {
-        d_mutex.unlock();
+        d_lock.unlock();
     }
 
     // PUBLIC ACCESSORS
@@ -260,21 +297,23 @@ class Session {
         return d_state;
     }
 
-    TBD
-    bool verifyStartupMessage(IpcMessage *message) const; // also salt values.
+    bool winner() const {
+        return d_winner;
+    }
 
   private:
     // PRIVATE DATA MEMBERS
     State                           d_state     = State::eWAITING_ON_CONNECT;
+    bool                            d_winner    = false;
     IpcQueue::MessageNumber         d_sendSalt  = 0;
-    IpcQueue::MessageNumber         d_rcvSalt   = 0;
     std::mutex                      d_lock{};
     IpcMessage                      d_digest{};     // digest from downstream
     IpcMessage                      d_handshake;    // handshake from upstream
+    IpcQueue::MessageNumber         d_rcvSalt;
     IpcConnectionProtocol          *d_adapter;
     ConnectionId                    d_sessionId;
+    uint32_t                        d_random;
     Role                            d_role;
-
 };
 
                            //---------------------------
@@ -286,68 +325,119 @@ IpcQueue::ReplyQueue::ReplyQueue(const std::shared_ptr<Session>&  session,
                                  bool                             winner,
                                  int                              sessionId)
 : d_session(session)
-, d_winner(winnder)
+, d_winner(winner)
 , d_sessionId(sessionId)
 {
     d_flag.clear();
 }
 
+IpcQueue::ReplyQueue::ReplyQueue(const ReplyQueue& copy)
+: d_session(copy.d_session)
+, d_winner(copy.d_winner)
+, d_sessionId(copy.d_sessionId)
+{
+    d_flag.clear();
+}
+
+IpcQueue::ReplyQueue::ReplyQueue(ReplyQueue&& copy)
+: d_session(std::move(copy.d_session))
+, d_winner(copy.d_winner)
+, d_sessionId(copy.d_sessionId)
+{
+    d_flag.clear();
+}
+
+
 // PUBLIC MEMBERS
+IpcQueue::ReplyQueue&
+IpcQueue::ReplyQueue::operator=(const ReplyQueue& rhs)
+{
+    if (this != &rhs) {
+        d_session     = rhs.d_session;
+        d_winner      = rhs.d_winner;
+        d_sessionId   = rhs.d_sessionId;
+        d_flag.clear();
+    }
+    return *this;
+}
+
+IpcQueue::ReplyQueue&
+IpcQueue::ReplyQueue::operator=(ReplyQueue&& rhs)
+{
+    if (this != &rhs) {
+        d_session     = std::move(rhs.d_session);
+        d_winner      = rhs.d_winner;
+        d_sessionId   = rhs.d_sessionId;
+        d_flag.clear();
+    }
+    return *this;
+}
+
 bool
 IpcQueue::ReplyQueue::enqueue(IpcMessage&&            message,
-                              Header&&                header)
+                              Header&&                header) noexcept
 {
     auto datasize = message.length();
 
-    while (d_flag.test_and_set()); auto copy=d_session.lock(); d_flag.clear();
+    if (datasize > 0 && datasize <= UINT16_MAX-prefixsz) {
+        while (d_flag.test_and_set()) {};
+        auto copy = d_session.lock();
+        d_flag.clear();
 
-    if (datasize > 0 && datasize <= UINT16_MAX-prefixsz && copy) {
-        std::lock_guard guard(*copy);
-        MessageChain chain;
-        chain.emplace_front(std::move(message));
+        if (copy) {
+            auto guard  = std::unique_lock(*copy);
+            auto chain  = MessageChain{};
+            chain.emplace_front(std::move(message));
 
-        if (header) {
-            chain.emplace_front(std::move(header), prefixsz, 0);
+            if (header) {
+                chain.emplace_front(std::move(header), prefixsz, 0);
+            }
+            else {
+                auto salt     = copy->nextSalt();
+                chain.emplace_front(makePrefix(salt, datasize, kDATA));
+            }
+            return copy->enqueue(std::move(chain), false);            // RETURN
         }
-        else {
-            auto salt     = copy->nextSalt();
-            chain.emplace_front(dataPrefix(salt, datasize, kDATA);
-        }
-        return copy->enqueue(std::move(chain), false);                // RETURN
     }
     return false;                                                     // RETURN
 }
 
 bool
 IpcQueue::ReplyQueue::enqueueDigest(Header             *header,
-                                    const IpcMessage&   message)
+                                    const IpcMessage&   message) noexcept
 {
     assert(header);
-
-    while (d_flag.test_and_set()); auto copy=d_session.lock(); d_flag.clear();
-
     auto datasize = message.length();
 
-    if (datasize > 0 && datasize <= UINT16_MAX-prefixsz && copy) {
-        auto guard = std::scoped_lock(*this, *copy);
-        auto& [buffer, size, offset] = message;
-        auto salt  = copy->nextSalt();
-        *header = dataPrefix(salt, datasize, kDIGDATA).d_data;
+    if (header && datasize > 0 && datasize <= UINT16_MAX-prefixsz) {
+        while (d_flag.test_and_set()) {};
+        auto copy = d_session.lock();
+        d_flag.clear();
 
-        auto hash = CryptoPP::SHA256;
-        hash.Update(header->d_data.get(), header->d_size);
-        hash.Update(buffer.get() + offset, datasize);
+        if (copy) {
+            *header     = std::make_unique<char[]>(prefixsz);
+            auto chain  = MessageChain{};
 
-        auto chain  = IpcConnectionProtocol::MessageChain{};
-        chain.emplace_front(digest(salt, hash));
+            auto guard = std::unique_lock(*copy);
+            auto salt  = copy->nextSalt();
+            initPrefix(header->get(), salt, datasize, kDIGDATA);
 
-        return copy->enqueue(std::move(chain), false);                // RETURN
+            auto hash = CryptoPP::SHA256{};
+            hash.Update(reinterpret_cast<const uint8_t*>(header->get()),
+                        prefixsz);
+            hash.Update(reinterpret_cast<const uint8_t*>(message.cbegin()),
+                        datasize);
+
+            chain.emplace_front(makeDigest(salt, hash));
+
+            return copy->enqueue(std::move(chain), false);            // RETURN
+        }
     }
     return false;                                                     // RETURN
 }
 
 void
-IpcQueue::ReplyQueue::closeQueue()
+IpcQueue::ReplyQueue::closeQueue() noexcept
 {
     while (d_flag.test_and_set());
 
@@ -358,13 +448,35 @@ IpcQueue::ReplyQueue::closeQueue()
 
     if (copy) {
         auto guard  = std::lock_guard(*copy);
-        auto chain  = IpcConnectionProtocol::MessageChain{};
+        auto chain  = MessageChain{};
 
         auto salt   = copy->nextSalt();
-        chain.emplace_front(dataPrefix(salt, 0, kCLOSE);
+        chain.emplace_front(makePrefix(salt, 0, kCLOSE));
         copy->enqueue(std::move(chain), true);
     }
     return;                                                           // RETURN
+}
+
+bool
+IpcQueue::ReplyQueue::isClosed() const noexcept
+{
+    while (d_flag.test_and_set()) {};
+    auto copy = d_session.lock();
+    d_flag.clear();
+
+    if (copy) {
+        auto guard  = std::lock_guard(*copy);
+
+        if (copy->state() == Session::State::eOPEN) {
+            return false;                                            // RETURN
+        }
+        copy.reset();
+
+        while (d_flag.test_and_set()) {};
+        d_session.reset();
+        d_flag.clear();
+    }
+    return true;                                                     // RETURN
 }
 
                                //---------------
@@ -379,10 +491,14 @@ IpcQueue::connectionUpdate(Protocol::ConnectionId   id,
 {
     // Note: no other connection update for 'id' can be delivered
     // until this function returns.
-    auto guard = std::lock_guard(*this);
+    auto guard = std::unique_lock(d_lock);
 
     if (status == Protocol::ConnectStatus::eOK) {
+        auto random1 = d_prng_p->random32();
+        auto random2 = d_prng_p->random32();
         auto session = std::make_shared<Session>(d_handshake,
+                                                 random1,
+                                                 random2,
                                                  d_adapter,
                                                  id,
                                                  role);
@@ -406,7 +522,7 @@ IpcQueue::connectionUpdate(Protocol::ConnectionId   id,
                 d_incoming.emplace_back(std::move(reply),
                                         d_disconnect,
                                         MessageType::eDISCONNECT);
-                d_signal.d_notify_all();
+                d_signal.notify_all();
             }
             session->setClosed();
         }
@@ -416,18 +532,19 @@ IpcQueue::connectionUpdate(Protocol::ConnectionId   id,
 }
 
 void
-IpcQueue::processMessage(ConnectionId id, IpcMessage&& message)
+IpcQueue::processMessage(Protocol::ConnectionId id, IpcMessage&& message)
 {
-    auto guard = std::unique_lock(*this);
+    auto guard = std::unique_lock(d_lock);
 
     auto it     = d_sessionMap.find(id);
     auto salt   = uint32_t{};
-    auto type   = uint8_t{};
+    auto random = uint32_t{};
+    auto type   = char{};
 
     if (it == d_sessionMap.end()) {
         assert(!"Message for unknown connection ID.");
     }
-    else if (validateMessage(&salt, &type, message)) {
+    else if (checkMessage(&salt, &random, &type, message)) {
         auto session    = it->second;
         auto ssnguard   = std::unique_lock(*session);
         auto close      = false;
@@ -435,9 +552,10 @@ IpcQueue::processMessage(ConnectionId id, IpcMessage&& message)
         switch (session->state()) {
           case Session::State::eWAITING_ON_DIGEST: {
             if(kDIGEST == type) {
-                d_adapter->sendMessage(id,
-                                       session->saveStartupDigest(message));
-                assert(session->state() == Session::State::WAITING_ON_START);
+                d_adapter->sendMessage(
+                    id,
+                    session->saveStartupDigest(salt, std::move(message)));
+                assert(session->state() == Session::State::eWAITING_ON_START);
             }
             else {
                 close = true;
@@ -445,9 +563,16 @@ IpcQueue::processMessage(ConnectionId id, IpcMessage&& message)
             }
           } break;                                                     // BREAK
           case Session::State::eWAITING_ON_START: {
-            if(kSTARTUP == type && session->verifyStartup(&message)) {
+            if (kSTARTUP == type
+             && session->verifyStartupMessage(salt, random, message)) {
+                message.d_offset += prefixsz + sizeof(random);
+
                 if (message.length() > 0) {
-                    forward_reply(session, std::move(message));
+                    auto reply  = ReplyQueue(session, session->winner(), id);
+                    d_incoming.emplace_back(std::move(reply),
+                                            std::move(message),
+                                            MessageType::eDATA);
+                    d_signal.notify_all();
                 }
                 assert(session->state() == Session::State::eOPEN);
             }
@@ -506,7 +631,7 @@ void
 IpcQueue::timerThread()
 {
     auto local = ReplyQueue({}, false, kLOCAL_SSNID);
-    auto guard = std::unique_lock<IpcQueue>(*this);
+    auto guard = std::unique_lock(d_lock);
 
     while (!d_shutdown) {
         auto now  = Clock::now();
@@ -517,11 +642,13 @@ IpcQueue::timerThread()
         }
 
         while (!d_timerQueue.empty() && now >= d_timerQueue.top().first) {
-            auto it = d_timerMap.find(d_timerQueue.top().second);
+            auto it = d_timerIdMap.find(d_timerQueue.top().second);
             d_timerQueue.pop();
 
             if (d_timerIdMap.end() != it) {
-                d_incoming.emplace_back(local, std::move(it->second));
+                d_incoming.emplace_back(local,
+                                        std::move(it->second),
+                                        MessageType::eDATA);
                 d_timerIdMap.erase(it);
             }
         }
@@ -530,8 +657,8 @@ IpcQueue::timerThread()
 }
 
 // PUBLIC CONSTRUCTORS
-IpcQueue::IpcQueue(IpcConnectionProtocol *adapter)
-: d_prng(std::make_unique<IpcQueue::CryptoPrng>())
+WawtIpcQueue::WawtIpcQueue(IpcConnectionProtocol *adapter)
+: d_prng_p(new IpcQueue::CryptoPrng())
 , d_adapter(adapter)
 {
     d_adapter->installCallbacks([this](auto id, auto status, auto role) {
@@ -542,13 +669,18 @@ IpcQueue::IpcQueue(IpcConnectionProtocol *adapter)
                                 });
 }
 
+WawtIpcQueue::~WawtIpcQueue()
+{
+    delete d_prng_p;
+}
+
 // PUBLIC MEMBERS
 bool
 IpcQueue::cancelDelayedEnqueue(TimerId timerId)
 {
     if (!d_shutdown) {
-        auto guard      = std::lock_guard(*this);
-        return d_timerMap.erase(timerId) > 0;
+        auto guard      = std::lock_guard(d_lock);
+        return d_timerIdMap.erase(timerId) > 0;
     }
     return false;                                                     // RETURN
 }
@@ -559,9 +691,9 @@ IpcQueue::delayedLocalEnqueue(IpcMessage&&              message,
 {
     if (!d_shutdown) {
         auto expiresAt  = Clock::now() + delay;
-        auto guard      = std::lock_guard(*this);
+        auto guard      = std::lock_guard(d_lock);
 
-        d_timerMap.emplace(++d_timerId, std::move(message));
+        d_timerIdMap.emplace(++d_timerId, std::move(message));
         d_timerQueue.emplace(expiresAt, d_timerId);
 
         if (d_timerQueue.top().second == d_timerId) {
@@ -586,11 +718,13 @@ IpcQueue::delayedLocalEnqueue(IpcMessage&&              message,
 bool
 IpcQueue::localEnqueue(IpcMessage&& message)
 {
-    auto guard = std::unique_lock(*this);
+    auto guard = std::unique_lock(d_lock);
 
     if (!d_shutdown) {
         auto local = ReplyQueue({}, false, kLOCAL_SSNID);
-        d_incoming.emplace_back(std::move(local), std::move(message));
+        d_incoming.emplace_back(std::move(local),
+                                std::move(message),
+                                MessageType::eDATA);
         d_signal.notify_all();
     }
     return !d_shutdown;                                               // RETURN
@@ -601,7 +735,7 @@ IpcQueue::openAdapter(Wawt::String_t   *diagnostics,
                       IpcMessage        disconnectMessage,
                       IpcMessage        handshakeMessage)
 {
-    std::lock_guard guard(*this);
+    auto guard = std::unique_lock(d_lock);
 
     if (!d_opened) {
         d_handshake     = std::move(handshakeMessage);
@@ -615,7 +749,7 @@ IpcQueue::openAdapter(Wawt::String_t   *diagnostics,
 void
 IpcQueue::reset()
 {
-    std::lock_guard guard(*this);
+    auto guard = std::unique_lock(d_lock);
     // note that local enqueing can occur even when not opened.
 
     if (d_opened) {
@@ -632,7 +766,7 @@ IpcQueue::reset()
 IpcQueue::Indication
 IpcQueue::waitForIndication()
 {
-    auto guard = std::unique_lock(*this);
+    auto guard = std::unique_lock(d_lock);
 
     while (!d_shutdown) {
         if (d_incoming.empty()) {
@@ -641,10 +775,6 @@ IpcQueue::waitForIndication()
         else {
             auto indication = std::move(d_incoming.front());
             d_incoming.pop_front();
-            
-            if (!indication.first.d_session->isOpen()) {
-                indication.first.d_session.reset();
-            }
             return indication;                                        // RETURN
         }
     }
@@ -655,67 +785,16 @@ IpcQueue::waitForIndication()
                                // class IpcUtilities
                                //-------------------
 
-bool
-IpcUtilities::skipToUserData(IpcMessage *message)
-{
-    while (!message->empty()) {
-        auto fragment = message->front();
-        auto size     = fragment.d_size;
-        auto offset   = fragment.d_offset;
-
-        while (size > offset) {
-            if (size - offset < hdrsz) {
-                assert(!"Corrupt fragment");
-                message->clear();
-                return false;                                         // RETURN
-            }
-            auto hdr      = fragment.d_data.get() + offset;
-            auto hdrbyte  = hdr[0];
-            auto blocksz  = (uint16_t(hdr[1]) << 8) | uint16_t(hdr[2]);
-
-            if (hdrbyte == kDATA) {
-                fragment.d_offset = offset + hdrsz;
-
-                if (fragment.d_offset == size) {
-                    message->pop_front();
-                }
-                else if (fragment.d_offset > size) {
-                    assert(!"Corrupt data header");
-                    message->clear();
-                    return false;                                     // RETURN
-                }
-                return true;                                          // RETURN
-            }
-
-            if (hdrbyte != kSALT) {
-                if (hdrbyte == kDIGEST) {
-                    return false;                                     // RETURN
-                }
-                assert(!"Corrupt header type");
-                message->clear();
-                return false;                                         // RETURN
-            }
-
-            if (blocksz + offset > size) {
-                assert(!"Corrupt header");
-                message->clear();
-                return false;                                         // RETURN
-            }
-            offset += blocksz;
-        }
-        message->pop_front();
-    }
-    return false;                                                     // RETURN
-}
-
 IpcQueue::MessageNumber
 IpcUtilities::messageNumber(const IpcMessage& message)
 {
-    auto *p     = message.get();
-    auto *end   = p + prefixsz;
     auto salt   = uint32_t{};
 
-    extractSalt(&salt, &p, end);
+    if (message.d_offset >= prefixsz) {
+        auto *end   = message.cbegin();
+        auto *p     = end - prefixsz;
+        extractSalt(&salt, &p, end);
+    }
     return salt;
 }
 
@@ -723,32 +802,32 @@ bool
 IpcUtilities::verifyDigestPair(const IpcMessage&       digest,
                                const IpcMessage&       digestMessage)
 {
-    auto& [buffer, size, offset] = digestMessage;
-    auto  length = size - offset;
 
-    if (offset < prefixsz) {
+    if (digestMessage.d_offset < prefixsz) {
         assert(!"Message missing header.");
         return false;                                                 // RETURN
     }
-    auto data = buffer.get() + offset - prefixsz;
-    auto datalng = size - (offset - prefixsz);
+    auto msglength  = digestMessage.length();
+    auto data       = digestMessage.cbegin() - prefixsz;
+    auto datalng    = msglength + prefixsz;
 
     uint32_t salt1, salt2;
-    uint8_t *p1   = digest.d_data.get() + digest.d_data.d_offset - ;
-    uint8_t *end1 = p1 +  digest.d_size - digest.d_offset;
-    uint8_t *p2   = data;
-    uint8_t *end2 = buffer.get() + size;
+    auto p1     = digest.cbegin();
+    auto end1   = digest.cend();
+    auto p2     = data;
+    auto end2   = digestMessage.cend();
 
     if (extractSalt(&salt1, &p1, end1)
      && extractSalt(&salt2, &p2, end2)
      && salt1 == salt2
      && kDIGEST  == p1[0]
      && kDIGDATA == p2[0]
-     && ((uint16_t(p1[1]) << 8) | uint16_t(p1[2])) == sha256sz;
-     && ((uint16_t(p2[1]) << 8) | uint16_t(p2[2])) == length+hdrsz) {
-        return CryptoPP::SHA256().VerifyDigest(p1 + hdrsz, /* hash */
-                                               data,
-                                               datalng);              // RETURN
+     && ((uint8_t(p1[1]) << 8) | uint8_t(p1[2])) ==  digestsz-saltsz
+     && ((uint8_t(p2[1]) << 8) | uint8_t(p2[2])) == msglength+hdrsz) {
+        return CryptoPP::SHA256().VerifyDigest(
+                reinterpret_cast<const uint8_t*>(p1) + hdrsz, /* hash */
+                reinterpret_cast<const uint8_t*>(data),
+                datalng);                                             // RETURN
     }
     return false;                                                     // RETURN
 }

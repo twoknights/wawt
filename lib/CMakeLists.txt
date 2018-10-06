@@ -1,3 +1,3 @@
-set(SRC wawteventrouter.cpp wawtipcprotocol.cpp wawt.cpp)
+set(SRC wawtipcprotocol.cpp wawteventrouter.cpp wawt.cpp)
 
 add_library(wawt${LIBSUFFIX} ${SRC})

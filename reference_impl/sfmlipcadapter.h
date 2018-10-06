@@ -49,23 +49,31 @@ class SfmlIpcAdapter : public WawtIpcConnectionProtocol {
     ~SfmlIpcAdapter();
 
     // PUBLIC WawtIpcAdapter INTERFACE
-    // No callbacks invoked in the calling thread's context.
-    void            closeConnection(ConnectionId        id)           noexcept;
 
-    AddressStatus   prepareConnection(Wawt::String_t   *diagnostic,
-                                      ConnectionId     *id,
-                                      ConnectCb         connectionUpdate,
-                                      MessageCb         receivedMessage,
-                                      std::any          address)      noexcept;
+    // Drop new connections until next call to 'configureAdapter'
+    void            dropNewConnections()                              override;
 
-    // No callbacks invoked in the calling thread's context.
-    bool            sendMessage(ConnectionId            id,
-                                Message&&               message)      noexcept;
+    // Asynchronous close of all connections. No new ones permitted.
+    void            closeAdapter()                           noexcept override;
 
-    void            closeAll()                                        noexcept;
+    //! Asynchronous close of connection.
+    void            closeConnection(ConnectionId    id)      noexcept override;
 
-    bool            startConnection(Wawt::String_t     *diagnostic,
-                                    ConnectionId        connectionId) noexcept;
+    //! Synchronous call. If adapter permits, may be called more than once.
+    ConfigureStatus configureAdapter(Wawt::String_t *diagnostic,
+                                     std::any        configuration)
+                                                             noexcept override;
+
+    void            installCallbacks(ConnectCb       connectionUpdate,
+                                     MessageCb       receivedMessage)
+                                                             noexcept override;
+
+    //! Enables the asynchronous creation of new connections.
+    bool            openAdapter(Wawt::String_t *diagnostic)  noexcept override;
+
+    //! Asynchronous call to send a message on a connection
+    bool            sendMessage(ConnectionId        id,
+                                MessageChain&&      chain)   noexcept override;
 
 
     // PUBLIC ACCESSORS
@@ -103,6 +111,8 @@ class SfmlIpcAdapter : public WawtIpcConnectionProtocol {
 
     // PRIVATE DATA
     std::mutex                      d_lock{};
+    ConnectCb                       d_connectCb{};
+    MessageCb                       d_messageCb{};
     ConnectionMap                   d_connections{};
     bool                            d_shutdown      = false;
     ConnectionId                    d_next          = 0;

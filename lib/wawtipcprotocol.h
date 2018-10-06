@@ -21,70 +21,117 @@
 
 #include <any>
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <cstring>
 #include <cstdio>
 #include <deque>
+#include <forward_list>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <queue>
 #include <string>
 #include <thread>
+#include <unordered_map>
 
 #include "wawt.h"
 
 namespace BDS {
 
 struct WawtIpcMessage {
-    WawtIpcMessage()                                        = default;
-    WawtIpcMessage(WawtIpcMessage&&)                        = default;
-    WawtIpcMessage& operator=(WawtIpcMessage&&)             = default;
-
-    std::unique_ptr<uint8_t[]>  d_data{};
+    // PUBLIC DATA MEMBERS
+    std::unique_ptr<char[]>     d_data{};
     uint16_t                    d_size      = 0;
     uint16_t                    d_offset    = 0;
 
-    WawtIpcMessage(const std::string_view& data)
-        : d_data(std::make_unique<uint8_t[]>(data.size())
-        , d_size(data.size()) {
-        data.copy(d_data.get(), d_size);
-    }
+    // PUBLIC CONSTRUCTORS
+    WawtIpcMessage()                            = default;
+    WawtIpcMessage(WawtIpcMessage&&)            = default;
 
-    WawtIpcMessage(const char* data, uint16_t length) {
-        : d_data(std::make_unique<uint8_t[]>(length)
-        , d_size(length) {
-        std::memcpy(d_data.get(), data, length);
-    }
+    WawtIpcMessage(std::unique_ptr<char[]>&&    data,
+                   uint16_t                     size,
+                   uint16_t                     offset);
+    WawtIpcMessage(const std::string_view& data);
+    WawtIpcMessage(const char* data, uint16_t length);
+    WawtIpcMessage(const WawtIpcMessage& copy);
 
-    WawtIpcMessage(const WawtIpcMessage& copy)
-        : d_data(std::make_unique<uint8_t[]>(copy.d_size)
-        , d_size(copy.d_size)
-        , d_offset(copy.d_offset) {
-        std::memcpy(d_data.get(), copy.d_data.get(), d_size);
-    }
+    // PUBLIC MANIPULATORS
+    WawtIpcMessage& operator=(WawtIpcMessage&&) = default;
+    WawtIpcMessage& operator=(const WawtIpcMessage& rhs);
 
-    WawtIpcMessage& operator=(const WawtIpcMessage& rhs) {
-        if (this != &rhs) {
-            d_data      = std::make_unique<uint8_t[]>(rhs.d_size);
-            d_size      = rhs.d_size;
-            d_offset    = rhs.d_offset;
-            std::memcpy(d_data.get(), rhs.d_data.get(), d_size);
-        }
-    }
-
-    void        reset() {
+    void        reset()                           noexcept {
         d_data.reset();
         d_size = d_offset = 0;
     }
 
-    uint16_t    length() const noexcept {
+    char  *data()                                 noexcept {
+        return d_data.get() + d_offset;
+    }
+
+    // PUBLIC ACCESSORS
+    const char  *cbegin()                   const noexcept {
+        return d_data.get() + d_offset;
+    }
+
+    bool         empty()                    const noexcept {
+        return length() == 0;
+    }
+
+    const char  *cend()                     const noexcept {
+        return d_data.get() + d_size;
+    }
+
+    uint16_t        length()                const noexcept {
         return d_size - d_offset;
     }
 
-    explicit operator std::string_view() const noexcept {
-        return std::string_view(d_data.get()+d_offset, d_size-d_offset);
+    explicit operator std::string_view()    const noexcept {
+        return std::string_view(cbegin(), length());
     }
 };
+
+WawtIpcMessage::WawtIpcMessage(std::unique_ptr<char[]>&&    data,
+                               uint16_t                     size,
+                               uint16_t                     offset)
+: d_data(std::move(data))
+, d_size(size)
+, d_offset(offset)
+{
+}
+
+WawtIpcMessage::WawtIpcMessage(const std::string_view& data)
+: d_data(std::make_unique<char[]>(data.size()))
+, d_size(data.size())
+{
+    data.copy(d_data.get(), d_size);
+}
+
+WawtIpcMessage::WawtIpcMessage(const char* data, uint16_t length)
+: d_data(std::make_unique<char[]>(length))
+, d_size(length)
+{
+    std::memcpy(d_data.get(), data, length);
+}
+
+WawtIpcMessage::WawtIpcMessage(const WawtIpcMessage& copy)
+: d_data(std::make_unique<char[]>(copy.d_size))
+, d_size(copy.d_size)
+, d_offset(copy.d_offset)
+{
+    std::memcpy(d_data.get(), copy.d_data.get(), d_size);
+}
+
+WawtIpcMessage& WawtIpcMessage::operator=(const WawtIpcMessage& rhs)
+{
+    if (this != &rhs) {
+        d_data      = std::make_unique<char[]>(rhs.d_size);
+        d_size      = rhs.d_size;
+        d_offset    = rhs.d_offset;
+        std::memcpy(d_data.get(), rhs.d_data.get(), d_size);
+    }
+    return *this;                                                     // RETURN
+}
 
 
                         //================================
@@ -95,7 +142,8 @@ struct WawtIpcMessage {
  * @brief An interface whose providers support communication between tasks.
  */
 
-class WawtIpcConnectionProtocol {
+class WawtIpcConnectionProtocol
+{
   public:
     // PUBLIC TYPES
     enum class ConfigureStatus { eOK, eMALFORMED, eINVALID, eUNKNOWN };
@@ -106,7 +154,7 @@ class WawtIpcConnectionProtocol {
 
     using ConnectionId      = uint32_t;
 
-    using MessageChain      = std::forward<IpcMessage>;
+    using MessageChain      = std::forward_list<IpcMessage>;
 
     // Calling thread must not hold locks.
     using ConnectCb         = std::function<void(ConnectionId,
@@ -116,7 +164,7 @@ class WawtIpcConnectionProtocol {
     // Calling thread must not hold locks.
     using MessageCb         = std::function<void(ConnectionId, IpcMessage&&)>;
 
-    constexpr static ConnectionId kINVALID_ID = UINT32_MAX;
+    static constexpr ConnectionId kINVALID_ID = UINT32_MAX;
 
     // Drop new connections until next call to 'configureAdapter'
     virtual void            dropNewConnections()                            =0;
@@ -161,18 +209,18 @@ class WawtIpcQueue
     using IpcConnectionProtocol = WawtIpcConnectionProtocol;
     using IpcMessage            = WawtIpcMessage;
     using Protocol              = IpcConnectionProtocol;
-    using Header                = std::unique_ptr<uint8_t[]>;
+    using Header                = std::unique_ptr<char[]>;
 
     using   SessionId = Protocol::ConnectionId;
-    static constexpr static SessionId kLOCAL_SSNID = Protocol::kINVALID_ID;
+    static constexpr SessionId kLOCAL_SSNID = Protocol::kINVALID_ID;
 
     // Methods are NOT thread-safe
     class ReplyQueue {
         friend class WawtIpcQueue;
-        std::weak_ptr<Session>      d_session;
-        bool                        d_winner;
-        SessionId                   d_sessionId;
-        std::atomic_flag            d_flag;
+        mutable std::weak_ptr<Session>  d_session;
+        bool                            d_winner;
+        SessionId                       d_sessionId;
+        mutable std::atomic_flag        d_flag;
 
         const Session *safeGet() const;
 
@@ -181,6 +229,14 @@ class WawtIpcQueue
         ReplyQueue(const std::shared_ptr<Session>&      session,
                    bool                                 winner,
                    int                                  sessionId);
+
+        ReplyQueue(ReplyQueue&&         copy);
+
+        ReplyQueue(const ReplyQueue&    copy);
+
+        ReplyQueue& operator=(ReplyQueue&& rhs);
+
+        ReplyQueue& operator=(const ReplyQueue& rhs);
 
         // PUBLIC MANIPULATORS
         bool            enqueue(IpcMessage&&            message,
@@ -195,28 +251,32 @@ class WawtIpcQueue
         void            closeQueue()                                  noexcept;
 
         // PUBLIC ACCESSORS
-        bool            tossResult() const noexcept {
+        bool            tossResult()                            const noexcept{
             return d_winner;
         }
 
-        bool            isClosed() const noexcept {
-            return d_session.expired();
-        }
+        bool            isClosed()                              const noexcept;
 
-        bool            isLocal() const noexcept {
+        bool            isLocal()                               const noexcept{
             return d_sessionId == kLOCAL_SSNID;
         }
 
-        bool            operator==(const ReplyQueue&    rhs) const noexcept {
+        bool            operator==(const ReplyQueue&    rhs)    const noexcept{
             return d_sessionId == rhs.d_sessionId;
         }
 
-        bool            operator!=(const ReplyQueue&    rhs) const noexcept {
+        bool            operator!=(const ReplyQueue&    rhs)    const noexcept{
             return d_sessionId != rhs.d_sessionId;
         }
     };
     friend class ReplyQueue;
 
+    enum class MessageType {
+          eDISCONNECT
+        , eDIGEST
+        , eDATA
+        , eDIGESTED_DATA
+    };
     using MessageNumber = uint32_t;
     using Indication    = std::tuple<ReplyQueue, IpcMessage, MessageType>;
     using TimerId       = uint32_t;
@@ -225,6 +285,7 @@ class WawtIpcQueue
 
     // PUBLIC CONSTRUCTORS
     WawtIpcQueue(Protocol *adapter);
+    ~WawtIpcQueue();
 
     // PUBLIC MANIPULATORS
     Protocol       *adapter() {
@@ -252,7 +313,7 @@ class WawtIpcQueue
 
     using SessionMap    = std::unordered_map<Protocol::ConnectionId,
                                              std::shared_ptr<Session>>;
-    using TimerMap      = std::unordered_map<TimerId, IpcMessage>;
+    using TimerMap      = std::unordered_map<TimerId, WawtIpcMessage>;
     using Clock         = std::chrono::high_resolution_clock;
     using TimerPair     = std::pair<Clock::time_point,TimerId>;
 
@@ -262,38 +323,32 @@ class WawtIpcQueue
         return lhs.first > rhs.first;
     }
 
-    using TimerCompare  = decltype(timerCompare);
     using TimerQueue    = std::priority_queue<TimerPair,
                                               std::deque<TimerPair>,
-                                              TimerCompare>;
+                                              decltype(&timerCompare)>;
 
     // PRIVATE MANIPULATORS
     void connectionUpdate(Protocol::ConnectionId  id,
                           Protocol::ConnectStatus status,
                           Protocol::ConnectRole   role);
-
-    void lock()     { d_mutex.lock(); }
-
-    void processMessage(ConnectionId id, IpcMessage&& message);
+    void processMessage(Protocol::ConnectionId id, IpcMessage&& message);
 
     void timerThread();
 
-    bool try_lock() { return d_mutex.try_lock(); }
-
-    void unlock()   { d_mutex.unlock(); }
-
     // PRIVATE DATA MEMBERS
 
-    std::unique_ptr<CryptoPrng>     d_prng_p{};
+    CryptoPrng                     *d_prng_p    = nullptr;
     bool                            d_opened    = false; // adapter was opened
     bool                            d_shutdown  = false;
-    std::mutex                      d_mutex{};
+    std::mutex                      d_lock{};
     std::condition_variable         d_signal{};
     std::deque<Indication>          d_incoming{};
     SessionMap                      d_sessionMap{};
     TimerId                         d_timerId   = 0;
     TimerMap                        d_timerIdMap{};
     TimerQueue                      d_timerQueue{timerCompare};
+    std::condition_variable         d_timerSignal{};
+    std::thread                     d_timerThread;
     IpcMessage                      d_handshake{};
     IpcMessage                      d_disconnect{};
     Protocol::ConnectionId          d_startupId = Protocol::kINVALID_ID;
@@ -307,16 +362,16 @@ class WawtIpcQueue
 struct WawtIpcUtilities
 {
     using string_view   = std::string_view;
-    using MessageNumber = WawtIpcQueue::MessageNumber
+    using MessageNumber = WawtIpcQueue::MessageNumber;
     using IpcMessage    = WawtIpcMessage;
 
     template<typename... Args>
     IpcMessage      formatMessage(const char *format, Args&&... args);
 
     template<typename... Args>
-    bool            parseMessage(const Message&     message,
+    bool            parseMessage(const IpcMessage&  message,
                                  const char        *format,
-                                 Args...            args);
+                                 Args&&...          args);
 
     MessageNumber   messageNumber(const IpcMessage& message);
 
@@ -356,14 +411,11 @@ WawtIpcUtilities::parseMessage(const IpcMessage&        message,
     constexpr int NUMARGS = sizeof...(Args);
 
     if (!message.empty()) {
-        auto& [buffer, offset, size] = message.front();
-
         if constexpr(NUMARGS == 0) {
-            auto length = size - offset;
-            return 0 == std::strncmp(buffer.get() + offset, format, length);
+            return !std::strncmp(message.cbegin(), format, message.length());
         }
         else {
-            return NUMARGS == std::sscanf(buffer.get() + offset,
+            return NUMARGS == std::sscanf(message.cbegin(),
                                           format,
                                           std::forward<Args>(args)...);
         }
