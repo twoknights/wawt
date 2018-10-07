@@ -18,7 +18,6 @@
 
 #include "sfmldrawadapter.h"
 #include "drawoptions.h"
-#include "wawt.h"
 
 #include <SFML/Graphics/CircleShape.hpp>
 #include <SFML/Graphics/Color.hpp>
@@ -27,6 +26,7 @@
 #include <SFML/Graphics/Rect.hpp>
 #include <SFML/Graphics/Text.hpp>
 
+#include <cassert>
 #include <cmath>
 #include <cstring>
 #include <chrono>
@@ -169,15 +169,15 @@ SfmlDrawAdapter::SfmlDrawAdapter(sf::RenderWindow&   window,
     }
 
     if (!noArrow) {
-        setArrows(Wawt::kDownArrow, Wawt::kUpArrow);
+        setArrows(Wawt::Wawt::kDownArrow, Wawt::Wawt::kUpArrow);
     }
 }
 
 // PUBLIC Wawt::Adapter INTERFACE
 
-void
+bool
 SfmlDrawAdapter::draw(const Wawt::DrawDirective&  widget,
-                      const Wawt::String_t&       text)
+                      const Wawt::String_t&       text) noexcept
 {
     DrawOptions options;
 
@@ -186,16 +186,8 @@ SfmlDrawAdapter::draw(const Wawt::DrawDirective&  widget,
             options = std::any_cast<DrawOptions>(widget.d_options);
         }
         catch(const std::bad_any_cast& e) {
-            auto [type, wid, idx] = widget.d_tracking;
-            std::string msg = "Bad options (any_cast). Widget="
-                            + std::to_string(wid);
-            if (idx >= 0) {
-                msg += " row=" + std::to_string(idx);
-            }
-            else {
-                msg += " index=" + std::to_string(type);
-            }
-            throw Wawt::Exception(msg);                                // THROW
+            assert(!"draw wanted DrawOptions.");
+            return false;
         }
     }
     sf::Color lineColor{options.d_lineColor.d_red,
@@ -293,17 +285,17 @@ SfmlDrawAdapter::draw(const Wawt::DrawDirective&  widget,
         }
 
     }
-    return;                                                           // RETURN
+    return true;                                                      // RETURN
 }
 
-void
+bool
 SfmlDrawAdapter::getTextMetrics(Wawt::DrawDirective   *parameters,
-                                Wawt::TextMetrics     *metrics,
+                                Wawt::Dimensions      *metrics,
                                 const Wawt::String_t& text,
-                                double                startLimit)
+                                double                startLimit) noexcept
 {
-    assert(metrics->d_textHeight > 0);    // these are upper limits
-    assert(metrics->d_textWidth > 0);     // bullet size excluded
+    assert(metrics->d_height > 0);    // these are upper limits
+    assert(metrics->d_width > 0);     // bullet size excluded
 
     sf::String    string(toString(text));
     DrawOptions   effects;
@@ -311,7 +303,13 @@ SfmlDrawAdapter::getTextMetrics(Wawt::DrawDirective   *parameters,
     uint16_t      charSize = uint16_t(std::round(parameters->d_charSize));
 
     if (parameters->d_options.has_value()) {
-        effects = std::any_cast<DrawOptions>(parameters->d_options);
+        try {
+            effects = std::any_cast<DrawOptions>(parameters->d_options);
+        }
+        catch(...) {
+            assert(!"DrawOptions were expected.");
+            return false;                                             // RETURN
+        }
     }
     sf::Font&     font = getFont(effects.d_fontIndex);
     sf::Text      label{string, font, charSize};
@@ -332,13 +330,13 @@ SfmlDrawAdapter::getTextMetrics(Wawt::DrawDirective   *parameters,
             label.setCharacterSize(charSize);
             auto newBounds   = label.getLocalBounds();
             auto lineSpacing = font.getLineSpacing(charSize);
-            auto widthLimit  = metrics->d_textWidth;
+            auto widthLimit  = metrics->d_width;
 
             if (parameters->d_bulletType != Wawt::BulletType::eNONE) {
                 widthLimit -= charSize;
             }
 
-            if (lineSpacing      >= metrics->d_textHeight
+            if (lineSpacing      >= metrics->d_height
              || newBounds.width  >= widthLimit) {
                 upperLimit = charSize;
             }
@@ -352,9 +350,9 @@ SfmlDrawAdapter::getTextMetrics(Wawt::DrawDirective   *parameters,
         }
         parameters->d_charSize = lowerLimit;
     }
-    metrics->d_textWidth  = bounds.width;
-    metrics->d_textHeight = bounds.height;
-    return;                                                           // RETURN
+    metrics->d_width  = bounds.width;
+    metrics->d_height = bounds.height;
+    return true;                                                      // RETURN
 }
 
 }  // namespace BDS

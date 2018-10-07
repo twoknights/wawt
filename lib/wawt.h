@@ -99,10 +99,6 @@ class Wawt {
         }
     };
 
-    using Scale       = std::pair<double, double>;
-
-    enum class TieScale { eNONE, eUL_X, eUL_Y, eLR_X, eLR_Y, eCC_X, eCC_Y };
-
     // PUBLIC CONSTANTS
     static const WidgetId    kROOT;
 

@@ -19,9 +19,12 @@
 #ifndef BDS_SFMLEVENTLOOP_H
 #define BDS_SFMLEVENTLOOP_H
 
-#include "wawteventrouter.h"
+#include "wawt/eventrouter.h"
 
 #include <SFML/Graphics/RenderWindow.hpp>
+
+#include <chrono>
+#include <functional>
 
 namespace BDS {
 
@@ -34,7 +37,7 @@ struct SfmlEventLoop {
     using ShutdownCb = std::function<bool()>;
 
     static void run(sf::RenderWindow&                 window,
-                    WawtEventRouter&                  router,
+                    Wawt::EventRouter&                router,
                     const ShutdownCb&                 shutdown,
                     const std::chrono::milliseconds&  pollInterval,
                     int                               minWidth,

@@ -21,7 +21,7 @@ set(SFML_LIBRARY_DIR "/usr/lib64"
 
 add_compile_options(-std=c++1z -Wall -Wextra -Wshadow -pedantic -pthread)
 
-include_directories(lib ${CRYPTO_INCLUDE_DIR} ${SFML_INCLUDE_DIR})
+include_directories(include ${CRYPTO_INCLUDE_DIR} ${SFML_INCLUDE_DIR})
 
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     set(LIBSUFFIX "-d")

@@ -19,7 +19,7 @@
 #ifndef BDS_SFMLIPCADAPTER_H
 #define BDS_SFMLIPCADAPTER_H
 
-#include <wawtipcprotocol.h>
+#include <wawt/ipcprotocol.h>
 
 #include <SFML/Network/TcpSocket.hpp>
 
@@ -37,53 +37,55 @@ namespace BDS {
                             // class SfmlIpcAdapter
                             //=====================
 
-class SfmlIpcAdapter : public WawtIpcConnectionProtocol {
+class SfmlIpcAdapter : public Wawt::IpcProtocol {
   public:
     // PUBLIC TYPES
 
     // PUBLIC CLASS MEMBERS
 
     // PUBLIC CONSTRUCTORS
+    SfmlIpcAdapter(uint8_t adapterId) : d_adapterId(adapterId) { }
 
     // PUBLIC DESTRUCTORS
     ~SfmlIpcAdapter();
 
     // PUBLIC WawtIpcAdapter INTERFACE
 
-    // Drop new connections until next call to 'configureAdapter'
-    void            dropNewConnections()                              override;
+    ChannelStatus   acceptChannels(Wawt::String_t  *diagnostic,
+                                   std::any         configuration)
+                                                             noexcept override;
 
-    // Asynchronous close of all connections. No new ones permitted.
+    // Asynchronous close of all channels. No new ones permitted.
     void            closeAdapter()                           noexcept override;
 
-    //! Asynchronous close of connection.
-    void            closeConnection(ConnectionId    id)      noexcept override;
+    //! Asynchronous close of a channel.
+    void            closeChannel(ChannelId      id)          noexcept override;
 
     //! Synchronous call. If adapter permits, may be called more than once.
-    ConfigureStatus configureAdapter(Wawt::String_t *diagnostic,
-                                     std::any        configuration)
+    ChannelStatus   createNewChannel(Wawt::String_t    *diagnostic,
+                                     std::any           configuration)
                                                              noexcept override;
 
-    void            installCallbacks(ConnectCb       connectionUpdate,
-                                     MessageCb       receivedMessage)
+    void            installCallbacks(ChannelCb  channelUpdate,
+                                     MessageCb  receivedMessage)
                                                              noexcept override;
 
-    //! Enables the asynchronous creation of new connections.
+    //! Enables the asynchronous creation of new channels.
     bool            openAdapter(Wawt::String_t *diagnostic)  noexcept override;
 
-    //! Asynchronous call to send a message on a connection
-    bool            sendMessage(ConnectionId        id,
-                                MessageChain&&      chain)   noexcept override;
-
+    //! Asynchronous call to send a message on a channel
+    bool            sendMessage(ChannelId       id,
+                                MessageChain&&  chain)       noexcept override;
 
     // PUBLIC ACCESSORS
+    unsigned short listenPort() const { return 0; }
 
   private:
     // PRIVATE TYPES
     struct  Connection;
 
     using   ConnectionPtr           = std::weak_ptr<Connection>;
-    using   ConnectionMap           = std::map<ConnectionId,ConnectionPtr>;
+    using   ConnectionMap           = std::map<int,ConnectionPtr>;
 
     // PRIVATE MANIPULATORS
     void        accept(Connection                  *connection,
@@ -92,6 +94,9 @@ class SfmlIpcAdapter : public WawtIpcConnectionProtocol {
     void        connect(sf::IpAddress               ipV4,
                         unsigned short              port,
                         Connection                 *connection);
+
+    ChannelStatus configureAdapter(Wawt::String_t *diagnostic,
+                                   std::any        address) noexcept;
 
     void        readMsgLoop(Connection             *connection);
 
@@ -111,13 +116,14 @@ class SfmlIpcAdapter : public WawtIpcConnectionProtocol {
 
     // PRIVATE DATA
     std::mutex                      d_lock{};
-    ConnectCb                       d_connectCb{};
+    ChannelCb                       d_channelCb{};
     MessageCb                       d_messageCb{};
     ConnectionMap                   d_connections{};
     bool                            d_shutdown      = false;
-    ConnectionId                    d_next          = 0;
+    int                             d_next          = 0;
     std::regex                      d_pattern{ // 1=type 2=ip|port 3=port|""
           R"(^(connect|listen)=([a-z\.\-\d]+)(?:\:(\d+))?$)"};
+    uint8_t                         d_adapterId;
 };
 
 } // end BDS namespace

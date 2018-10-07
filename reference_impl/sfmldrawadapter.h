@@ -22,7 +22,8 @@
 #include <SFML/Graphics/Font.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
 
-#include <wawt.h>
+#include <wawt/draw.h>
+
 #include <string>
 
 namespace BDS {
@@ -49,20 +50,20 @@ class SfmlDrawAdapter : public Wawt::DrawProtocol {
 
     // PUBLIC Wawt::DrawAdapter INTERFACE
 
-    void  draw(const Wawt::DrawDirective&  widget,
-               const Wawt::String_t&       text)                   override;
+    bool  draw(const Wawt::DrawDirective&  widget,
+               const Wawt::String_t&       text)             noexcept override;
 
-    void  getTextMetrics(Wawt::DrawDirective   *parameters,
-                         Wawt::TextMetrics     *metrics,
+    bool  getTextMetrics(Wawt::DrawDirective   *parameters,
+                         Wawt::Dimensions      *metrics,
                          const Wawt::String_t&  text,
-                         double                 upperLimit = 0)    override;
+                         double                 upperLimit=0)noexcept override;
 
     // PUBLIC ACCESSORS
-    bool   isGood() const {
+    bool   isGood()                                          const noexcept {
         return d_defaultOk;
     }
 
-    bool   otherFontAvailable() const {
+    bool   otherFontAvailable()                              const noexcept {
         return d_otherOk;
     }
 

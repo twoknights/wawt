@@ -18,8 +18,7 @@
 
 #include "sfmleventloop.h"
 
-#include <wawt.h>
-#include <wawteventrouter.h>
+#include <wawt/eventrouter.h>
 
 #include <SFML/System/String.hpp>
 #include <SFML/Window/ContextSettings.hpp>
@@ -61,7 +60,7 @@ inline void encodeKey(char *key, sf::Uint32 unicode) {
 
 void
 SfmlEventLoop::run(sf::RenderWindow&                 window,
-                   WawtEventRouter&                  router,
+                   Wawt::EventRouter&                router,
                    const ShutdownCb&                 shutdown,
                    const std::chrono::milliseconds&  loopInterval,
                    int                               minWidth,
@@ -118,14 +117,14 @@ SfmlEventLoop::run(sf::RenderWindow&                 window,
                     if (event.mouseButton.button == sf::Mouse::Button::Left
                      && mouseUp) {
                         if (onKey) {
-                            onKey(Wawt::kFocusChg); // erase cursor
+                            onKey(Wawt::Wawt::kFocusChg); // erase cursor
                         }
                         onKey = mouseUp(event.mouseButton.x,
                                         event.mouseButton.y,
                                         true);
 
                         if (onKey) {
-                            onKey(Wawt::kFocusChg); // show cursor
+                            onKey(Wawt::Wawt::kFocusChg); // show cursor
                         }
                         window.clear();
                         router.draw();
@@ -157,7 +156,7 @@ SfmlEventLoop::run(sf::RenderWindow&                 window,
                 }
             }
         }
-        catch (Wawt::Exception& ex) {
+        catch (Wawt::WawtException& ex) {
             std::cerr << ex.what() << std::endl;
             window.close();
         }

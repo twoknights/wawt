@@ -19,7 +19,7 @@
 #ifndef BDS_DRAWOPTIONS_H
 #define BDS_DRAWOPTIONS_H
 
-#include "wawt.h"
+#include "wawt/wawt.h"
 
 #include <cstdint>
 #include <utility>
