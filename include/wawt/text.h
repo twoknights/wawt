@@ -26,131 +26,40 @@
 
 namespace Wawt {
 
-struct DrawDirective;
-class DrawProtocol;
+class  DrawProtocol;
+struct WidgetData;
+                                //===========
+                                // class Text
+                                //===========
 
-                                //================
-                                // class TextBlock
-                                //================
-
-    using FontSizeGrp = std::optional<uint16_t>;
-
+struct Text {
     enum class Align { eINVALID, eLEFT, eCENTER, eRIGHT };
+    using CharSizeGrp = std::optional<uint16_t>;
+    using CharSizeMap = std::map<uint16_t, uint16_t>;
 
-    // PUBLIC CONSTANTS
+    StringView_t        d_string;
+    Align               d_alignment;
+    CharSizeGroup       d_charSizeGroup;
 
-    struct TextString {
-        TextId              d_id;
-        String_t            d_string;
-        Align               d_alignment;
-        FontSizeGrp         d_fontSizeGrp;
+    Text(StringView_t string,
+         CharSizeGrp  group     = CharSizeGrp(),
+         Align        alignment = Align::eINVALID)
+        : d_string(Wawt::instance()->translate(std::move(string)))
+        , d_alignment(alignment)
+        , d_charSizeGroup(group) { }
 
-        TextString(TextId       id        = kNOID,
-                   FontSizeGrp  group     = FontSizeGrp(),
-                   Align        alignment = Align::eINVALID)
-            : d_id(id)
-            , d_string()
-            , d_alignment(alignment)
-            , d_fontSizeGrp(group) { }
-
-        TextString(TextId id, Align alignment)
-            : d_id(id)
-            , d_string()
-            , d_alignment(alignment)
-            , d_fontSizeGrp() { }
-
-        TextString(String_t     string,
-                   FontSizeGrp  group     = FontSizeGrp(),
-                   Align        alignment = Align::eINVALID)
-            : d_id()
-            , d_string(std::move(string))
-            , d_alignment(alignment)
-            , d_fontSizeGrp(group) { }
-
-        TextString(String_t string, Align alignment)
-            : d_id()
-            , d_string(std::move(string))
-            , d_alignment(alignment)
-            , d_fontSizeGrp() { }
-
-        TextString(FontSizeGrp group, Align alignment = Align::eINVALID)
-            : d_id()
-            , d_string()
-            , d_alignment(alignment)
-            , d_fontSizeGrp(group) { }
-
-        TextString&& defaultAlignment(Align alignment) && {
-            if (d_alignment == Align::eINVALID) {
-                d_alignment = alignment;
-            }
-            return std::move(*this);
-        }
-    };
-
-    class TextBlock {
-        friend class Widget;
-        friend class Wawt;
-        friend class List;
-
-        Dimensions          d_metrics       {};
-        TextString          d_block         {};
-        bool                d_needRefresh   = false;
-
-      public:
-        TextBlock()                         = default; 
-
-        TextBlock(const TextString& value) : d_metrics(), d_block(value) { }
-
-        Align& alignment() {
-            return d_block.d_alignment;
-        }
-
-        FontSizeGrp& fontSizeGrp() {
-            return d_block.d_fontSizeGrp;
-        }
-
-        void initTextMetricValues(DrawDirective      *args,
-                                  DrawProtocol       *adapter,
-                                  uint16_t            upperLimit = 0);
-
-        void setText(TextId id);
-
-        void setText(String_t string);
-
-        void setText(const Wawt::StringMapper& mappingFn);
-
-        void setText(const TextString& value) {
-            d_block       = value;
-            d_needRefresh = true;
-        }
-
-        Align alignment() const {
-            return d_block.d_alignment;
-        }
-
-        FontSizeGrp fontSizeGrp() const {
-            return d_block.d_fontSizeGrp;
-        }
-
-        const String_t& getText() const {
-            return d_block.d_string;
-        }
-
-        const Dimensions& metrics() const {
-            return d_metrics;
-        }
-
-        bool needRefresh() const {
-            return d_needRefresh;
-        }
-    };
+    Text(StringView_t string, Align alignment)
+        : d_string(Wawt::instance()->translate(std::move(string)))
+        , d_alignment(alignment)
+        , d_charSizeGroup() { }
+};
 
 
-inline
-constexpr FontSizeGrp operator "" _F(unsigned long long int n) {
-    return FontSizeGrp(n);
-}
-
+using TextMethod = std::function<Rectangle(CharSizeMap         *map,
+                                           DrawProtocol        *adapter,
+                                           const WidgetData&    widgetData,
+                                           Text::CharSizeGroup  charSizeGroup,
+                                           Text::Align          textAlign);
 
 } // end Wawt namespace
 

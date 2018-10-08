@@ -26,47 +26,46 @@
 
 namespace Wawt {
 
+                            //=============
+                            // class Layout
+                            //=============
 
-                                //=============
-                                // class Layout
-                                //=============
+enum class Normalize {
+          eOUTER         ///< Normalize to widget's width/2
+        , eMIDDLE        ///< Normalize to middle of border.
+        , eINNER         ///< Normalize to 1 pixel before inner edge
+        , eDEFAULT       ///< eINNER for parent, otherwise eOUTER
+};
 
-    enum class Normalize {
-              eOUTER         ///< Normalize to widget's width/2
-            , eMIDDLE        ///< Normalize to middle of border.
-            , eINNER         ///< Normalize to 1 pixel before inner edge
-            , eDEFAULT       ///< eINNER for parent, otherwise eOUTER
-    };
+enum class Vertex  {
+          eUPPER_LEFT
+        , eUPPER_CENTER
+        , eUPPER_RIGHT
+        , eCENTER_LEFT
+        , eCENTER_CENTER
+        , eCENTER_RIGHT
+        , eLOWER_LEFT
+        , eLOWER_CENTER
+        , eLOWER_RIGHT
+        , eNONE
+};
 
-    enum class Vertex  {
-              eUPPER_LEFT
-            , eUPPER_CENTER
-            , eUPPER_RIGHT
-            , eCENTER_LEFT
-            , eCENTER_CENTER
-            , eCENTER_RIGHT
-            , eLOWER_LEFT
-            , eLOWER_CENTER
-            , eLOWER_RIGHT
-            , eNONE
-    };
-
+struct Layout {
+    // PUBLIC TYPES
     class WidgetRef {
         WidgetId    d_widgetId{};
-        Widget    **d_base  = nullptr;
+        Widget    **d_widget  = nullptr;
       public:
-        constexpr WidgetRef() { }
+        constexpr WidgetRef()               = default;
 
-        constexpr WidgetRef(WidgetId id) : d_widgetId(id) { }
+        constexpr WidgetRef(WidgetId id) noexcept : d_widgetId(id) { }
 
-        template<class T>
-        constexpr WidgetRef(T **ptr)
-            : d_base(reinterpret_cast<Widget**>(ptr)) { }
+        constexpr WidgetRef(Widget **ptr) noexcept : d_widget(ptr) { }
 
-        const Widget* getBasePointer(const Panel&      parent,
-                                   const Panel&      root) const;
+        const Widget* getWidgetPointer(const Widget&      parent,
+                                       const Widget&      root) const;
 
-        WidgetId getWidgetId() const;
+        WidgetId getWidgetId()                                  const noexcept;
     };
 
     class Position {
@@ -77,18 +76,18 @@ namespace Wawt {
         Normalize               d_normalizeX    = Normalize::eDEFAULT;
         Normalize               d_normalizeY    = Normalize::eDEFAULT;
 
-        constexpr Position() { }
+        constexpr Position()                = default;
 
-        constexpr Position(double x, double y) : d_sX(x) , d_sY(y) { }
+        constexpr Position(double x, double y) noexcept : d_sX(x) , d_sY(y) { }
 
-        constexpr Position(double x, double y, WidgetRef&& widgetRef)
+        constexpr Position(double x, double y, WidgetRef&& widgetRef) noexcept
             : d_sX(x), d_sY(y), d_widgetRef(std::move(widgetRef)) { }
 
         constexpr Position(double      x,
                            double      y,
                            WidgetRef&& widgetRef,
                            Normalize   normalizeX,
-                           Normalize   normalizeY)
+                           Normalize   normalizeY)                  noexcept
             : d_sX(x)
             , d_sY(y)
             , d_widgetRef(std::move(widgetRef))
@@ -96,78 +95,78 @@ namespace Wawt {
             , d_normalizeY(normalizeY) { }
     };
 
-    struct Layout {
-        Position            d_upperLeft{};
-        Position            d_lowerRight{};
-        Vertex              d_pin{Vertex::eNONE};
-        double              d_thickness = -1.0;
+    // PUBLIC CLASS MEMBERS
+    constexpr static Layout centered(double width, double height)   noexcept {
+        auto w = std::abs(width);
+        auto h = std::abs(height);
+        return Layout({-w, -h}, {w, h});
+    }
 
-        constexpr Layout() { }
+    constexpr static Layout duplicate(WidgetRef id,
+                                      double   thickness = -1.0)    noexcept {
+        return Layout({-1.0, -1.0, id}, {1.0, 1.0, id}, thickness);
+    }
 
-        constexpr Layout(const Position&  upperLeft,
-                         const Position&  lowerRight,
-                         double           thickness = -1.0)
-            : d_upperLeft(upperLeft)
-            , d_lowerRight(lowerRight)
-            , d_thickness(thickness) { }
+    // PUBLIC DATA MEMBERS
+    Position            d_upperLeft{};
+    Position            d_lowerRight{};
+    Vertex              d_pin{Vertex::eNONE};
+    double              d_thickness = -1.0;
 
-        constexpr Layout(const Position&   upperLeft,
-                         const Position&   lowerRight,
-                         Vertex            pin,
-                         double            thickness = -1.0)
-            : d_upperLeft(upperLeft)
-            , d_lowerRight(lowerRight)
-            , d_pin(pin)
-            , d_thickness(thickness) { }
+    // PUBLIC CONSTRUCTORS
+    constexpr Layout()                  = default;
 
-        constexpr Layout(Position&& upperLeft,
-                         Position&& lowerRight,
-                         double     thickness = -1.0)
-            : d_upperLeft(std::move(upperLeft))
-            , d_lowerRight(std::move(lowerRight))
-            , d_thickness(thickness) { }
+    constexpr Layout(const Position&  upperLeft,
+                     const Position&  lowerRight,
+                     double           thickness = -1.0)             noexcept
+        : d_upperLeft(upperLeft)
+        , d_lowerRight(lowerRight)
+        , d_thickness(thickness) { }
 
-        constexpr Layout(Position&& upperLeft,
-                         Position&& lowerRight,
-                         Vertex     pin,
-                         double     thickness = -1.0)
-            : d_upperLeft(std::move(upperLeft))
-            , d_lowerRight(std::move(lowerRight))
-            , d_pin(pin)
-            , d_thickness(thickness) { }
+    constexpr Layout(const Position&   upperLeft,
+                     const Position&   lowerRight,
+                     Vertex            pin,
+                     double            thickness = -1.0)            noexcept
+        : d_upperLeft(upperLeft)
+        , d_lowerRight(lowerRight)
+        , d_pin(pin)
+        , d_thickness(thickness) { }
 
-        static Layout slice(bool vertical, double begin, double end);
+    constexpr Layout(Position&& upperLeft,
+                     Position&& lowerRight,
+                     double     thickness = -1.0)                   noexcept
+        : d_upperLeft(std::move(upperLeft))
+        , d_lowerRight(std::move(lowerRight))
+        , d_thickness(thickness) { }
 
-        constexpr static Layout centered(double width, double height) {
-            auto w = std::abs(width);
-            auto h = std::abs(height);
-            return Layout({-w, -h}, {w, h});
-        }
+    constexpr Layout(Position&& upperLeft,
+                     Position&& lowerRight,
+                     Vertex     pin,
+                     double     thickness = -1.0)                   noexcept
+        : d_upperLeft(std::move(upperLeft))
+        , d_lowerRight(std::move(lowerRight))
+        , d_pin(pin)
+        , d_thickness(thickness) { }
 
-        constexpr static Layout duplicate(WidgetId id,
-                                          double   thickness = -1.0) {
-            return Layout({-1.0, -1.0, id}, {1.0, 1.0, id}, thickness);
-        }
+    // PUBLIC MANIPULATORS (rvalues)
+    constexpr Layout&& pin(Vertex vertex) &&                        noexcept {
+        d_pin = vertex;
+        return std::move(*this);
+    }
 
-        constexpr Layout&& pin(Vertex vertex) && {
-            d_pin = vertex;
-            return std::move(*this);
-        }
+    constexpr Layout&& translate(double x, double y) &&             noexcept {
+        d_upperLeft.d_sX  += x;
+        d_upperLeft.d_sY  += y;
+        d_lowerRight.d_sX += x;
+        d_lowerRight.d_sY += y;
+        return std::move(*this);
+    }
 
-        constexpr Layout&& translate(double x, double y) && {
-            d_upperLeft.d_sX  += x;
-            d_upperLeft.d_sY  += y;
-            d_lowerRight.d_sX += x;
-            d_lowerRight.d_sY += y;
-            return std::move(*this);
-        }
-
-        Layout&& border(double thickness) && {
-            d_thickness = thickness;
-            return std::move(*this);
-        }
-    };
-
+    Layout&& border(double thickness) &&                            noexcept {
+        d_thickness = thickness;
+        return std::move(*this);
+    }
+};
 
 } // end Wawt namespace
 

@@ -22,12 +22,13 @@
 #include "wawt/wawt.h"
 
 #include "wawt/layout.h"
-#include "wawt/input.h"
 #include "wawt/text.h"
 #include "wawt/draw.h"
 
+#include <cassert>
+#include <deque>
 #include <initializer_list>
-#include <list>
+#include <numeric_limits>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -36,675 +37,180 @@
 
 namespace Wawt {
 
-
                                 //=============
                                 // class Widget
                                 //=============
 
-class  Widget {
-  protected:
-    using Callback = InputHandler::Callback;
-
-    // PROTECTED DATA MEMBERS
-    Widget            **d_widgetLabel = nullptr;
-    Layout              d_layout{};
-    InputHandler        d_input{};
-    TextBlock           d_text{};
-    DrawSettings        d_draw{};
-
-    void serialize(std::ostream&  os,
-                   const char    *widgetName,
-                   bool           container,
-                   unsigned int   indent) const;
+class  Widget final {
   public:
-    enum class Enablement { eHIDDEN
-                          , eSHOWN
-                          , eDISABLED
-                          , eENABLED
-                          , eOFF
-                          , eACTIVE };
+    using Children          = std::deque<Widget>;
+    using OptionsFactory    = std::function<std::any(const std::string&)>;
+    using BorderDefaults    = std::function<double(const std::string&)>;
 
-    // PUBLIC DATA MEMBERS
-    WidgetId            d_widgetId{};
+    struct DrawData {
+        enum class BulletMark { eNONE, eSQUAREBOX, eROUNDBOX };
+
+        WidgetId            d_widgetId{};
+        Rectangle           d_rectangle{};
+        Rectangle           d_labelBounds{};
+        StringView_t        d_label{};
+        BulletMark          d_labelMark         = BulletMark::eNONE;
+        bool                d_selected          = false;
+        bool                d_disableEffect     = false;
+        std::any            d_options{};
+        std::string         d_className{};
+
+        DrawData()                          = default;
+
+        DrawData(std::string&& className) noexcept
+            : d_className(std::move(className)) { }
+    };
+
+    struct LayoutData {
+        Layout              d_layout{};
+        Text::Align         d_textAlign     = Text::Align::eCENTER;
+        Text::CharSizeGroup d_charSizeGroup{};
+
+        LayoutData()                        = default;
+        LayoutData(Layout&& layout) noexcept : d_layout(std::move(layout)) { }
+    };
+
+    using DrawMethod
+        = std::function<void(DrawProtocol      *adapter,
+                             const DrawData&    data,
+                             const Children&    widgets);
+
+    using LayoutMethod
+        = std::function<void(DrawData                *data,
+                             Text::CharSizeMap       *charSizeMap,
+                             const Widget&            root,
+                             const Widget&            parent,
+                             const Children&          children,
+                             const LayoutData&        layoutData,
+                             const OptionsFactory&    factory,
+                             const BorderDefaults&    borderDefaults,
+                             DrawProtocol            *adapter);
+
+    using SerializeMethod
+        = std::function<void(std::ostream&      os,
+                             const DrawData&    drawData,
+                             const LayoutData&  layoutData,
+                             const Children&    children,
+                             unsigned int       indent)>;
 
     // PUBLIC CONSTRUCTORS
     Widget()                                = default;
 
     Widget& operator=(const Widget& rhs)    = delete;
 
-    Widget(const Widget& copy);
+    Widget(const Widget& copy); // ONLY usable in initializer lists
 
-    Widget(Widget&& copy);
+    Widget(Widget&& copy)           noexcept;
 
-    Widget& operator=(Widget&& rhs);
+    Widget& operator=(Widget&& rhs) noexcept;
 
-    Widget(Widget            **indirect,
-           Layout&&          layout,
-           InputHandler&&    input,
-           TextString&&      text,
-           DrawSettings&&    options);
+    Widget(Widget         **indirect,
+           std::string      className,
+           Layout&&         layout,
+           LayoutMethod&&   method = LayoutMethod(&Widget::defaultLayout))
+                                                                     noexcept
+        : d_widgetLabel(indirect)
+        , d_drawData(std::move(className))
+        , d_layoutData(std::move(layout))
+        , d_layoutMethod(std::move(method)) { }
+
+    Widget(Layout&&         layout,
+           std::string      className,
+           LayoutMethod&&   method = LayoutMethod(&Widget::defaultLayout))
+                                                                     noexcept
+        : d_drawData(std::move(className))
+        , d_layoutData(std::move(layout))
+        , d_layoutMethod(std::move(method)) { }
 
     // PUBLIC MANIPULATORS
-    EventUpCb downEvent(int x, int y) { // overriden in Text
-        return d_input.downEvent(x, y, this);
+
+    WidgetId assignWidgetIds(WidgetId next, Widget *root)            noexcept;
+
+    Widget drawMethod(DrawMethod&& method) &&                        noexcept {
+        d_drawMethod = std::move(method);
+        return *this;
     }
 
-    DrawSettings& drawView() {
-        return d_draw;
+    Widget options(std::any options) &&                              noexcept {
+        d_drawData.d_options = std::move(options);
+        return *this;
     }
 
-    InputHandler&   inputView() {
-        return d_input;
+    Widget serializeMethod(SerializeMethod&& method) &&              noexcept {
+        d_serialize = std::move(method);
+        return *this;
     }
 
-    Layout&         layoutView() {
-        return d_layout;
+    Widget text(Text&&          textInfo,
+                BulletMark      mark = BulletMark::eNONE)            noexcept {
+        d_drawData.d_labelMark          = mark;
+        d_layoutData.d_charSizeGroup    = textInfo.d_charSizeGroup;
+        d_layoutData.d_textAlign        = textInfo.d_textAlign;
+        d_drawData.d_label              = std::move(textInfo.d_string);
+        return *this;
     }
-
-    TextBlock&      textView() {
-        return d_text;
-    }
-
-    void setEnablement(Enablement newSetting);
 
     // PUBLIC ACCESSORS
-    const DrawDirective& adapterView() const {
-        return static_cast<const DrawDirective&>(d_draw);
-    }
 
-    bool draw(DrawProtocol *adapter)    const {
-        return d_draw.draw(adapter, d_text.getText());
-    }
-
-    void serialize(std::ostream& os) const;
-
-    const DrawSettings&    drawView()   const {
-        return d_draw;
-    }
-
-    const InputHandler&   inputView()  const {
-        return d_input;
-    }
-
-    const Layout&         layoutView() const {
-        return d_layout;
-    }
-
-    const TextBlock&      textView()   const {
-        return d_text;
-    }
-};
-
-                                //=============
-                                // class Canvas
-                                //=============
-
-    class  Canvas final : public Widget {
-      public:
-
-        Canvas(Canvas          **indirect        = nullptr,
-               Layout&&          layout          = Layout(),
-               const PaintFn&    paintFn         = PaintFn(),
-               InputHandler&&    onClick         = InputHandler(),
-               DrawSettings&&    options         = DrawSettings())
-            : Widget(reinterpret_cast<Widget**>(indirect),
-                   std::move(layout),
-                   std::move(onClick).defaultAction(ActionType::eCLICK),
-                   TextString(),
-                   std::move(options).paintFn(paintFn)) { }
-
-        Canvas(Layout&&          layout,
-               const PaintFn&    paintFn         = PaintFn(),
-               InputHandler&&    onClick         = InputHandler(),
-               DrawSettings&&    options         = DrawSettings())
-            : Widget(nullptr,
-                   std::move(layout),
-                   std::move(onClick).defaultAction(ActionType::eCLICK),
-                   TextString(),
-                   std::move(options).paintFn(paintFn)) { }
-    };
-
-                                //===========
-                                // class Text
-                                //===========
-
-    class  Text : public Widget {
-        friend class Wawt;
-
-      public:
-        FocusCb callSelectFn() {
-            return d_input.callSelectFn(this);
-        }
-
-        EventUpCb downEvent(int x, int y) {
-            return d_input.downEvent(x, y, this);
-        }
-
-      protected:
-        // PROTECTED DATA MEMBERS
-
-        Text()                          = default;
-
-        Text(Widget            **indirect,
-             Layout&&          layout,
-             InputHandler&&    mouse,
-             TextString&&      text,
-             DrawSettings&&    options)
-            : Widget(indirect,
-                   std::move(layout),
-                   std::move(mouse),
-                   std::move(text),
-                   std::move(options)) { }
-    };
-
-                                //================
-                                // class TextEntry
-                                //================
-
-    class  TextEntry final : public Text {
-        friend class Wawt;
-
-      public:
-        TextEntry()                     = default;
-
-        TextEntry(TextEntry       **indirect,
-                  Layout&&          layout,
-                  unsigned int      maxChars,
-                  const EnterFn&    enterFn     = EnterFn(),
-                  TextString&&      text        = TextString(),
-                  DrawSettings&&    options     = DrawSettings())
-            : Text(reinterpret_cast<Widget**>(indirect),
-                   std::move(layout),
-                   InputHandler(std::pair(enterFn,maxChars),
-                                ActionType::eENTRY),
-                   std::move(text).defaultAlignment(Align::eLEFT),
-                   std::move(options)) { }
-
-        TextEntry(Layout&&          layout,
-                  unsigned int      maxChars,
-                  const EnterFn&    enterFn     = EnterFn(),
-                  TextString&&      text        = TextString(),
-                  DrawSettings&&    options     = DrawSettings())
-            : Text(nullptr,
-                   std::move(layout),
-                   InputHandler(std::pair(enterFn,maxChars),
-                                ActionType::eENTRY),
-                   std::move(text).defaultAlignment(Align::eLEFT),
-                   std::move(options)) { }
-
-        TextEntry(TextEntry       **indirect,
-                  Layout&&          layout,
-                  unsigned int      maxChars,
-                  TextString&&      text        = TextString(),
-                  DrawSettings&&    options     = DrawSettings())
-            : Text(reinterpret_cast<Widget**>(indirect),
-                   std::move(layout),
-                   InputHandler(std::pair(EnterFn(),maxChars),
-                                ActionType::eENTRY),
-                   std::move(text).defaultAlignment(Align::eLEFT),
-                   std::move(options)) { }
-
-        TextEntry(Layout&&          layout,
-                  unsigned int      maxChars,
-                  TextString&&      text        = TextString(),
-                  DrawSettings&&    options     = DrawSettings())
-            : Text(nullptr,
-                   std::move(layout),
-                   InputHandler(std::pair(EnterFn(),maxChars),
-                                ActionType::eENTRY),
-                   std::move(text).defaultAlignment(Align::eLEFT),
-                   std::move(options)) { }
-
-        FocusCb getFocusCb() {
-            return d_input.callSelectFn(this);
-        }
-    };
-
-                                //============
-                                // class Label
-                                //============
-
-    class  Label final : public Text {
-      public:
-        Label(Label           **indirect,
-              Layout&&          layout,
-              TextString&&      text,
-              DrawSettings&&    options = DrawSettings())
-            : Text(reinterpret_cast<Widget**>(indirect),
-                   std::move(layout),
-                   InputHandler(),
-                   std::move(text).defaultAlignment(Align::eCENTER),
-                   std::move(options)) { }
-
-        Label(Layout&&          layout,
-              TextString&&      text,
-              DrawSettings&&    options = DrawSettings())
-            : Text(nullptr,
-                   std::move(layout),
-                   InputHandler(),
-                   std::move(text).defaultAlignment(Align::eCENTER),
-                   std::move(options)) { }
-
-    };
-
-                                //=============
-                                // class Button
-                                //=============
-
-    class  Button final : public Text {
-        friend class Wawt;
-
-      public:
-        Button()                        = default;
-
-        /// Used in 'ButtonBar' which determines the layout
-        Button(TextString&&              text,
-               InputHandler&&            onClick,
-               DrawSettings&&            options = DrawSettings())
-            : Text(nullptr,
-                   Layout(),
-                   std::move(onClick),
-                   std::move(text),
-                   std::move(options)) { }
-
-        /// Used in push buttons:
-        Button(Button                  **indirect,
-               Layout&&                  layout,
-               InputHandler&&            onClick,
-               TextString&&              text,
-               DrawSettings&&            options = DrawSettings())
-            : Text(reinterpret_cast<Widget**>(indirect),
-                   std::move(layout),
-                   std::move(onClick).defaultAction(ActionType::eCLICK),
-                   std::move(text).defaultAlignment(Align::eCENTER),
-                   std::move(options)) { }
-
-        Button(Layout&&                  layout,
-               InputHandler&&            onClick,
-               TextString&&              text,
-               DrawSettings&&            options = DrawSettings())
-            : Text(nullptr,
-                   std::move(layout),
-                   std::move(onClick).defaultAction(ActionType::eCLICK),
-                   std::move(text).defaultAlignment(Align::eCENTER),
-                   std::move(options)) { }
-    };
-
-                                //================
-                                // class ButtonBar
-                                //================
-
-    class  ButtonBar final : public Widget {
-        friend class Wawt;
-
-        void draw(DrawProtocol *adapter) const;
-
-      public:
-        std::vector<Button>        d_buttons;
-
-        ButtonBar(ButtonBar                       **indirect,
-                  Layout&&                          layout,
-                  double                            borderThickness,
-                  std::initializer_list<Button>     buttons);
-
-        ButtonBar(Layout&&                          layout,
-                  double                            borderThickness,
-                  std::initializer_list<Button>     buttons)
-            : ButtonBar(nullptr,
-                        std::move(layout),
-                        borderThickness,
-                        buttons) { }
-
-        ButtonBar(ButtonBar                       **indirect,
-                  Layout&&                          layout,
-                  std::initializer_list<Button>     buttons)
-            : ButtonBar(indirect, std::move(layout), -1.0, buttons) { }
-
-        ButtonBar(Layout&&                          layout,
-                  std::initializer_list<Button>     buttons)
-            : ButtonBar(nullptr, std::move(layout), -1.0, buttons) { }
-
-        Button&  button(uint16_t index) {
-            return d_buttons.at(index);
-        }
-
-        EventUpCb downEvent(int x, int y);
-
-        void serialize(std::ostream& os, unsigned int indent = 0) const;
-    };
-
-                                    //===========
-                                    // class List
-                                    //===========
-
-    class  List final : public Widget {
-        friend class Wawt;
-
-        // PRIVATE DATA MEMBERS
-        std::vector<Button>         d_buttons{};
-        Panel                      *d_root;
-        unsigned int                d_rows;
-        int                         d_startRow;
-
-        // PRIVATE MANIPULATORS
-        void   popUpDropDown();
-
-        void   initButton(unsigned int index, bool finalButton);
-
-        void   draw(DrawProtocol *adapter) const;
-
-      public:
-        // PUBLIC TYPES
-        struct Label {
-            TextString d_text;
-            bool       d_checked;
-
-            Label(TextString text, bool checked = false)
-                : d_text(std::move(text))
-                , d_checked(checked) { }
-        };
-        using Labels = std::initializer_list<Label>;
-        using Scroll = std::pair<bool,bool>;
-
-        // PUBLIC DATA MEMBERS
-        GroupCb                     d_buttonClick;
-        ListType                    d_type;
-        FontSizeGrp                 d_fontSizeGrp;
-        double                      d_rowHeight;
-        
-        // PUBLIC CONSTRUCTORS
-        List()             = default;
-
-        List(List                            **indirect,
-             Layout&&                          layout,
-             FontSizeGrp                       fontSizeGrp,
-             DrawSettings&&                    options,
-             ListType                          listType,
-             Labels                            labels,
-             const GroupCb&                    click = GroupCb(),
-             Panel                            *root  = nullptr);
-
-        List(List                            **indirect,
-             Layout&&                          layout,
-             FontSizeGrp                       fontSizeGrp,
-             DrawSettings&&                    options,
-             ListType                          listType,
-             unsigned int                      rows,
-             const GroupCb&                    click    = GroupCb(),
-             Panel                            *root     = nullptr);
-
-        List(List                            **indirect,
-             Layout&&                          layout,
-             FontSizeGrp                       fontSizeGrp,
-             ListType                          listType,
-             Labels                            labels,
-             const GroupCb&                    click = GroupCb(),
-             Panel                            *root  = nullptr)
-            : List(indirect, std::move(layout), fontSizeGrp, DrawSettings(),
-                   listType, labels, click, root) { }
-
-        List(List                            **indirect,
-             Layout&&                          layout,
-             FontSizeGrp                       fontSizeGrp,
-             ListType                          listType,
-             unsigned int                      rows,
-             const GroupCb&                    click    = GroupCb(),
-             Panel                            *root     = nullptr)
-            : List(indirect, std::move(layout), fontSizeGrp, DrawSettings(),
-                   listType, rows, click, root) { }
-
-        List(Layout&&                          layout,
-             FontSizeGrp                       fontSizeGrp,
-             DrawSettings&&                    options,
-             ListType                          listType,
-             Labels                            labels,
-             const GroupCb&                    click = GroupCb(),
-             Panel                            *root  = nullptr)
-            : List(nullptr, std::move(layout), fontSizeGrp, std::move(options),
-                   listType, labels, click, root) { }
-
-        List(Layout&&                          layout,
-             FontSizeGrp                       fontSizeGrp,
-             DrawSettings&&                    options,
-             ListType                          listType,
-             unsigned int                      rows,
-             const GroupCb&                    click    = GroupCb(),
-             Panel                            *root     = nullptr)
-            : List(nullptr, std::move(layout), fontSizeGrp, std::move(options),
-                   listType, rows, click, root) { }
-
-        List(Layout&&                          layout,
-             FontSizeGrp                       fontSizeGrp,
-             ListType                          listType,
-             Labels                            labels,
-             const GroupCb&                    click = GroupCb(),
-             Panel                            *root  = nullptr)
-            : List(nullptr, std::move(layout), fontSizeGrp, DrawSettings(),
-                   listType, labels, click, root) { }
-
-        List(Layout&&                          layout,
-             FontSizeGrp                       fontSizeGrp,
-             ListType                          listType,
-             unsigned int                      rows,
-             const GroupCb&                    click    = GroupCb(),
-             Panel                            *root     = nullptr)
-            : List(nullptr, std::move(layout), fontSizeGrp, DrawSettings(),
-                   listType, rows, click, root) { }
-
-        List(const List& copy);
-
-        List(List&& copy);
-
-        // PUBLIC MANIPULATORS
-        List& operator=(List&& rhs);
-
-        Button&       append() {
-            return row(rows().size());
-        }
-
-        void          itemEnablement(unsigned int index, Enablement setting);
-
-        EventUpCb     downEvent(int x, int y);
-
-        void          resetRows();
-
-        Button&       row(unsigned int index);
-
-        void          setButtonPositions(bool resizeListBox = false);
-
-        Scroll        setStartingRow(int           row,
-                                     Button       *upButton   = nullptr,
-                                     Button       *downButton = nullptr);
-
-        // PUBLIC ACCESSORS
-        const Button& row(unsigned int index) const {
-            return d_buttons.at(index);
-        }
-
-        const std::vector<Button>& rows() const {
-            return d_buttons;
-        }
-
-        std::vector<uint16_t> selectedRows();
-
-        void serialize(std::ostream& os, unsigned int indent = 0) const;
-
-        int startRow() const {
-            return d_startRow;
-        }
-
-        unsigned int windowSize() const {
-            return d_rows;
-        }
-    };
-
-                                //============
-                                // class Panel
-                                //============
-
-class  Panel final : public Widget {
-    friend class Wawt;
-
-  public:
-    using Widget_ = std::variant<Canvas,        // 0
-                                TextEntry,     // 1
-                                Label,         // 2
-                                Button,        // 3
-                                ButtonBar,     // 4
-                                List,          // 5
-                                Panel>;        // 6
-
-    using Widgets = std::vector<Widget_>;
-
-    Panel()                             = default;
-    
-    Panel(Panel                         **indirect,
-          Layout&&                        layout,
-          DrawSettings&&                  options = DrawSettings())
-        : Widget(reinterpret_cast<Widget**>(indirect),
-               std::move(layout),
-               InputHandler().defaultAction(ActionType::eCLICK),
-               TextString(),
-               std::move(options))
-        , d_widgets() { }
-
-    Panel(Panel                         **indirect,
-          Layout&&                        layout,
-          std::initializer_list<Widget_>   widgets)
-        : Widget(reinterpret_cast<Widget**>(indirect),
-               std::move(layout),
-               InputHandler().defaultAction(ActionType::eCLICK),
-               TextString(),
-               DrawSettings())
-        , d_widgets(widgets) { }
-
-    Panel(Panel                         **indirect,
-          Layout&&                        layout,
-          DrawSettings&&                  options,
-          std::initializer_list<Widget_>   widgets)
-        : Widget(reinterpret_cast<Widget**>(indirect),
-               std::move(layout),
-               InputHandler().defaultAction(ActionType::eCLICK),
-               TextString(),
-               std::move(options))
-        , d_widgets(widgets) { }
-
-    Panel(Panel                         **indirect,
-          Layout&&                        layout,
-          const Widgets&                  widgets)
-        : Widget(reinterpret_cast<Widget**>(indirect),
-               std::move(layout),
-               InputHandler().defaultAction(ActionType::eCLICK),
-               TextString(),
-               DrawSettings())
-        , d_widgets(widgets.begin(), widgets.end()) { }
-
-    Panel(Panel                         **indirect,
-          Layout&&                        layout,
-          DrawSettings&&                  options,
-          const Widgets&                  widgets)
-        : Widget(reinterpret_cast<Widget**>(indirect),
-               std::move(layout),
-               InputHandler().defaultAction(ActionType::eCLICK),
-               TextString(),
-               std::move(options))
-        , d_widgets(widgets.begin(), widgets.end()) { }
-    
-    Panel(Layout&& layout, DrawSettings&& options = DrawSettings())
-        : Widget(nullptr,
-               std::move(layout),
-               InputHandler().defaultAction(ActionType::eCLICK),
-               TextString(),
-               std::move(options))
-        , d_widgets() { }
-
-    Panel(Layout&&                      layout,
-          std::initializer_list<Widget_> widgets)
-        : Widget(nullptr,
-               std::move(layout),
-               InputHandler().defaultAction(ActionType::eCLICK),
-               TextString(),
-               DrawSettings())
-        , d_widgets(widgets) { }
-
-    Panel(Layout&&                      layout,
-          DrawSettings&&                options,
-          std::initializer_list<Widget_> widgets)
-        : Widget(nullptr,
-               std::move(layout),
-               InputHandler().defaultAction(ActionType::eCLICK),
-               TextString(),
-               std::move(options))
-        , d_widgets(widgets) { }
-
-    Panel(Layout&&                      layout,
-          const Widgets&                widgets)
-        : Widget(nullptr,
-               std::move(layout),
-               InputHandler().defaultAction(ActionType::eCLICK),
-               TextString(),
-               DrawSettings())
-        , d_widgets(widgets.begin(), widgets.end()) { }
-
-    Panel(Layout&&                      layout,
-          DrawSettings&&                options,
-          const Widgets&                widgets)
-        : Widget(nullptr,
-               std::move(layout),
-               InputHandler().defaultAction(ActionType::eCLICK),
-               TextString(),
-               std::move(options))
-        , d_widgets(widgets.begin(), widgets.end()) { }
-
-
-    template<class WIDGET>
-    WIDGET&       lookup(WidgetId id, const std::string& whatInfo);
-
-    EventUpCb     downEvent(int x, int y);
-
-    template<class WIDGET>
-    const WIDGET& lookup(WidgetId id, const std::string& whatInfo) const {
-        return const_cast<Panel*>(this)->lookup<WIDGET>(id, whatInfo);
-    }
-
-    void serialize(std::ostream& os, unsigned int indent = 0) const;
-
-    const std::list<Widget_>& widgets() const {
+    const Children& children()                                 const noexcept {
         return d_widgets;
     }
 
-  private:
+    const Widget* lookup(const WidgetId& id)                   const noexcept;
 
-    bool          findWidget(Widget_ **widget, WidgetId widgetId);
+    WidgetId widgetId()                                        const noexcept {
+        return d_drawData.d_widgetId;
+    }
+
+  private:
+    // PRIVATE CLASS METHODS
+    static void      defaultDraw(DrawProtocol      *adapter,
+                                 const DrawData&    data,
+                                 const Children&    widgets);
+
+    static void      defaultLayout(DrawData                *data,
+                                   Text::CharSizeMap       *charSizeMap,
+                                   const Widget&            root,
+                                   const Widget&            parent,
+                                   const Children&          children,
+                                   const LayoutData&        layoutData,
+                                   const OptionsFactory&    factory,
+                                   const BorderDefaults&    borderDefaults,
+                                   DrawProtocol            *adapter);
+
+    static void     defaultSerialize(std::ostream&      os,
+                                     const DrawData&    drawData,
+                                     const LayoutData&  layoutData,
+                                     const Children&    children,
+                                     unsigned int       indent) noexcept;
+
+    // PRIVATE METHODS
+
+    // PRIVATE DATA MEMBERS
+    Widget            **d_widgetLabel   = nullptr;
+    Widget             *d_root          = nullptr;
+    LayoutMethod        d_layoutMethod  = LayoutMethod(&Widget::defaultLayout);
+    DrawMethod          d_drawMethod    = DrawMethod(&Widget::defaultDraw);
+    SerializeMethod     d_serialize     = SerializeMethod(&Widget
+                                                           ::defaultSerialize);
+
+    LayoutData          d_layoutData{};
+    DrawData            d_drawData{};
 
     // The ordering of widgets should not be changed during execution
     // EXCEPT for appending widgets to the "root" panel. This allows for
     // the showing of a pop-up (e.g. drop-down list).  This must NOT result
-    // in a reallocation since that operation would be performed by a
-    // callback whose closure would be contained in a moved widget.
-    // Thus, a list is used instead of a vector.
-    std::list<Widget_> d_widgets;
+    // in the widget being moved (e.g. vector resizing) since that operation
+    // would be performed by a callback whose closure would be contained
+    // in a moved widget.
+    Children            d_widgets{};
+
 };
-
-template<class WIDGET>
-WIDGET& 
-Panel::lookup(WidgetId id, const std::string& whatInfo)
-{
-    Widget_ *widget;
-
-    if (!id.isSet()) {
-        throw WawtException(whatInfo + " ID is invalid.", id);
-    }
-
-    if (!findWidget(&widget, id)) {
-        throw WawtException(whatInfo + " not found.", id);
-    }
-
-    if (!std::holds_alternative<WIDGET>(*widget)) {
-        throw WawtException(whatInfo + " ID is wrong.", id, *widget);
-    }
-    return std::get<WIDGET>(*widget);                                 // RETURN
-}
 
 } // end Wawt namespace
 

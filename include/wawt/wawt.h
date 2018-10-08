@@ -20,6 +20,7 @@
 #define WAWT_WAWT_H
 
 #include <any>
+#include <atomic>
 #include <cassert>
 #include <cstdint>
 #include <exception>
@@ -27,24 +28,25 @@
 #include <map>
 #include <string>
 #include <type_traits>
+#include <unordered_set>
 
 namespace Wawt {
 
-#ifndef WAWT_WIDECHAR
-// Char encoding: utf8
-using Char_t        = char[4];
-using String_t      = std::basic_string<char>;
-using StringView_t  = std::basic_string_view<char>;
-#else
-// Char encoding:  wide-char (compiler dependent)
+//
+//! Character and string representations:
+//
+
+#ifdef WAWT_WIDECHAR
+//! Character encoding:  wide-char (size & byte-order is system dependent)
 using Char_t        = wchar_t
 using String_t      = std::basic_string<wchar_t>;
 using StringView_t  = std::basic_string_view<wchar_t>;
+#else
+//! Character encoding: utf32 char, utf8 strings
+using Char_t        = char32_t;
+using String_t      = std::basic_string<char>;
+using StringView_t  = std::basic_string_view<char>;
 #endif
-
-using TextId        = std::size_t;
-
-constexpr static const TextId kNOID = 0;
 
 auto toString(int n) {
     if constexpr(std::is_same_v<String_t, std::string>) {
@@ -55,25 +57,21 @@ auto toString(int n) {
     }
 }
 
+//! Compute the bytes required by a character when represented in a string.
 constexpr std::size_t sizeOfChar(const Char_t ch) {
     if constexpr(std::is_same_v<Char_t, wchar_t>) {
-        return sizeof(wchar_t);
+        return sizeof(wchar_t); // Wide-char is a fixed size encoding
     }
     else {
-        auto c = *ch;
+        auto c = *ch; // utf8 uses a variable size encoding.
         return (c&0340) == 0340 ? ((c&020) ? 4 : 3) : ((c&0200) ? 2 : 1);
     }
 }
 
-enum class ListType { eCHECKLIST
-                    , eRADIOLIST
-                    , ePICKLIST
-                    , eSELECTLIST
-                    , eVIEWLIST
-                    , eDROPDOWNLIST };
-
+//
+//! Callback methods used in application's "event loops":
+//
 using FocusCb     = std::function<bool(Char_t)>;
-
 using EventUpCb   = std::function<FocusCb(int x, int y, bool)>;
 
                             //==================
@@ -81,14 +79,25 @@ using EventUpCb   = std::function<FocusCb(int x, int y, bool)>;
                             //==================
 
 struct  Dimensions {
-    double          d_width           = 0;
-    double          d_height          = 0;
+    double          d_width             = 0;
+    double          d_height            = 0;
 };
 
-                                //===============
-                                // class WidgetId
-                                //===============
+                            //=================
+                            // struct Rectangle
+                            //=================
 
+struct  Rectangle  {
+    double          d_ux                = 0;
+    double          d_uy                = 0;
+    double          d_width             = 0;
+    double          d_height            = 0;
+    double          d_borderThickness   = 0.0;
+};
+
+                            //===============
+                            // class WidgetId
+                            //===============
 
 class WidgetId {
     uint16_t    d_id    = 0;
@@ -97,6 +106,9 @@ class WidgetId {
     // PUBLIC CLASS MEMBERS
     static const WidgetId kPARENT;
     static const WidgetId kROOT;
+
+    // PUBLIC TYPES
+    using IdType = decltype(d_id);
 
     // PUBLIC CONSTRUCTORS
     constexpr WidgetId()              = default;
@@ -168,6 +180,11 @@ constexpr WidgetId operator "" _wr(unsigned long long int n)    noexcept {
     return WidgetId(n, true);
 }
 
+
+                            //====================
+                            // class WawtException
+                            //====================
+
 //! Wawt runtime exception
 class  WawtException : public std::runtime_error {
   public:
@@ -189,151 +206,54 @@ class  WawtException : public std::runtime_error {
     }
 };
 
-struct  BorderThicknessDefaults {
-    double d_canvasThickness    = 1.0;
-    double d_textEntryThickness = 0.0;
-    double d_labelThickness     = 0.0;
-    double d_buttonThickness    = 2.0;
-    double d_buttonBarThickness = 1.0;
-    double d_listThickness      = 2.0;
-    double d_panelThickness     = 0.0;
-};
-
-struct  WidgetOptionDefaults {
-    std::any     d_screenOptions;    ///! Options for root Panel
-    std::any     d_canvasOptions;    ///! Default Canvas options
-    std::any     d_textEntryOptions; ///! Default TextEntry options
-    std::any     d_labelOptions;     ///! Default Label options
-    std::any     d_buttonOptions;    ///! Default Button options
-    std::any     d_buttonBarOptions; ///! Default ButtonBar options
-    std::any     d_listOptions;      ///! Default List options
-    std::any     d_panelOptions;     ///! Default Panel options
-};
-
-constexpr std::any kNoWidgetOptions();
-
-class Panel;
-class List;
-class DrawProtocol;
-class Widget;
+                                //===========
+                                // class Wawt
+                                //===========
 
 class Wawt {
+    static std::atomic<Wawt*> d_instance;
+
+    std::map<std::string, std::any> d_defaultOptions{};
+    std::map<std::string, double>   d_defaultBorders{};
+    std::unordered_set<String_t> d_strings{};
+
   public:
-    using StringMapper = std::function<String_t(int)>;
-
-    // PUBLIC CLASS DATA
-    static Char_t   kDownArrow;
-    static Char_t   kUpArrow;
-    static Char_t   kCursor;
-    static Char_t   kFocusChg;
-
-    // PUBLIC CLASS MEMBERS
-    static Panel   scrollableList(const List&   list,
-                                  bool          buttonsOnLeft = true,
-                                  unsigned int  scrollLines   = 1);
-
-    static void    removePopUp(Panel *root);
-
-    static void    setScrollableListStartingRow(List   *list,
-                                              unsigned int row);
-
-    // PUBLIC CONSTRUCTOR
-    explicit Wawt(const StringMapper&  mappingFn = StringMapper(),
-                  DrawProtocol      *adapter   = 0);
-
-    explicit Wawt(DrawProtocol *adapter) : Wawt(StringMapper(), adapter) { }
-
-    // PUBLIC MANIPULATORS
-    void     draw(const Panel& panel);
-
-    WidgetId popUpModalDialogBox(Panel *root, Panel&& dialogBox);
-
-    void     refreshTextMetrics(Panel *panel);
-
-    void     resizeRootPanel(Panel   *root, double  width, double  height);
-
-    void     resolveWidgetIds(Panel *root);
-
-    void setBorderThicknessDefaults(const BorderThicknessDefaults& defaults) {
-        d_borderDefaults = defaults;
+    static Wawt *instance() {
+        return d_instance.load();
     }
 
-    void setWidgetOptionDefaults(const WidgetOptionDefaults& defaults) {
-        d_optionDefaults = defaults;
+    template <int NumClasses>
+    Wawt(const std::Array<std::pair<std::string,std::any>,NumClasses>& options,
+         const std::Array<std::pair<std::string,double>,NumClasses>& borders) {
+        d_instance.compare_exchange_strong(nullptr, this);
+
+        for (auto& [className, value] : options) {
+            d_defaultOptions.emplace(className, value);
+        }
+
+        for (auto& [className, thickness] : borders) {
+            d_defaultBorders.emplace(className, thickness);
+        }
     }
 
-    // PUBLIC ACCESSORS
-    const WidgetOptionDefaults& getWidgetOptionDefaults() const {
-        return d_optionDefaults;
+    ~Wawt() {
+        d_instance.compare_exchange_strong(this, nullptr);
     }
 
-    const BorderThicknessDefaults& getBorderDefaults() const {
-        return d_borderDefaults;
+    std::any  defaultOptions(const std::string& className) const noexcept{
+        auto it = d_defaultOptions.find(className);
+        return d_defaultOptions.end() != it ? it->second : std::any();
     }
 
-    const std::any& defaultScreenOptions()            const {
-        return d_optionDefaults.d_screenOptions;
+    double defaultBorderThickness(const std::string& className) const noexcept{
+        auto it = d_defaultBorders.find(className);
+        return d_defaultBorders.end() != it ? it->second : 0.0;
     }
 
-    const std::any& defaultCanvasOptions()            const {
-        return d_optionDefaults.d_canvasOptions;
+    StringView_t      translate(const StringView_t& phrase) {
+        return d_strings.emplace(phrase).first->second; // TBD: translate
     }
-
-    const std::any& defaultTextEntryOptions()         const {
-        return d_optionDefaults.d_textEntryOptions;
-    }
-
-    const std::any& defaultLabelOptions()             const {
-        return d_optionDefaults.d_labelOptions;
-    }
-
-    const std::any& defaultButtonOptions()            const {
-        return d_optionDefaults.d_buttonOptions;
-    }
-
-    const std::any& defaultButtonBarOptions()         const {
-        return d_optionDefaults.d_buttonBarOptions;
-    }
-
-    const std::any& defaultPanelOptions()             const {
-        return d_optionDefaults.d_panelOptions;
-    }
-
-    const std::any& defaultListOptions(ListType type) const {
-        auto  usePanel = (type==ListType::eCHECKLIST
-                       || type==ListType::eRADIOLIST);
-        return usePanel ? d_optionDefaults.d_panelOptions
-                        : d_optionDefaults.d_listOptions;
-    }
-
-  private:
-    // PRIVATE TYPE
-    using FontIdMap  = std::map<uint16_t, uint16_t>;
-
-    // PRIVATE CLASS MEMBERS
-#if 0
-    static void setIds(Panel::Widget *widget, WidgetId& id);
-
-    static void setWidgetAdapterPositions(
-            Panel::Widget                  *widget,
-            Panel                          *root,
-            const Panel&                    panel,
-            const BorderThicknessDefaults&  border,
-            const WidgetOptionDefaults&     option);
-#endif
-
-    // PRIVATE MANIPULATORS
-    void  setFontSizeEntry(Widget *args);
-
-    void  setTextAndFontValues(Panel *root);
-
-    // PRIVATE DATA
-    DrawProtocol            *d_adapter_p;
-    StringMapper             d_idToString;
-    FontIdMap                d_fontIdToSize;
-    BorderThicknessDefaults  d_borderDefaults;
-    WidgetOptionDefaults     d_optionDefaults;
-};
+}
 
 } // end Wawt namespace
 
