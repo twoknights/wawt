@@ -16,22 +16,40 @@
  * limitations under the License.
  */
 
-#include "wawt.h"
+#include "wawt/widget.h"
 
 #include <cassert>
 #include <cmath>
 #include <iomanip>
 #include <iostream>
-#include <optional>
+#include <ostream>
+#include <sstream>
 #include <string>
-#include <tuple>
+#include <type_traits>
+#include <utility>
 
 namespace Wawt {
 
 namespace {
 
+struct Indent {
+    unsigned int d_indent;
+
+    Indent& operator+=(unsigned int change) {
+        d_indent += change;
+        return *this;
+    }
+
+    Indent& operator-=(unsigned int change) {
+        d_indent -= change;
+        return *this;
+    }
+
+    Indent(unsigned int indent = 0) : d_indent(indent) { }
+};
+
 inline
-std::ostream& operator<<(std::ostream& os, WawtDump::Indent indent) {
+std::ostream& operator<<(std::ostream& os, Indent indent) {
     if (indent.d_indent > 0) {
         os << std::setw(indent.d_indent) << ' ';
     }
@@ -39,7 +57,7 @@ std::ostream& operator<<(std::ostream& os, WawtDump::Indent indent) {
 }
 
 inline
-std::ostream& operator<<(std::ostream& os, const Wawt::WidgetId id) {
+std::ostream& operator<<(std::ostream& os, const WidgetId id) {
     if (id.isSet()) {
         os << id.value();
         if (id.isRelative()) {
@@ -59,24 +77,24 @@ inline bool isBackspace(wchar_t ch) {
     return ch == L'\b';
 }
 
-inline bool isBackspace(const char *c) {
-    return c[0] == '\b';
+inline bool isBackspace(char32_t ch) {
+    return ch == U'\b';
 }
 
 inline bool isEnter(wchar_t ch) {
     return ch == L'\r';
 }
 
-inline bool isEnter(const char *c) {
-    return c[0] == '\r';
+inline bool isEnter(char32_t ch) {
+    return ch == U'\r';
 }
 
 inline bool isEos(wchar_t ch) {
     return ch == L'\0';
 }
 
-inline bool isEos(const char *c) {
-    return c[0] == '\0';
+inline bool isEos(char32_t ch) {
+    return ch == U'\0';
 }
 
 inline std::wstring makeString(wchar_t ch) {
@@ -84,17 +102,29 @@ inline std::wstring makeString(wchar_t ch) {
                      : std::wstring(1, static_cast<wchar_t>(ch));
 }
 
-inline std::string makeString(const char *ch) {
-    return isEos(ch) ? std::string() : std::string(ch, Wawt::sizeOfChar(ch));
-}
-
-inline auto makeString(char ch) {
-    if constexpr(std::is_same_v<Wawt::Char_t,wchar_t>) {
-        return makeString(wchar_t(ch));
+inline
+std::string makeString(char32_t ch) {
+    std::string result;
+    if (!isEos(ch)) {
+        auto c = static_cast<uint32_t>(ch);
+        switch (sizeOfChar(ch)) {
+          case 4: result.push_back(char(0360|((c >> 18)&007)));
+                  result.push_back(char(0200|((c >> 12)&077)));
+                  result.push_back(char(0200|((c >>  6)&077)));
+                  result.push_back(char(0200|( c       &077)));
+                  break;
+          case 3: result.push_back(char(0340|((c >> 12)&017)));
+                  result.push_back(char(0200|((c >>  6)&077)));
+                  result.push_back(char(0200|( c       &077)));
+                  break;
+          case 2: result.push_back(char(0340|((c >>  6)&037)));
+                  result.push_back(char(0200|( c       &077)));
+                  break;
+          default:result.push_back(char(       c    &  0177));
+                  break;
+        };
     }
-    else {
-        return makeString(&ch);
-    }
+    return result;
 }
 
 inline int textLength(const std::wstring& text) {
@@ -106,13 +136,15 @@ inline int textLength(const std::string& text) {
     auto  p      = text.c_str();
     auto  end    = p + text.length();
     while (p < end && *p) {
+        auto c = *p;
         ++length;
-        p += Wawt::sizeOfChar(p);
+        p += (c&0340) == 0340 ? ((c&020) ? 4 : 3) : ((c&0200) ? 2 : 1);
     }
     return length;
 }
 
-void outputXMLString(std::ostream& os, const std::string& text) {
+inline
+void outputXMLString(std::ostream& os, const std::string_view& text) {
     // NOTE: std::codecvt is deprecated. So, to avoid compiler warnings,
     // and until this is sorted out, lets roll our own.
     // For anticipated use (i.e. test drivers), this is expected to be
@@ -182,12 +214,13 @@ void outputXMLString(std::ostream& os, const std::string& text) {
     }
 }
 
-void outputXMLString(std::ostream& os, const std::wstring& text) {
+inline
+void outputXMLString(std::ostream& os, const std::wstring_view& text) {
     // NOTE: std::codecvt is deprecated. So, to avoid compiler warnings,
     // and until this is sorted out, lets roll our own.
     // For anticipated use (i.e. test drivers), this is expected to be
     // good enough.
-    for (auot c : text) {
+    for (auto c : text) {
         unsigned char ch = static_cast<char>(c);
 
         if (static_cast<decltype(c)>(ch) == c) {
@@ -206,9 +239,6 @@ void outputXMLString(std::ostream& os, const std::wstring& text) {
             else if (ch == L'&') {
                 os << "&amp;";
             }
-            else {
-                os(put(ch));
-            }
             else if ((ch & 0200) == 0) {
                 os.put(ch);
             } // end of 7 bit ASCII
@@ -220,6 +250,12 @@ void outputXMLString(std::ostream& os, const std::wstring& text) {
             os << "&#" << unsigned(c) << ';';
         }
     }
+}
+
+double borderSize(const Rectangle& root, double thickness) {
+    auto scalex = thickness * root.d_width  / 1000.0;
+    auto scaley = thickness * root.d_height / 1000.0;
+    return std::ceil(std::max(scalex, scaley));
 }
 
 bool findWidget(const Widget              **widget,
@@ -236,7 +272,7 @@ bool findWidget(const Widget              **widget,
                 return true;                                          // RETURN
             }
 
-            if (!next.widgetId().isSet() || id < next.d_widgetId) {
+            if (!next.widgetId().isSet() || id < next.widgetId()) {
                 return false;                                         // RETURN
             }
         }
@@ -247,47 +283,51 @@ bool findWidget(const Widget              **widget,
     return false;                                                     // RETURN
 }
 
-Wawt::DrawPosition makeAbsolute(const Wawt::Position& position,
-                                const Wawt::Panel&    parent,
-                                const Wawt::Panel&    root) {
-    auto       base       = position.d_widgetRef.getBasePointer(parent, root);
-    auto&      view       = base->adapterView();
-    auto&      upperLeft  = view.d_upperLeft;
-    auto&      lowerRight = view.d_lowerRight;
-    auto       thickness  = view.d_borderThickness;
+using Corner = std::pair<double,double>;
 
-    auto xorigin = (upperLeft.d_x  + lowerRight.d_x)/2.0;
-    auto yorigin = (upperLeft.d_y  + lowerRight.d_y)/2.0;
-    auto xradius = lowerRight.d_x - xorigin;
-    auto yradius = lowerRight.d_y - yorigin;
+Corner findCorner(const Layout::Position& position,
+                  const Widget&           parent,
+                  const Widget&           root) {
+    auto       widget     = position.d_widgetRef.getWidgetPointer(parent, root);
+    auto&      rectangle  = widget->drawData().d_rectangle;
+    auto&      ul_x       = rectangle.d_ux;
+    auto&      ul_y       = rectangle.d_uy;
+    auto       lr_x       = ul_x + rectangle.d_width  - 1;
+    auto       lr_y       = ul_y + rectangle.d_height - 1;
+    auto       thickness  = rectangle.d_borderThickness;
+
+    auto xorigin = (ul_x  + lr_x)/2.0;
+    auto yorigin = (ul_y  + lr_y)/2.0;
+    auto xradius = lr_x - xorigin;
+    auto yradius = lr_y - yorigin;
 
     switch (position.d_normalizeX) {
-      case Wawt::Normalize::eOUTER:  { // Already have this.
+      case Normalize::eOUTER:  { // Already have this.
         } break;
-      case Wawt::Normalize::eMIDDLE: {
+      case Normalize::eMIDDLE: {
             xradius -= thickness/2;
         } break;
-      case Wawt::Normalize::eINNER: {
+      case Normalize::eINNER: {
             xradius -= thickness;
         } break;
-      case Wawt::Normalize::eDEFAULT: {
-            if (position.d_widgetRef.getWidgetId() == 0_wr) {
+      case Normalize::eDEFAULT: {
+            if (widget == &parent) {
                 xradius -= thickness; // eINNER
             }
         } break;
     };
 
     switch (position.d_normalizeY) {
-      case Wawt::Normalize::eOUTER:  { // Already have this.
+      case Normalize::eOUTER:  { // Already have this.
         } break;
-      case Wawt::Normalize::eMIDDLE: {
+      case Normalize::eMIDDLE: {
             yradius -= thickness/2;
         } break;
-      case Wawt::Normalize::eINNER: {
+      case Normalize::eINNER: {
             yradius -= thickness;
         } break;
-      case Wawt::Normalize::eDEFAULT: {
-            if (position.d_widgetRef.getWidgetId() == 0_wr) {
+      case Normalize::eDEFAULT: {
+            if (widget == &parent) {
                 yradius -= thickness; // eINNER
             }
         } break;
@@ -296,125 +336,85 @@ Wawt::DrawPosition makeAbsolute(const Wawt::Position& position,
     auto x = xorigin + position.d_sX*xradius;
     auto y = yorigin + position.d_sY*yradius;
 
-    return Wawt::DrawPosition{x,y};                                 // RETURN
+    return Corner(x,y);                                               // RETURN
 }
 
-void refreshTextMetric(Wawt::DrawDirective           *args,
-                       Wawt::TextBlock               *block,
-                       Wawt::DrawProtocol            *adapter_p,
-                       FontIdMap&                     fontIdToSize,
-                       const Wawt::TextMapper&        textLookup) {
-    auto  id         = block->fontSizeGrp();
-    auto  textHeight = args->interiorHeight();
-    auto  fontSize   = id ? fontIdToSize.find(*id)->second : 0;
-    auto  charSize   = fontSize > 0   ? fontSize : textHeight;
+Rectangle makeRectangle(const Layout&         layout,
+                        const Widget&         parent,
+                        const Widget&         root) {
+    auto thickness  = borderSize(root.drawData().d_rectangle,
+                                 layout.d_thickness);
+    auto [ux, uy]   = findCorner(layout.d_upperLeft,  parent, root);
+    auto [lx, ly]   = findCorner(layout.d_lowerRight, parent, root);
+    auto width      = lx - ux + 1;
+    auto height     = ly - uy + 1;
 
-    if (charSize != args->d_charSize || block->needRefresh()) {
-        block->setText(textLookup);
-        block->initTextMetricValues(args, adapter_p, charSize);
+    if (layout.d_pin != Vertex::eNONE) {
+        auto  square = (width + height)/2.0;
 
-        if (fontSize == 0 && id) {
-            fontIdToSize[*id] = args->d_charSize;
+        if (square > width) {
+            square = width;
         }
-    }
-    auto  iconSize   = args->d_bulletType != Wawt::BulletType::eNONE
-                                      ? args->d_charSize
-                                      : 0;
-    args->d_startx= args->d_upperLeft.d_x + args->d_borderThickness + iconSize;
-
-    if (block->alignment() != Wawt::Align::eLEFT) {
-        auto margin = args->interiorWidth() - iconSize 
-                                            - block->metrics().d_textWidth;
-        assert(margin >= 0);
-
-        args->d_startx += block->alignment() == Wawt::Align::eRIGHT ? margin
-                                                                    : margin/2;
-    }
-    return;                                                           // RETURN
-}
-
-double scaleBorder(const Wawt::Panel& root, double thickness) {
-    auto scalex = thickness * root.drawView().width()  / 1000.0;
-    auto scaley = thickness * root.drawView().height() / 1000.0;
-    return std::ceil(std::max(scalex, scaley));
-}
-
-void setAdapterValues(Wawt::DrawDirective      *args,
-                      Wawt::Layout             *layout,
-                      const Wawt::Panel&        parent,
-                      const Wawt::Panel&        root) {
-    args->d_borderThickness = scaleBorder(root, layout->d_thickness);
-
-    args->d_upperLeft  = makeAbsolute(layout->d_upperLeft,  parent, root);
-    args->d_lowerRight = makeAbsolute(layout->d_lowerRight, parent, root);
-
-    if (layout->d_pin != Wawt::Vertex::eNONE) {
-        auto  square = (args->width() + args->height())/2.0;
-
-        if (square > args->width()) {
-            square = args->width();
+        else if (square > height) {
+            square = height;
         }
-        else if (square > args->height()) {
-            square = args->height();
-        }
-        auto& ux     = args->d_upperLeft.d_x;
-        auto& uy     = args->d_upperLeft.d_y;
-        auto& lx     = args->d_lowerRight.d_x;
-        auto& ly     = args->d_lowerRight.d_y;
-        auto  deltaW = square - args->width();
-        auto  deltaH = square - args->height();
+        auto  deltaW = square - width;
+        auto  deltaH = square - height;
         
-        switch (layout->d_pin) {
-          case Wawt::Vertex::eUPPER_LEFT: {
+        switch (layout.d_pin) {
+          case Vertex::eUPPER_LEFT: {
                 ly += deltaH; lx += deltaW;
             } break;
-          case Wawt::Vertex::eUPPER_CENTER: {
+          case Vertex::eUPPER_CENTER: {
                 ly += deltaH; lx += deltaW/2.0;
                               ux -= deltaW/2.0;
             } break;
-          case Wawt::Vertex::eUPPER_RIGHT: {
+          case Vertex::eUPPER_RIGHT: {
                 ly += deltaH;
                               ux -= deltaW;
             } break;
-          case Wawt::Vertex::eCENTER_LEFT: {
+          case Vertex::eCENTER_LEFT: {
                 uy -= deltaH/2.0;
                 ly += deltaH/2.0; lx += deltaW;
             } break;
-          case Wawt::Vertex::eCENTER_CENTER: {
+          case Vertex::eCENTER_CENTER: {
                 uy -= deltaH/2.0; ux -= deltaW/2.0;
                 ly += deltaH/2.0; lx += deltaW/2.0;
             } break;
-          case Wawt::Vertex::eCENTER_RIGHT: {
+          case Vertex::eCENTER_RIGHT: {
                 uy -= deltaH/2.0; ux -= deltaW;
                 ly += deltaH/2.0;
             } break;
-          case Wawt::Vertex::eLOWER_LEFT: {
+          case Vertex::eLOWER_LEFT: {
                 uy -= deltaH;
                               lx += deltaW;
             } break;
-          case Wawt::Vertex::eLOWER_CENTER: {
+          case Vertex::eLOWER_CENTER: {
                 uy -= deltaH; ux -= deltaW/2.0;
                               lx += deltaW/2.0;
             } break;
-          case Wawt::Vertex::eLOWER_RIGHT: {
+          case Vertex::eLOWER_RIGHT: {
                 uy -= deltaH; ux -= deltaW;
             } break;
           default: break;
         }
     }
+    return { ux, uy, lx - ux + 1, ly - uy + 1, thickness };           // RETURN
 }
 
 } // end unnamed namespace
 
+std::atomic<Wawt*> Wawt::d_instance{nullptr};
+const WidgetId WidgetId::kPARENT(UINT16_MAX, true);
+const WidgetId WidgetId::kROOT(UINT16_MAX-1, true);
 
                             //-------------------------
                             // class  Layout::WidgetRef
                             //-------------------------
 
-
 const Widget *
-Layout::WidgetRef::getWidgetPointer(const Panel&      parent,
-                                    const Panel&      root) const
+Layout::WidgetRef::getWidgetPointer(const Widget&     parent,
+                                    const Widget&     root) const
 {
     if (d_widget != nullptr) {
         assert(*d_widget);
@@ -424,10 +424,10 @@ Layout::WidgetRef::getWidgetPointer(const Panel&      parent,
 
     if (d_widgetId.isSet()) {
         if (d_widgetId.isRelative()) {
-            if (d_widgetId == kPARENT) {
+            if (d_widgetId == WidgetId::kPARENT) {
                 widget = &parent;
             }
-            else if (d_widgetId() == kROOT) {
+            else if (d_widgetId == WidgetId::kROOT) {
                 widget = &root;
             }
             else {
@@ -453,7 +453,7 @@ Layout::WidgetRef::getWidgetPointer(const Panel&      parent,
 }
 
 WidgetId
-WidgetRef::getWidgetId() const noexcept
+Layout::WidgetRef::getWidgetId() const noexcept
 {
     WidgetId ret = d_widgetId;
 
@@ -469,11 +469,215 @@ WidgetRef::getWidgetId() const noexcept
                                 // class Widget
                                 //-------------
 
+// PUBLIC CLASS MEMBERS
+void
+Widget::defaultDraw(DrawProtocol       *adapter,
+                    const DrawData&     data,
+                    const Children&     children)
+{
+    adapter->draw(data);
+
+    for (auto const& child : children) {
+        child.draw(adapter);
+    }
+}
+
+void
+Widget::defaultLayout(DrawData                *data,
+                      Text::CharSizeMap       *charSizeMap,
+                      bool                     firstPass,
+                      const Widget&            root,
+                      const Widget&            parent,
+                      const LayoutData&        layoutData,
+                      DrawProtocol            *adapter)
+{
+    if (firstPass) {
+        data->d_rectangle = makeRectangle(layoutData.d_layout, parent, root);
+    }
+
+    if (!data->d_label.empty()) {
+        auto charSizeLimit = data->d_rectangle.d_height
+                                - 2*data->d_rectangle.d_borderThickness - 2;
+
+        if (layoutData.d_charSizeGroup) {
+            if (auto it  = charSizeMap->find(*layoutData.d_charSizeGroup);
+                     it != charSizeMap->end()) {
+                if (charSizeLimit > it->second + 1) {
+                    charSizeLimit = it->second + 1;
+                }
+            }
+        }
+
+        if (firstPass || data->d_charSize + 1 != charSizeLimit) {
+            auto textBounds = Dimensions{};
+
+            if (adapter->getTextMetrics(&textBounds,
+                                        &data->d_charSize,
+                                        *data,
+                                        charSizeLimit)) {
+            }
+            else {
+                assert(!"Failed to get text metrics.");
+                textBounds.d_width  = data->d_rectangle.d_width;
+                textBounds.d_height = data->d_rectangle.d_height;
+                data->d_charSize    = charSizeLimit - 1;
+            }
+
+            if (layoutData.d_charSizeGroup) {
+                charSizeMap->emplace(*layoutData.d_charSizeGroup,
+                                     data->d_charSize);
+            }
+            data->d_labelBounds.d_width   = textBounds.d_width;
+            data->d_labelBounds.d_height  = textBounds.d_height;
+        }
+        data->d_labelBounds.d_ux = data->d_rectangle.d_ux
+                                 + data->d_rectangle.d_borderThickness + 1;
+        data->d_labelBounds.d_uy = data->d_rectangle.d_uy
+                                 + data->d_rectangle.d_borderThickness + 1;
+        
+        if (layoutData.d_textAlign != Text::Align::eLEFT) {
+            auto space = data->d_rectangle.d_width
+                       - data->d_labelBounds.d_width
+                       - 2*data->d_rectangle.d_borderThickness - 2;
+
+            if (layoutData.d_textAlign == Text::Align::eCENTER) {
+                space /= 2.0;
+            }
+            data->d_labelBounds.d_ux += space;
+        }
+    }
+    return;                                                           // RETURN
+}
+
+void
+Widget::defaultPop(Children *children)
+{
+    children->pop_back();
+    return;                                                           // RETURN
+}
+
+bool
+Widget::defaultPush(Children *children, Widget&& child)
+{
+    children->push_back(std::move(child));
+    return true;                                                      // RETURN
+}
+
+void
+Widget::defaultSerialize(std::ostream&      os,
+                         std::string       *closeTag,
+                         const DrawData&    drawData,
+                         const LayoutData&  layoutData,
+                         unsigned int       indent)
+{
+    auto  spaces     = Indent(indent);
+    auto& widgetName = drawData.d_className;
+    auto& widgetId   = drawData.d_widgetId;
+    auto& layout     = layoutData.d_layout;
+    
+    std::ostringstream ss;
+    ss << spaces << "</" << widgetName << ">\n";
+    os << spaces << "<" << widgetName << " id='" << widgetId << "'>\n";
+
+    *closeTag = ss.str();
+
+    spaces += 2;
+    os << spaces << "<layout border='";
+
+    if (layout.d_thickness >= 0.0) {
+        os << layout.d_thickness;
+    }
+
+    if (layout.d_pin != Vertex::eNONE) {
+        os << "' pin='" << int(layout.d_pin);
+    }
+    os << "'>\n";
+    spaces += 2;
+    os << spaces
+       <<     "<ul sx='" << layout.d_upperLeft.d_sX
+       <<       "' sy='" << layout.d_upperLeft.d_sY
+       <<   "' widget='" << layout.d_upperLeft.d_widgetRef.getWidgetId()
+       <<   "' norm_x='" << int(layout.d_upperLeft.d_normalizeX)
+       <<   "' norm_y='" << int(layout.d_upperLeft.d_normalizeX)
+       << "'/>\n";
+    os << spaces
+       <<     "<lr sx='" << layout.d_lowerRight.d_sX
+       <<       "' sy='" << layout.d_lowerRight.d_sY
+       <<   "' widget='" << layout.d_lowerRight.d_widgetRef.getWidgetId()
+       <<   "' norm_x='" << int(layout.d_lowerRight.d_normalizeX)
+       <<   "' norm_y='" << int(layout.d_lowerRight.d_normalizeX)
+       << "'/>\n";
+    spaces -= 2;
+    os << spaces << "</layout>\n";
+
+#if 0
+    os << spaces
+       << "<input action='" << int(d_input.d_action)
+       << "' disabled='"    << int(d_input.d_disabled)
+       << "' variant='"     << d_input.d_callback.index() << "'/>\n";
+#endif
+
+    if (!drawData.d_label.empty()) {
+        os << spaces
+           << "<text align='"   << int(layoutData.d_textAlign)
+           << "' charSize='"    << drawData.d_charSize
+           << "' group='";
+
+        if (layoutData.d_charSizeGroup) {
+            os << *layoutData.d_charSizeGroup;
+        }
+
+        if (drawData.d_labelMark != DrawData::BulletMark::eNONE) {
+            os << "' mark='"    << int(drawData.d_labelMark);
+        }
+        os << "'>";
+        outputXMLString(os, drawData.d_label);
+        os << "</text>\n";
+    }
+
+    os << spaces
+       << "<draw options='" << int(drawData.d_options.has_value())
+       << "' selected='"    << drawData.d_selected
+       << "' disable='"     << drawData.d_disableEffect
+//       << "' hidden='"      << int(drawData.d_hidden)
+       << "'>\n";
+    spaces += 2;
+    os << spaces
+       << "<rect x='"       << drawData.d_rectangle.d_ux
+       <<     "' y='"       << drawData.d_rectangle.d_uy
+       <<     "' width='"   << drawData.d_rectangle.d_width
+       <<     "' height='"  << drawData.d_rectangle.d_height
+       <<     "' border='"  << drawData.d_rectangle.d_borderThickness
+       << "'/>\n"
+       << "<bounds x='"     << drawData.d_labelBounds.d_ux
+       <<       "' y='"     << drawData.d_labelBounds.d_uy
+       <<       "' width='" << drawData.d_labelBounds.d_width
+       <<       "' height='"<< drawData.d_labelBounds.d_height
+       << "'/>\n";
+    spaces -= 2;
+    os << spaces << "</draw>\n";
+    return;
+}
+
 // PUBLIC MEMBERS
 WidgetId
 Widget::assignWidgetIds(WidgetId next, Widget *root) noexcept
 {
-    for (auto& widget : d_widgets) {
+    if (root == nullptr) {
+        root = this;
+    }
+
+    if (d_layoutData.d_layout.d_thickness == -1.0) {
+        d_layoutData.d_layout.d_thickness =
+            Wawt::instance()->defaultBorderThickness(d_drawData.d_className);
+    }
+
+    if (!d_drawData.d_options.has_value()) {
+        d_drawData.d_options = 
+            Wawt::instance()->defaultOptions(d_drawData.d_className);
+    }
+
+    for (auto& widget : d_children) {
         next = widget.assignWidgetIds(next, root);
     }
     d_drawData.d_widgetId   = next++;
@@ -486,186 +690,146 @@ Widget::assignWidgetIds(WidgetId next, Widget *root) noexcept
 }
 
 const Widget*
-Widget::lookup(Wawt::WidgetId widgetId) const noexcept
+Widget::lookup(WidgetId id) const noexcept
 {
-    Widget *widget = nullptr;
+    const Widget *widget = nullptr;
 
-    if (widgetId.isSet()) {
-        if (widgetId.isRelative()) {
-            if (widgetId.value() < children().size()) {
-                widget = &children()[widgetId.value()];
+    if (id.isSet()) {
+        if (id.isRelative()) {
+            if (id.value() < children().size()) {
+                widget = &children().at(id.value());
             }
         }
-        else if (widgetId == widgetId()) {
+        else if (id == widgetId()) {
             widget = this;
         }
         else {
-            findWidget(&widget, *this, widgetId);
+            findWidget(&widget, *this, id);
         }
     }
     return widget;                                                    // RETURN
 }
 
-// PRIVATE MEMBERS
 void
-Wawt::Base::serialize(std::ostream&  os,
-                      const char    *widgetName,
-                      bool           container,
-                      unsigned int   indent) const
+Widget::popDialog()
 {
-    WawtDump::Indent spaces(indent);
-    os << spaces << "<" << widgetName << " id='" << d_widgetId;
-
-    if (d_widgetLabel) {
-        os << "' label='" << (*d_widgetLabel == this ? "this" : "?");
+    if (this == d_root) {
+        d_popMethod(&d_children);
+        d_drawData.d_widgetId = d_children.back().widgetId();
+        d_drawData.d_widgetId++;
     }
-    os << "'>\n";
-
-    spaces += 2;
-    os << spaces << "<layout border='";
-
-    if (d_layout.d_thickness >= 0.0) {
-        os << d_layout.d_thickness;
-    }
-
-    if (d_layout.d_pin != Vertex::eNONE) {
-        os << "' pin='" << int(d_layout.d_pin);
-    }
-    os << "'>\n";
-    spaces += 2;
-    os << spaces
-       <<     "<ul sx='" << d_layout.d_upperLeft.d_sX
-       <<       "' sy='" << d_layout.d_upperLeft.d_sY
-       <<   "' widget='" << d_layout.d_upperLeft.d_widgetRef.getWidgetId()
-       <<   "' norm_x='" << int(d_layout.d_upperLeft.d_normalizeX)
-       <<   "' norm_y='" << int(d_layout.d_upperLeft.d_normalizeX)
-       << "'/>\n";
-    os << spaces
-       <<     "<lr sx='" << d_layout.d_lowerRight.d_sX
-       <<       "' sy='" << d_layout.d_lowerRight.d_sY
-       <<   "' widget='" << d_layout.d_lowerRight.d_widgetRef.getWidgetId()
-       <<   "' norm_x='" << int(d_layout.d_lowerRight.d_normalizeX)
-       <<   "' norm_y='" << int(d_layout.d_lowerRight.d_normalizeX)
-       << "'/>\n";
-    spaces -= 2;
-    os << spaces << "</layout>\n";
-
-    os << spaces
-       << "<input action='" << int(d_input.d_action)
-       << "' disabled='"    << int(d_input.d_disabled)
-       << "' variant='"     << d_input.d_callback.index() << "'/>\n";
-
-    os << spaces
-       << "<text textId='"  << int(d_text.d_block.d_id)
-       << "' align='"       << int(d_text.d_block.d_alignment)
-       << "' group='";
-
-    if (d_text.d_block.d_fontSizeGrp) {
-        os << d_text.d_block.d_fontSizeGrp.value();
-    }
-    os << "' string='";
-    outputXMLString(os, d_text.d_block.d_string);
-    os << "'/>\n";
-
-    os << spaces
-       << "<draw options='" << int(d_draw.d_options.has_value())
-       << "' hidden='"      << int(d_draw.d_hidden)
-       << "' paint='"       << (d_draw.d_paintFn ? "set" : "unset")
-       << "' bullet='"      << int(d_draw.d_bulletType)
-       << "' border='"      << d_draw.d_borderThickness
-       << "'>\n";
-    spaces += 2;
-    os << spaces
-       <<     "<ul x='" << d_draw.d_upperLeft.d_x
-       <<       "' y='" << d_draw.d_upperLeft.d_y
-       << "'/>\n";
-    os << spaces
-       <<     "<lr x='" << d_draw.d_upperLeft.d_x
-       <<       "' y='" << d_draw.d_upperLeft.d_y
-       << "'/>\n";
-    spaces -= 2;
-    os << spaces << "</draw>\n";
-
-    if (!container) {
-        spaces -= 2;
-        os << spaces << "</" << widgetName << ">\n";
-    }
-    return;
-}
-
-                                //---------------
-                                // class  WawtDump
-                                //---------------
-
-void
-WawtDump::draw(const Wawt::DrawDirective&  widget,
-               const Wawt::String_t&       text)
-{
-    auto [type, id, row] = widget.d_tracking;
-    d_dumpOs << std::boolalpha << d_indent << "<widget id='" << type
-             << "," << id;
-
-    if (row >= 0) {
-        d_dumpOs  << "," << row;
-    }
-    d_dumpOs  << "' borderThickness='"   << widget.d_borderThickness
-              << "' greyEffect='"        << widget.d_greyEffect
-              << "' options='"           << widget.d_options.has_value()
-              << "'>\n";
-    d_indent += 2;
-    d_dumpOs  << d_indent
-              << "<upperLeft x='"        << widget.d_upperLeft.d_x
-              << "' y='"                 << widget.d_upperLeft.d_y
-              << "'/>\n"
-              << d_indent
-              << "<lowerRight x='"       << widget.d_lowerRight.d_x
-              << "' y='"                 << widget.d_lowerRight.d_y
-              << "'/>\n";
-
-    if (widget.d_charSize > 0) {
-        d_dumpOs  << d_indent
-                  << "<text startx='"    << Int(widget.d_startx)
-                  << "' selected='"      << widget.d_selected;
-
-        if (widget.d_bulletType      == Wawt::BulletType::eCHECK) {
-            d_dumpOs  << "' bulletType='Check";
-        }
-        else if (widget.d_bulletType == Wawt::BulletType::eRADIO) {
-            d_dumpOs  << "' bulletType='Radio";
-        }
-        d_dumpOs  << "'>\n";
-        d_indent += 2;
-        d_dumpOs  << d_indent
-                  << "<string charSize='" << widget.d_charSize
-                  << "'>";
-        outputXMLString(d_dumpOs, text);
-        d_dumpOs  << "</string>\n";
-        d_indent -= 2;
-        d_dumpOs  << d_indent
-                  << "</text>\n";
-    }
-    d_indent -= 2;
-    d_dumpOs  << d_indent << "</widget>\n" << std::noboolalpha;
-}
-
-void
-WawtDump::getTextMetrics(Wawt::DrawDirective    *parameters,
-                         Wawt::TextMetrics      *metrics,
-                         const Wawt::String_t&   text,
-                         double                  upperLimit)
-{
-    assert(metrics->d_textHeight >= upperLimit);    // these are upper limits
-    assert(metrics->d_textWidth > 0);               // bullet size excluded
-    
-    if (upperLimit > 0) {
-        auto  charCount = text.length();
-        auto  charSize  = charCount > 0 ? metrics->d_textWidth/charCount
-                                        : metrics->d_textHeight-1;
-
-        parameters->d_charSize = charSize >= upperLimit ? upperLimit - 1
-                                                        : charSize;
+    else {
+        d_root->popDialog();
     }
     return;                                                           // RETURN
+}
+
+WidgetId
+Widget::pushDialog(Widget&& child, DrawProtocol *adapter)
+{
+    auto childId = WidgetId{};
+
+    if (this == d_root) {
+        if (d_pushMethod(&d_children, std::move(child))) {
+            childId = widgetId();
+            widgetId() = d_children.back().assignWidgetIds(childId, d_root);
+            auto map = Text::CharSizeMap{};
+            d_children.back().layout(&map, adapter, true,  *d_root);
+            d_children.back().layout(&map, adapter, false, *d_root);
+        }
+    }
+    else {
+        childId = d_root->pushDialog(std::move(child), adapter);
+    }
+    return childId;                                                   // RETURN
+}
+
+void
+Widget::rootLayout(DrawProtocol *adapter, double width, double height)
+{
+    if (d_root) {
+        auto map = Text::CharSizeMap{};
+        d_root->d_drawData.d_rectangle.d_width  = width;
+        d_root->d_drawData.d_rectangle.d_height = height;
+        d_root->layout(&map, adapter, true,  *d_root);
+        d_root->layout(&map, adapter, false, *d_root);
+    }
+    return;                                                           // RETURN
+}
+
+                                //-----------
+                                // class Draw
+                                //-----------
+
+
+Draw::Draw()
+: d_os(std::cout)
+{
+}
+
+bool
+Draw::draw(const DrawData& drawData)  noexcept
+{
+    auto  spaces     = Indent(0);
+    auto& widgetName = drawData.d_className;
+    auto& widgetId   = drawData.d_widgetId;
+    
+    d_os << spaces << "<" << widgetName << " id='" << widgetId << "'>\n";
+
+    spaces += 2;
+    d_os << spaces
+         << "<draw options='" << int(drawData.d_options.has_value())
+         << "' selected='"    << drawData.d_selected
+         << "' disable='"     << drawData.d_disableEffect
+//         << "' hidden='"      << int(drawData.d_hidden)
+         << "'>\n";
+    spaces += 2;
+    d_os << spaces
+         << "<rect x='"       << drawData.d_rectangle.d_ux
+         <<     "' y='"       << drawData.d_rectangle.d_uy
+         <<     "' width='"   << drawData.d_rectangle.d_width
+         <<     "' height='"  << drawData.d_rectangle.d_height
+         <<     "' border='"  << drawData.d_rectangle.d_borderThickness
+         << "'/>\n"
+         << spaces
+         << "<text x='"       << drawData.d_labelBounds.d_ux
+         <<       "' y='"     << drawData.d_labelBounds.d_uy
+         <<       "' width='" << drawData.d_labelBounds.d_width
+         <<       "' height='"<< drawData.d_labelBounds.d_height
+         <<       "' charSize='" << drawData.d_charSize;
+
+    if (drawData.d_labelMark != DrawData::BulletMark::eNONE) {
+        d_os << "' mark='"    << int(drawData.d_labelMark);
+    }
+    d_os << "'/>\n" << spaces << "<string>";
+    outputXMLString(d_os, drawData.d_label);
+    d_os << "</string>\n";
+    spaces -= 2;
+    d_os << spaces << "</draw>\n";
+    spaces -= 2;
+    d_os << spaces << "</" << widgetName << ">\n";
+    return d_os.good();                                               // RETURN
+}
+
+bool
+Draw::getTextMetrics(Dimensions          *textBounds,
+                     DrawData::CharSize  *charSize,
+                     const DrawData&      drawData,
+                     DrawData::CharSize   upperLimit)    noexcept
+{
+    auto  count     = drawData.d_label.length();
+
+    if (drawData.d_labelMark != DrawData::BulletMark::eNONE) {
+        count += 1;
+    }
+    auto  thickness = drawData.d_rectangle.d_borderThickness;
+    auto  width     = drawData.d_rectangle.d_width  - 2*thickness - 2;
+    auto  height    = drawData.d_rectangle.d_height - 2*thickness - 2;
+    auto  size      = count > 0 ? width/count : height;
+
+    *textBounds = { width, height };
+    *charSize   = size >= upperLimit ? upperLimit - 1 : size;
+    return true;                                                      // RETURN
 }
 
 }  // namespace BDS

@@ -26,29 +26,11 @@
 
 namespace Wawt {
 
+class Widget;
+
                             //=============
                             // class Layout
                             //=============
-
-enum class Normalize {
-          eOUTER         ///< Normalize to widget's width/2
-        , eMIDDLE        ///< Normalize to middle of border.
-        , eINNER         ///< Normalize to 1 pixel before inner edge
-        , eDEFAULT       ///< eINNER for parent, otherwise eOUTER
-};
-
-enum class Vertex  {
-          eUPPER_LEFT
-        , eUPPER_CENTER
-        , eUPPER_RIGHT
-        , eCENTER_LEFT
-        , eCENTER_CENTER
-        , eCENTER_RIGHT
-        , eLOWER_LEFT
-        , eLOWER_CENTER
-        , eLOWER_RIGHT
-        , eNONE
-};
 
 struct Layout {
     // PUBLIC TYPES
@@ -102,8 +84,8 @@ struct Layout {
         return Layout({-w, -h}, {w, h});
     }
 
-    constexpr static Layout duplicate(WidgetRef id,
-                                      double   thickness = -1.0)    noexcept {
+    constexpr static Layout duplicate(WidgetId  id,
+                                      double    thickness = -1.0)   noexcept {
         return Layout({-1.0, -1.0, id}, {1.0, 1.0, id}, thickness);
     }
 

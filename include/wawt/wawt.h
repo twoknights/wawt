@@ -20,6 +20,7 @@
 #define WAWT_WAWT_H
 
 #include <any>
+#include <array>
 #include <atomic>
 #include <cassert>
 #include <cstdint>
@@ -63,8 +64,9 @@ constexpr std::size_t sizeOfChar(const Char_t ch) {
         return sizeof(wchar_t); // Wide-char is a fixed size encoding
     }
     else {
-        auto c = *ch; // utf8 uses a variable size encoding.
-        return (c&0340) == 0340 ? ((c&020) ? 4 : 3) : ((c&0200) ? 2 : 1);
+        auto c = static_cast<uint32_t>(ch);
+        return (c & 07770000) ? ((c & 07000000) ? 4 : 3)
+                              : ((c &    07700) ? 2 : 1);
     }
 }
 
@@ -73,6 +75,27 @@ constexpr std::size_t sizeOfChar(const Char_t ch) {
 //
 using FocusCb     = std::function<bool(Char_t)>;
 using EventUpCb   = std::function<FocusCb(int x, int y, bool)>;
+
+// Layout attributes:
+enum class Normalize {
+          eOUTER         ///< Normalize to widget's width/2
+        , eMIDDLE        ///< Normalize to middle of border.
+        , eINNER         ///< Normalize to 1 pixel before inner edge
+        , eDEFAULT       ///< eINNER for parent, otherwise eOUTER
+};
+
+enum class Vertex  {
+          eUPPER_LEFT
+        , eUPPER_CENTER
+        , eUPPER_RIGHT
+        , eCENTER_LEFT
+        , eCENTER_CENTER
+        , eCENTER_RIGHT
+        , eLOWER_LEFT
+        , eLOWER_CENTER
+        , eLOWER_RIGHT
+        , eNONE
+};
 
                             //==================
                             // struct Dimensions
@@ -223,9 +246,11 @@ class Wawt {
     }
 
     template <int NumClasses>
-    Wawt(const std::Array<std::pair<std::string,std::any>,NumClasses>& options,
-         const std::Array<std::pair<std::string,double>,NumClasses>& borders) {
-        d_instance.compare_exchange_strong(nullptr, this);
+    Wawt(const std::array<std::pair<std::string,std::any>,NumClasses>& options,
+         const std::array<std::pair<std::string,double>,NumClasses>& borders) {
+        Wawt* expected   = nullptr;
+        Wawt* desired    = this;
+        d_instance.compare_exchange_strong(expected, desired);
 
         for (auto& [className, value] : options) {
             d_defaultOptions.emplace(className, value);
@@ -237,7 +262,9 @@ class Wawt {
     }
 
     ~Wawt() {
-        d_instance.compare_exchange_strong(this, nullptr);
+        Wawt* desired    = nullptr;
+        Wawt* expected   = this;
+        d_instance.compare_exchange_strong(expected, desired);
     }
 
     std::any  defaultOptions(const std::string& className) const noexcept{
@@ -251,9 +278,9 @@ class Wawt {
     }
 
     StringView_t      translate(const StringView_t& phrase) {
-        return d_strings.emplace(phrase).first->second; // TBD: translate
+        return *d_strings.emplace(phrase).first; // TBD: translate
     }
-}
+};
 
 } // end Wawt namespace
 

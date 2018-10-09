@@ -23,12 +23,38 @@
 
 #include <any>
 #include <functional>
+#include <ostream>
+#include <string>
 #include <tuple>
 #include <utility>
 
 namespace Wawt {
 
-struct WidgetData;
+                            //=================
+                            // struct DrawData
+                            //=================
+
+
+struct DrawData {
+    using CharSize          = uint16_t;
+    enum class BulletMark { eNONE, eSQUAREBOX, eROUNDBOX };
+
+    WidgetId            d_widgetId{};
+    Rectangle           d_rectangle{};
+    Rectangle           d_labelBounds{};
+    StringView_t        d_label{};
+    CharSize            d_charSize          = 0;
+    BulletMark          d_labelMark         = BulletMark::eNONE;
+    bool                d_selected          = false;
+    bool                d_disableEffect     = false;
+    std::any            d_options{};
+    std::string         d_className{};
+
+    DrawData()                          = default;
+
+    DrawData(std::string&& className) noexcept
+        : d_className(std::move(className)) { }
+};
 
                             //===================
                             // class DrawProtocol
@@ -38,12 +64,33 @@ class  DrawProtocol {
   public:
     virtual ~DrawProtocol() { }
 
-    virtual bool  draw(const Widget::DrawData&      parameters)     noexcept=0;
+    virtual bool  draw(const DrawData&      drawData)               noexcept=0;
 
-    virtual bool  getTextMetrics(
-                       Dimensions                  *metrics,
-                       const Widget::DrawData&      parameters,
-                       double                       upperLimit = 0) noexcept=0;
+    virtual bool  getTextMetrics(Dimensions          *textBounds,
+                                 DrawData::CharSize  *charSize,
+                                 const DrawData&      drawData,
+                                 DrawData::CharSize   upperLimit)   noexcept=0;
+};
+
+                                //===========
+                                // class Draw
+                                //===========
+
+class  Draw : public DrawProtocol {
+    std::ostream&   d_os;
+  public:
+    Draw();
+
+    Draw(std::ostream& os) : d_os(os) { }
+
+    ~Draw() { }
+
+    bool  draw(const DrawData&      drawData)                noexcept override;
+
+    bool  getTextMetrics(Dimensions          *textBounds,
+                         DrawData::CharSize  *charSize,
+                         const DrawData&      drawData,
+                         DrawData::CharSize   upperLimit)    noexcept override;
 };
 
 } // end Wawt namespace

@@ -34,32 +34,32 @@ struct WidgetData;
 
 struct Text {
     enum class Align { eINVALID, eLEFT, eCENTER, eRIGHT };
-    using CharSizeGrp = std::optional<uint16_t>;
-    using CharSizeMap = std::map<uint16_t, uint16_t>;
+    using CharSizeGroup = std::optional<uint16_t>;
+    using CharSizeMap   = std::map<uint16_t, uint16_t>;
 
-    StringView_t        d_string;
+    StringView_t        d_stringView;
     Align               d_alignment;
     CharSizeGroup       d_charSizeGroup;
 
     Text(StringView_t string,
-         CharSizeGrp  group     = CharSizeGrp(),
-         Align        alignment = Align::eINVALID)
-        : d_string(Wawt::instance()->translate(std::move(string)))
+         CharSizeGroup  group     = CharSizeGroup(),
+         Align          alignment = Align::eINVALID)
+        : d_stringView(Wawt::instance()->translate(std::move(string)))
         , d_alignment(alignment)
         , d_charSizeGroup(group) { }
 
     Text(StringView_t string, Align alignment)
-        : d_string(Wawt::instance()->translate(std::move(string)))
+        : d_stringView(Wawt::instance()->translate(std::move(string)))
         , d_alignment(alignment)
         , d_charSizeGroup() { }
 };
 
 
-using TextMethod = std::function<Rectangle(CharSizeMap         *map,
+using TextMethod = std::function<Rectangle(Text::CharSizeMap   *map,
                                            DrawProtocol        *adapter,
                                            const WidgetData&    widgetData,
                                            Text::CharSizeGroup  charSizeGroup,
-                                           Text::Align          textAlign);
+                                           Text::Align          textAlign)>;
 
 } // end Wawt namespace
 
