@@ -74,7 +74,7 @@ constexpr std::size_t sizeOfChar(const Char_t ch) {
 //! Callback methods used in application's "event loops":
 //
 using FocusCb     = std::function<bool(Char_t)>;
-using EventUpCb   = std::function<FocusCb(int x, int y, bool)>;
+using EventUpCb   = std::function<FocusCb(float x, float y, bool)>;
 
 // Layout attributes:
 enum class Normalize {
@@ -102,8 +102,8 @@ enum class Vertex  {
                             //==================
 
 struct  Dimensions {
-    double          d_width             = 0;
-    double          d_height            = 0;
+    float           d_width             = 0;
+    float           d_height            = 0;
 };
 
                             //=================
@@ -111,11 +111,17 @@ struct  Dimensions {
                             //=================
 
 struct  Rectangle  {
-    double          d_ux                = 0;
-    double          d_uy                = 0;
-    double          d_width             = 0;
-    double          d_height            = 0;
-    double          d_borderThickness   = 0.0;
+    float           d_ux                = 0;
+    float           d_uy                = 0;
+    float           d_width             = 0;
+    float           d_height            = 0;
+    float           d_borderThickness   = 0.0;
+
+    bool inside(float x, float y) const {
+        auto dx = x - d_ux;
+        auto dy = y - d_uy;
+        return dx >= 0 && dy >= 0 && dx < d_width && dy < d_height;
+    }
 };
 
                             //===============
@@ -234,52 +240,77 @@ class  WawtException : public std::runtime_error {
                                 //===========
 
 class Wawt {
-    static std::atomic<Wawt*> d_instance;
-
-    std::map<std::string, std::any> d_defaultOptions{};
-    std::map<std::string, double>   d_defaultBorders{};
-    std::unordered_set<String_t> d_strings{};
-
   public:
+    // PUBLIC TYPES
+    using Defaults      = std::pair<float , std::any>;
+
+    template <typename Options>
+    using OptionTuple = std::tuple<std::string, float , Options>;
+
+    template <typename Options, std::size_t NumClasses>
+    using DefaultArray  = std::array<OptionTuple<Options>,NumClasses>;
+
+    // PUBLIC CLASS MEMBERS
     static Wawt *instance() {
         return d_instance.load();
     }
+    // PUBLIC CLASS DATA
+    static Char_t   kDownArrow;
+    static Char_t   kUpArrow;
+    static Char_t   kCursor;
+    static Char_t   kFocusChg;
 
-    template <int NumClasses>
-    Wawt(const std::array<std::pair<std::string,std::any>,NumClasses>& options,
-         const std::array<std::pair<std::string,double>,NumClasses>& borders) {
+    static constexpr char    sScreen[] = "screen";
+    static constexpr char    sDialog[] = "dialog";
+    static constexpr char    sPanel[]  = "panel";
+    static constexpr char    sLabel[]  = "label";
+    static constexpr char    sPush[]   = "pushButton";
+    static constexpr char    sCheck[]  = "checkBox";
+
+    // PUBLIC CONSTRUCTOR
+    template <typename Options, std::size_t NumClasses>
+    Wawt(const DefaultArray<Options, NumClasses>& classDefaults) {
         Wawt* expected   = nullptr;
         Wawt* desired    = this;
         d_instance.compare_exchange_strong(expected, desired);
 
-        for (auto& [className, value] : options) {
-            d_defaultOptions.emplace(className, value);
-        }
-
-        for (auto& [className, thickness] : borders) {
-            d_defaultBorders.emplace(className, thickness);
+        for (auto& [className, border, options] : classDefaults) {
+            d_classDefaults.try_emplace(className, border, options);
         }
     }
 
+    // PUBLIC DESTRUCTOR
     ~Wawt() {
         Wawt* desired    = nullptr;
         Wawt* expected   = this;
         d_instance.compare_exchange_strong(expected, desired);
     }
 
-    std::any  defaultOptions(const std::string& className) const noexcept{
-        auto it = d_defaultOptions.find(className);
-        return d_defaultOptions.end() != it ? it->second : std::any();
-    }
-
-    double defaultBorderThickness(const std::string& className) const noexcept{
-        auto it = d_defaultBorders.find(className);
-        return d_defaultBorders.end() != it ? it->second : 0.0;
-    }
-
+    // PUBLIC MANIPULATORS
     StringView_t      translate(const StringView_t& phrase) {
         return *d_strings.emplace(phrase).first; // TBD: translate
     }
+
+    // PUBLIC ACCESSORS
+    float       defaultBorderThickness(const std::string& className) const
+                                                                     noexcept {
+        auto it = d_classDefaults.find(className);
+        return d_classDefaults.end() != it ? it->second.first : 0.0;
+    }
+
+    std::any    defaultOptions(const std::string& className) const
+                                                                     noexcept {
+        auto it = d_classDefaults.find(className);
+        return d_classDefaults.end() != it ? it->second.second : std::any();
+    }
+
+  private:
+    // PRIVATE CLASS MEMBERS
+    static std::atomic<Wawt*> d_instance;
+
+    // PRIVATE DATA MEMBERS
+    std::map<std::string, Defaults> d_classDefaults{};
+    std::unordered_set<String_t>    d_strings{};
 };
 
 } // end Wawt namespace

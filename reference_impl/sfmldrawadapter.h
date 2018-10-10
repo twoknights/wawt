@@ -49,14 +49,13 @@ class SfmlDrawAdapter : public Wawt::DrawProtocol {
                     const std::string&  otherFontPath = "");
 
     // PUBLIC Wawt::DrawAdapter INTERFACE
+    bool  draw(const Wawt::DrawData&  drawData)              noexcept override;
 
-    bool  draw(const Wawt::DrawDirective&  widget,
-               const Wawt::String_t&       text)             noexcept override;
-
-    bool  getTextMetrics(Wawt::DrawDirective   *parameters,
-                         Wawt::Dimensions      *metrics,
-                         const Wawt::String_t&  text,
-                         double                 upperLimit=0)noexcept override;
+    bool  getTextMetrics(Wawt::Dimensions          *textBounds,
+                         Wawt::DrawData::CharSize  *charSize,
+                         const Wawt::DrawData&      drawData,
+                         Wawt::DrawData::CharSize   upperLimit)
+                                                             noexcept override;
 
     // PUBLIC ACCESSORS
     bool   isGood()                                          const noexcept {

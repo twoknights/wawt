@@ -22,6 +22,7 @@
 #include "wawt/wawt.h"
 
 #include <cstdint>
+#include <string>
 #include <utility>
 
 namespace BDS {
@@ -32,18 +33,6 @@ namespace BDS {
 
 struct DrawOptions {
     // PUBLIC TYPES
-
-    enum Widget {
-         eANY
-        ,eCANVAS
-        ,eTEXTENTRY
-        ,eLABEL
-        ,eBUTTON
-        ,eBUTTONBAR
-        ,eLIST
-        ,ePANEL
-        ,eSCREEN
-    };
 
     //! Color definition
     class  Color  {
@@ -62,13 +51,13 @@ struct DrawOptions {
                         uint8_t alpha = 255)
         : d_red(red), d_green(green), d_blue(blue), d_alpha(alpha) { }
     };
+    // PUBLIC CLASS MEMBERS
     static const Color kBLACK;
     static const Color kGREY;
     static const Color kWHITE;
     static const Color kCLEAR;
 
     // PUBLIC DATA MEMBERS
-    Widget          d_widget;
     Color           d_fillColor;
     Color           d_lineColor;
     Color           d_textColor;
@@ -77,16 +66,15 @@ struct DrawOptions {
     bool            d_boldEffect;
     uint8_t         d_fontIndex;
 
+    // PUBLIC CONSTRUCTORS
     constexpr DrawOptions(Color   fillColor    = kCLEAR,
                           Color   lineColor    = kCLEAR,
                           Color   textColor    = kBLACK,
                           Color   selectColor  = kWHITE,
-                          Widget  widget       = eANY,
                           bool    boldEffect   = false,
                           uint8_t greyedEffect = 128u,
                           uint8_t fontIndex    = 0u)
-    : d_widget(widget)
-    , d_fillColor(fillColor)
+    : d_fillColor(fillColor)
     , d_lineColor(lineColor)
     , d_textColor(textColor)
     , d_selectColor(selectColor)
@@ -100,6 +88,7 @@ struct DrawOptions {
         return DrawOptions(*this);
     }
 
+    // PUBLIC R-Value MANIPULATORS
     constexpr DrawOptions&& bold(bool enable = true) && {
         d_boldEffect = enable;
         return std::move(*this);
@@ -155,28 +144,18 @@ struct DrawOptions {
         return std::move(*this);
     }
 
-    constexpr DrawOptions&& widget(Widget type) && {
-        d_widget = type;
-        return std::move(*this);
-    }
-
-    static Wawt::WidgetOptionDefaults defaults() {
-        Wawt::WidgetOptionDefaults anys = {
-             DrawOptions(Color(160u, 160u, 255u, 255u), kBLACK)
-                          .widget(DrawOptions::eSCREEN)
-           , DrawOptions().widget(DrawOptions::eCANVAS)
-           , DrawOptions(Color(192u,192u,255u,255u), kBLACK)
-                          .widget(DrawOptions::eTEXTENTRY)
-           , DrawOptions().widget(DrawOptions::eLABEL)
-           , DrawOptions(Color(192u,192u,255u,255u), kBLACK)
-                          .widget(DrawOptions::eBUTTON)
-           , DrawOptions().widget(DrawOptions::eBUTTONBAR)
-           , DrawOptions(Color(192u,192u,255u,255u), kBLACK)
-                          .widget(DrawOptions::eLIST)
-           , DrawOptions().widget(DrawOptions::ePANEL)
+    static auto classDefaults() {
+        using Tuple = Wawt::Wawt::OptionTuple<DrawOptions>;
+        static std::array defaults = {
+            Tuple{ "screen",
+                   0.0, 
+                   DrawOptions(Color(160u, 160u, 255u, 255u), kBLACK) },
+            Tuple{ "button",
+                   2.0, 
+                   DrawOptions(Color(192u, 192u, 255u, 255u), kBLACK) } 
         };
-        return anys;
-    };
+        return defaults;
+    }
 };
 
 constexpr const DrawOptions::Color DrawOptions::kBLACK{0u,0u,0u,255u};

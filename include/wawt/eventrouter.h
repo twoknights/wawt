@@ -115,13 +115,13 @@ class EventRouter {
     std::function<void()>        d_timedCallback{};
     Time                         d_lastTick{};
     Time                         d_nextTimedEvent{};
-    Screen                  *d_current         = nullptr;
+    Screen                      *d_current         = nullptr;
     double                       d_currentWidth    = 1280.0;
     double                       d_currentHeight   =  720.0;
     bool                         d_downEventActive = false;
     bool                         d_drawRequested   = false;
     std::unique_ptr<DeferFn>     d_deferredFn{};
-    std::shared_ptr<Panel> d_alert{};
+    std::shared_ptr<Widget>      d_alert{};
     std::atomic_flag             d_spinLock;
     std::atomic_bool             d_shutdownFlag;
     Wawt                         d_wawt;
@@ -129,13 +129,7 @@ class EventRouter {
 
   public:
     // PUBLIC CONSTRUCTORS
-    EventRouter(DrawProtocol                *adapter,
-                    const Wawt::StringMapper&    textMapper,
-                    const WidgetOptionDefaults&  defaults);
-
-    EventRouter(DrawProtocol                *adapter,
-                    const WidgetOptionDefaults&  defaults)
-        : EventRouter(adapter, Wawt::StringMapper(), defaults) { }
+    EventRouter(DrawProtocol *adapter);
 
     // PUBLIC DESTRUCTORS
     ~EventRouter();
@@ -166,7 +160,7 @@ class EventRouter {
 
     void resize(double width, double height);
 
-    void showAlert(Panel      panel,
+    void showAlert(Widget&&         panel,
                    double           width           = 0.33,
                    double           height          = 0.33,
                    double           borderThickness = 2.0);

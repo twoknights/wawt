@@ -67,18 +67,20 @@ class Screen {
     // PRIVATE CLASS MEMBERS
 
     // PRIVATE DATA MEMBERS
-    bool                    d_modalActive = false;
+    bool                    d_modalActive   = false;
     SetTimerCb              d_setTimer{};
 
   protected:
     // PROTECTED TYPES
-    using Widgets       = Panel::Widgets;
+    using Widgets       = Widget::Children;
 
     // PROTECTED CONSTRUCTOR
     /**
      * @brief Initialize protected data members of the derived object.
+     *
+     * @param adapter Pointer to the object implementing the draw protocol.
      */
-    Screen() : d_wawt(), d_name(), d_screen() { }
+    Screen(DrawProtocol *adapter) : d_adapter(adapter), d_name(), d_screen() {}
 
     // PROTECTED MANIPULATOR
 
@@ -109,9 +111,9 @@ class Screen {
     }
 
     // PROTECTED DATA MEMBERS
-    Wawt                   *d_wawt;        ///< Holder of the WAWT adapters.
-    std::string             d_name;        ///< Identifier for the screen.
-    Panel                   d_screen;      ///< Root WAWT element.
+    DrawProtocol       *d_adapter = nullptr; ///< Draw protocol provider.
+    std::string         d_name;              ///< Identifier for the screen.
+    Widget              d_screen;            ///< Root WAWT element.
 
   public:
 
@@ -140,16 +142,10 @@ class Screen {
      * be in the range of 0.1 and 1.0; the returned widget ID is unset if
      * they are not. If a modal pop-up is already active, then this method
      * replaces that one.
-     * Note that the screen is overlayed with a transparent canvas which
+     * Note that the screen is overlayed with a transparent widget which
      * prevents any user interface element other than the pop-up 'panel'
-     * from receiving events.
+     * from receiving input events.
      */
-    WidgetId addModalDialogBox(const Widgets&  widgets,
-                               double          width           = 0.33,
-                               double          height          = 0.33,
-                               double          borderThickness = 2.0,
-                               std::any        options         = std::any());
-
     WidgetId addModalDialogBox(Widgets&&       widgets,
                                double          width           = 0.33,
                                double          height          = 0.33,
@@ -168,7 +164,7 @@ class Screen {
      */
     void draw() {
         try {
-            d_wawt->draw(d_screen);
+            d_screen.draw(d_adapter);
         }
         catch (WawtException caught) {
             throw WawtException("Painting: '" + d_name + "', "
@@ -189,7 +185,7 @@ class Screen {
      */
     void dropModalDialogBox() {
         if (d_modalActive) {
-            Wawt::removePopUp(&d_screen);
+            d_screen.popDialog();
             d_modalActive = false;
         }
     }
@@ -212,7 +208,9 @@ class Screen {
      * the selection test, then an "empty" callback is returned (and evaluates
      * to 'false' in a boolean context).
      */
-    EventUpCb downEvent(int x, int y) {
+    EventUpCb downEvent(int, int) {
+        return EventUpCb(); // TBF
+#if 0
         try {
             auto cb = d_screen.downEvent(x, y);
             if (!cb) {
@@ -229,20 +227,7 @@ class Screen {
             throw WawtException("Click on screen '" + d_name + "', "
                                                             + caught.what());
         }
-    }
-
-    /**
-     * @brief Refresh font assignments and text metrics.
-     *
-     * A change to a widget's (e.g. a label) associated text may require
-     * that the character size used when the text is rendered be updated.
-     * It may also require updating the dimensions of the text so that
-     * the associated alignment is correctly implemented.
-     * This method is usually called after handling mouse events
-     * as this often triggers text changes.
-     */
-    void refresh() {
-        d_wawt->refreshTextMetrics(&d_screen);
+#endif
     }
 
     /**
@@ -256,24 +241,26 @@ class Screen {
      * must be called before this method can be used.
      */
     void resize(double newWidth = 0, double newHeight = 0) {
-        d_wawt->resizeRootPanel(&d_screen,
-                                newWidth  ? newWidth  : width(),
-                                newHeight ? newHeight : height());
+        d_screen.resizeRoot(d_adapter, 
+                            newWidth  ? newWidth  : width(),
+                            newHeight ? newHeight : height());
     }
                 
     /**
      * @brief Complete initialization of this object.
      *
-     * @param wawt Pointer to the shared toolkit instance.
      * @param name Name to add to intercepted exceptions before rethrowing.
      * @param setTimer Callback to establish/cancel a timed event.
+     * @param adapter Pointer to the object implementing the draw protocol.
      *
      * This method should be called immediately after the screen is created.
      */
-    void wawtScreenSetup(Wawt              *wawt,
-                         std::string_view   name,
-                         const SetTimerCb&  setTimer) {
-        d_wawt      = wawt;
+    void wawtScreenSetup(std::string_view   name,
+                         const SetTimerCb&  setTimer,
+                         DrawProtocol      *adapter = nullptr) {
+        if (adapter) {
+            d_adapter = adapter;
+        }
         d_setTimer  = setTimer;
         d_name.assign(name.data(), name.length());
     }
@@ -282,7 +269,7 @@ class Screen {
 
     //! Access the screen's height (requires 'activate' to have been performed).
     int height() const {
-        return d_screen.adapterView().height();
+        return d_screen.drawData().d_rectangle.d_height;
     }
 
     //! Access the screen's "name" (requires 'setup' to have been performed).
@@ -297,7 +284,7 @@ class Screen {
 
     //! Access the screen's width (requires 'activate' to have been performed).
     double width() const {
-        return d_screen.adapterView().width();
+        return d_screen.drawData().d_rectangle.d_width;
     }
 };
 
@@ -362,28 +349,6 @@ class ScreenImpl : public Screen {
     // PUBLIC TYPES
 
     // PUBLIC CLASS MEMBERS
-    /**
-     * @brief Construct a list and the two buttons used in scrolling.
-     *
-     * @param list The list definition.
-     * @param buttonsOnLeft 'true' if the scroll buttons are left of the list.
-     * @param lines The number of "lines" to be scrolled per button press.
-     * @returns A 'Panel" which contains the list and buttons.
-     *
-     * The returned panel will use the layout values from 'list' whose values
-     * are redefined.  It will contain the otherwise unchanged list, and the
-     * two scroll buttons whose position is controlled by the 'buttonsOnLeft'
-     * flag.  Note that before use, the 'Wawt::setScrollableListStartingRow'
-     * method must be called (possibly in the 'resetWidgets' method) with a
-     * pointer to the returned panel (and typically '0' for the staring row).
-     * This will initialize the scroll button's "hidden" attribute
-     * (which is automatically maintained subsequently).
-     */
-    static Panel ScrollableList(List      list,
-                                bool      buttonsOnLeft = true,
-                                unsigned  lines         = 1) {
-        return Wawt::scrollableList(list, buttonsOnLeft, lines);
-    }
 
     // PUBLIC MANIPULATORS
     /**
@@ -412,80 +377,41 @@ class ScreenImpl : public Screen {
     // PROTECTED CONSTRUCTORS
 
     //! Initialize the base class with a close function object.
-    ScreenImpl();
+    ScreenImpl(DrawProtocol *adapter = nullptr);
 
     // PROTECTED MANIPULATORS
     /**
      * @brief Return a reference to a widget based on it's ID.
      *
      * @param id The widget's ID.
-     * @return A reference to the selected 'WidgetType' object.
+     * @return A reference to the corresponding 'Widget' (if any).
      *
-     * @throws WawtException Rethrows intercepted WawtExeption with the
-     * screen name attached to the exception message.  This occurs when
-     * no widget is selected by the ID, or the widget is not of type:
-     * 'WidgetType'.
+     * @throws WawtException Throws WawtExeption if ID is not located.
      *
      * The widget ID which is assigned during 'setup' should not contain a
      * "relative" value unless the desired widget is contained directly
      * by the root panel.
      */
-    template<typename WidgetType>
-    WidgetType& lookup(WidgetId id);
+    Widget& lookup(WidgetId id);
 
     // PROTECTED ACCESSORS
 
-    //! Get the draw options for the root screen panel.
-    Option defaultScreenOptions()    const {
-        return optionCast(d_wawt->defaultScreenOptions());
-    }
-
-    //! Get the draw options for the 'Canvas' widget.
-    Option defaultCanvasOptions()    const {
-        return optionCast(d_wawt->defaultCanvasOptions());
-    }
-
-    //! Get the draw options for the 'TextEntry' widget.
-    Option defaultTextEntryOptions() const {
-        return optionCast(d_wawt->defaultTextEntryOptions());
-    }
-
-    //! Get the draw options for the 'Label' widget.
-    Option defaultLabelOptions()     const {
-        return optionCast(d_wawt->defaultLabelOptions());
-    }
-
-    //! Get the draw options for the 'Button' widget not owned by a 'List'.
-    Option defaultButtonOptions()    const {
-        return optionCast(d_wawt->defaultButtonOptions());
-    }
-
-    //! Get the draw options for the 'ButtonBar' widget.
-    Option defaultButtonBarOptions() const {
-        return optionCast(d_wawt->defaultButtonBarOptions());
-    }
-
-    //! Get the draw options for the 'List' widget of list type 'type'.
-    Option defaultListOptions(ListType type)      const {
-        return optionCast(d_wawt->defaultListOptions(type));
-    }
-
-    //! Get the draw options for the 'Panel' widget.
-    Option defaultPanelOptions()     const {
-        return optionCast(d_wawt->defaultPanelOptions());
+    //! Get the draw options for the named widget class.
+    Option defaultOptions(const std::string& name)   const noexcept {
+        return optionCast(Wawt::instance()->defaultOptions(name));
     }
 
     // PROTECTED DATA MEMBERS
 };
 
 inline WidgetId
-Screen::addModalDialogBox(const Widgets&  widgets,
+Screen::addModalDialogBox(Widgets&&       widgets,
                           double          width,
                           double          height,
                           double          borderThickness,
                           std::any        options)
 {
-    WidgetId ret;
+    auto ret = WidgetId{};
 
     if (width <= 1.0 && height <= 1.0 && width >  0.1 && height >  0.1) {
         if (d_modalActive) {
@@ -494,49 +420,22 @@ Screen::addModalDialogBox(const Widgets&  widgets,
         d_modalActive = true;
 
         if (!options.has_value()) {
-            options = d_wawt->getWidgetOptionDefaults().d_screenOptions;
+            options = Wawt::instance()->defaultOptions(Wawt::Screen);
         }
-        ret = d_wawt->popUpModalDialogBox(
-                &d_screen,
-                Panel(Layout::centered(width, height)
-                                                      .border(borderThickness),
-                      std::move(options),
-                      widgets));
-    }
-    return ret;                                                       // RETURN
-}
-
-inline WidgetId
-Screen::addModalDialogBox(Widgets&&  widgets,
-                          double     width,
-                          double     height,
-                          double     borderThickness,
-                          std::any   options)
-{
-    WidgetId ret;
-
-    if (width <= 1.0 && height <= 1.0 && width >  0.1 && height >  0.1) {
-        if (d_modalActive) {
-            dropModalDialogBox();
-        }
-        d_modalActive = true;
-
-        if (!options.has_value()) {
-            options = d_wawt->getWidgetOptionDefaults().d_screenOptions;
-        }
-        ret = d_wawt->popUpModalDialogBox(
-                &d_screen,
-                Panel(Layout::centered(width, height)
-                                                      .border(borderThickness),
-                      std::move(options),
-                      std::move(widgets)));
+        ret = d_screen.pushDialog(
+                d_adapter,
+                Widget(Wawt::sDialog,
+                       Layout::centered(width, height).border(borderThickness))
+                .options(std::move(options))
+                .push(std::move(widgets)));
     }
     return ret;                                                       // RETURN
 }
 
 template<class Derived,class Option>
 inline
-ScreenImpl<Derived,Option>::ScreenImpl() : Screen()
+ScreenImpl<Derived,Option>::ScreenImpl(DrawProtocol *adapter)
+: Screen(adapter)
 {
 }
 
@@ -548,7 +447,7 @@ ScreenImpl<Derived,Option>::activate(double         width,
                                      Types&...      args)
 {
     try {
-        d_wawt->resizeRootPanel(&d_screen, width, height);
+        resize(width, height);
         static_cast<Derived*>(this)->resetWidgets(args...);
     }
     catch (WawtException caught) {
@@ -562,14 +461,19 @@ ScreenImpl<Derived,Option>::activate(double         width,
 }
 
 template<class Derived,class Option>
-template<typename WidgetType>
-inline WidgetType&
+inline Widget&
 ScreenImpl<Derived,Option>::lookup(WidgetId id)
 {
-    return d_screen.lookup<WidgetType>(id,
-                                       d_name
-                                       + ": "
-                                       + typeid(WidgetType).name());  // RETURN
+    auto widget_p = d_screen.lookup(id);
+
+    if (widget_p == nullptr) {
+        std::ostringstream os;
+        os << "Screen '" << d_name << "' lookup of widget ID " << id.value()
+           << " failed.\n";
+        serializeScreen(os);
+        throw WawtException(os.str());                                 // THROW
+    }
+    return *widget_p;                                                 // RETURN
 }
 
 template<class Derived,class Option>
@@ -580,7 +484,7 @@ ScreenImpl<Derived,Option>::setup(Types&...  args)
 
     try {
         d_screen=reinterpret_cast<Derived*>(this)->createScreenPanel(args...);
-        d_wawt->resolveWidgetIds(&d_screen);
+        d_screen.assignWidgetIds(WidgetId(1,false));
     }
     catch (WawtException caught) {
         std::ostringstream os;

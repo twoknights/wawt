@@ -19,7 +19,7 @@
 #ifndef WAWT_DRAW_H
 #define WAWT_DRAW_H
 
-#include "wawt/widget.h"
+#include "wawt/wawt.h"
 
 #include <any>
 #include <functional>
@@ -37,7 +37,7 @@ namespace Wawt {
 
 struct DrawData {
     using CharSize          = uint16_t;
-    enum class BulletMark { eNONE, eSQUAREBOX, eROUNDBOX };
+    enum class BulletMark { eNONE, eSQUARE, eROUND };
 
     WidgetId            d_widgetId{};
     Rectangle           d_rectangle{};
@@ -45,6 +45,7 @@ struct DrawData {
     StringView_t        d_label{};
     CharSize            d_charSize          = 0;
     BulletMark          d_labelMark         = BulletMark::eNONE;
+    bool                d_leftMark          = true;
     bool                d_selected          = false;
     bool                d_disableEffect     = false;
     std::any            d_options{};

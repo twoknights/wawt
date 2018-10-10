@@ -48,8 +48,8 @@ inline void encodeKey(wchar_t& key, sf::Uint32 unicode) {
     }
 }
 
-inline void encodeKey(char *key, sf::Uint32 unicode) {
-    sf::Utf8::encode(unicode, key);
+inline void encodeKey(char32_t& key, sf::Uint32 unicode) {
+    key = unicode;
 }
 
 } // unnamed namespace

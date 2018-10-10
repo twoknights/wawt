@@ -41,9 +41,9 @@ struct Text {
     Align               d_alignment;
     CharSizeGroup       d_charSizeGroup;
 
-    Text(StringView_t string,
+    Text(StringView_t   string,
          CharSizeGroup  group     = CharSizeGroup(),
-         Align          alignment = Align::eINVALID)
+         Align          alignment = Align::eCENTER)
         : d_stringView(Wawt::instance()->translate(std::move(string)))
         , d_alignment(alignment)
         , d_charSizeGroup(group) { }
@@ -52,6 +52,11 @@ struct Text {
         : d_stringView(Wawt::instance()->translate(std::move(string)))
         , d_alignment(alignment)
         , d_charSizeGroup() { }
+
+    Text setView(StringView_t string) && {
+        d_stringView = string;
+        return std::move(*this);
+    }
 };
 
 

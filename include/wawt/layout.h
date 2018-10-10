@@ -48,13 +48,17 @@ struct Layout {
                                        const Widget&      root) const;
 
         WidgetId getWidgetId()                                  const noexcept;
+
+        bool        isRelative()                                const noexcept{
+            return d_widgetId.isSet() && d_widgetId.isRelative();
+        }
     };
 
     class Position {
       public:
         double                  d_sX            = -1.0;
         double                  d_sY            = -1.0;
-        WidgetRef               d_widgetRef     = WidgetId(0, true);
+        WidgetRef               d_widgetRef     = WidgetId::kPARENT;
         Normalize               d_normalizeX    = Normalize::eDEFAULT;
         Normalize               d_normalizeY    = Normalize::eDEFAULT;
 

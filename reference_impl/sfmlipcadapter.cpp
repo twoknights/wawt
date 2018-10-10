@@ -38,7 +38,7 @@ using namespace Wawt;
 #undef  S
 #undef  C
 #define S(str) Wawt::String_t(u8"" str)      // UTF8 strings  (std::string)
-#define C(c) (u8 ## c)
+#define C(c) (U ## c)
 #endif
 
 namespace BDS {
