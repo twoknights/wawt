@@ -90,6 +90,7 @@ int main()
 
     SfmlDrawAdapter   drawAdapter(window, path, arial);
 #endif
+    std::cout << sizeof(Wawt::Widget{}) << std::endl;
     Wawt::Draw draw;
     GameScreen screen(nullptr);
     screen.setup();

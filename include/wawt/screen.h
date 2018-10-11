@@ -489,7 +489,7 @@ ScreenImpl<Derived,Option>::setup(Types&...  args)
 
     try {
         d_screen=reinterpret_cast<Derived*>(this)->createScreenPanel(args...);
-        d_screen.assignWidgetIds(WidgetId(1,false));
+        d_screen.assignWidgetIds();
     }
     catch (WawtException caught) {
         std::ostringstream os;

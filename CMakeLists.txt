@@ -27,9 +27,10 @@ if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     set(LIBSUFFIX "-d")
 endif()
 
-#enable_testing()
+enable_testing()
 
 add_subdirectory(doc)
 add_subdirectory(reference_impl)
 add_subdirectory(examples/tictacdoh)
 add_subdirectory(src/wawt)
+add_subdirectory(tests)

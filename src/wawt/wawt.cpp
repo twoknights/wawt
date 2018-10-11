@@ -19,6 +19,7 @@
 #include "wawt/widget.h"
 
 #include <cassert>
+#include <cstring>
 #include <cmath>
 #include <iomanip>
 #include <iostream>
@@ -41,6 +42,8 @@
 namespace Wawt {
 
 namespace {
+
+const Widget::Children s_emptyList;
 
 struct Indent {
     unsigned int d_indent;
@@ -127,7 +130,7 @@ std::string makeString(char32_t ch) {
                   result.push_back(char(0200|((c >>  6)&077)));
                   result.push_back(char(0200|( c       &077)));
                   break;
-          case 2: result.push_back(char(0340|((c >>  6)&037)));
+          case 2: result.push_back(char(0300|((c >>  6)&037)));
                   result.push_back(char(0200|( c       &077)));
                   break;
           default:result.push_back(char(       c    &  0177));
@@ -270,7 +273,7 @@ float borderSize(const Rectangle& root, float thickness) {
 
 bool findWidget(const Widget              **widget,
                 const Widget&               parent,
-                WidgetId                    id) {
+                uint16_t                    id) {
     for (auto& next : parent.children()) {
         if (next.widgetId() == id) {
             *widget = &next;
@@ -282,7 +285,7 @@ bool findWidget(const Widget              **widget,
                 return true;                                          // RETURN
             }
 
-            if (!next.widgetId().isSet() || id < next.widgetId()) {
+            if (!next.widgetId() || id < next.widgetId()) {
                 return false;                                         // RETURN
             }
         }
@@ -451,11 +454,11 @@ Layout::WidgetRef::getWidgetPointer(const Widget&     parent,
                 }
             }
         }
-        else if (root.widgetId() == d_widgetId) {
+        else if (root.widgetId() == d_widgetId.value()) {
             widget = &root;
         }
         else {
-            findWidget(&widget, root, d_widgetId);
+            findWidget(&widget, root, d_widgetId.value());
         }
     }
 
@@ -471,8 +474,8 @@ Layout::WidgetRef::getWidgetId() const noexcept
     WidgetId ret = d_widgetId;
 
     if (!ret.isSet()) { // if widget ID is not available
-        if (d_widget != nullptr) { // but a forwarding pointer is
-            ret = (*d_widget)->widgetId(); // fetch the value and keep it
+        if (d_widget && *d_widget) { // but a forwarding pointer is
+            ret = WidgetId((*d_widget)->widgetId(), false); 
         }
     }
     return ret;                                                       // RETURN
@@ -488,16 +491,21 @@ Widget::layout(DrawProtocol       *adapter,
                bool                firstPass,
                const Widget&       parent)
 {
-    d_layoutMethod(&d_drawData,
-                    firstPass,
-                    *d_root,
-                    parent,
-                    d_layoutData,
-                    adapter);
+    call(&defaultLayout,
+         &Methods::d_layoutMethod,
+         &d_drawData,
+         firstPass,
+         *d_root,
+         parent,
+         d_layoutData,
+         adapter);
+
     d_layoutData.d_refreshBounds = false;
 
-    for (auto& child : d_children) {
-        child.layout(adapter, firstPass, *this);
+    if (hasChildren()) {
+        for (auto& child : children()) {
+            child.layout(adapter, firstPass, *this);
+        }
     }
 }
 
@@ -656,7 +664,7 @@ Widget::defaultSerialize(std::ostream&      os,
        << "<draw options='" << int(drawData.d_options.has_value())
        << "' selected='"    << drawData.d_selected
        << "' disable='"     << drawData.d_disableEffect
-//       << "' hidden='"      << int(drawData.d_hidden)
+       << "' hidden='"      << int(drawData.d_hidden)
        << "'>\n";
     spaces += 2;
     os << spaces
@@ -676,26 +684,116 @@ Widget::defaultSerialize(std::ostream&      os,
     return;                                                           // RETURN
 }
 
+// PUBLIC R-Value MANIPULATORS
+Widget
+Widget::addAddMethod(AddMethod&& method) && noexcept
+{
+    if (!d_methods) {
+        d_methods = std::make_unique<Methods>();
+    }
+    d_methods->d_addMethod = std::move(method);
+    return std::move(*this);                                          // RETURN
+}
+
+Widget
+Widget::addChild(Widget&& child) &&
+{
+    children().push_back(std::move(child));
+
+    if (d_methods && d_methods->d_addMethod) {
+        d_methods->d_addMethod(this, &children().back());
+    }
+    return std::move(*this);                                          // RETURN
+}
+
+Widget
+Widget::addChildren(Children&& widgets) &&
+{
+    for (auto& child : widgets) {
+        children().push_back(std::move(child));
+
+        if (d_methods && d_methods->d_addMethod) {
+            d_methods->d_addMethod(this, &children().back());
+        }
+    }
+    return std::move(*this);                                          // RETURN
+}
+
+Widget
+Widget::addDownEventMethod(DownEventMethod&& method,
+                           bool              textHit) &&              noexcept
+{
+    d_downMethod = std::move(method);
+    d_textHit    = textHit;
+    return std::move(*this);                                          // RETURN
+}
+
+Widget
+Widget::addDrawMethod(DrawMethod&& method) &&                         noexcept
+{
+    if (!d_methods) {
+        d_methods = std::make_unique<Methods>();
+    }
+    d_methods->d_drawMethod = std::move(method);
+    return std::move(*this);                                          // RETURN
+}
+
+Widget
+Widget::addLayoutMethod(LayoutMethod&& method) &&                     noexcept
+{
+    if (!d_methods) {
+        d_methods = std::make_unique<Methods>();
+    }
+    d_methods->d_layoutMethod = std::move(method);
+    return std::move(*this);                                          // RETURN
+}
+
+Widget
+Widget::addSerializeMethod(SerializeMethod&& method) &&               noexcept
+{
+    if (!d_methods) {
+        d_methods = std::make_unique<Methods>();
+    }
+    d_methods->d_serializeMethod = std::move(method);
+    return std::move(*this);                                          // RETURN
+}
+
+Widget
+Widget::text(const Text&             textInfo,
+             DrawData::BulletMark    mark,
+             bool                    leftMark) &&                     noexcept
+{
+    d_drawData.d_labelMark          = mark;
+    d_drawData.d_leftMark           = leftMark;
+    d_layoutData.d_charSizeGroup    = textInfo.d_charSizeGroup;
+    d_layoutData.d_textAlign        = textInfo.d_alignment;
+    d_drawData.d_label              = textInfo.d_stringView;
+    return std::move(*this);                                          // RETURN
+}
+
 // PUBLIC MEMBERS
 Widget::Widget(Widget&& copy) noexcept
 {
     d_widgetLabel   = copy.d_widgetLabel;
     d_root          = copy.d_root;
     d_textHit       = copy.d_textHit;
-    d_hidden        = copy.d_hidden;
-    d_disabled      = copy.d_disabled;
-    d_relativeId    = copy.d_relativeId;
+    d_methods       = std::move(copy.d_methods);
     d_downMethod    = std::move(copy.d_downMethod);
-    d_drawMethod    = std::move(copy.d_drawMethod);
-    d_layoutMethod  = std::move(copy.d_layoutMethod);
-    d_addMethod     = std::move(copy.d_addMethod);
-    d_serialize     = std::move(copy.d_serialize);
     d_drawData      = std::move(copy.d_drawData);
     d_layoutData    = std::move(copy.d_layoutData);
     d_children      = std::move(copy.d_children);
 
     if (d_widgetLabel) {
-        *d_widgetLabel = this;
+        *d_widgetLabel     = this;
+        copy.d_widgetLabel = nullptr;
+    }
+    return;                                                           // RETURN
+}
+
+Widget::~Widget() noexcept
+{
+    if (d_widgetLabel) {
+        *d_widgetLabel = nullptr;
     }
     return;                                                           // RETURN
 }
@@ -707,33 +805,51 @@ Widget::operator=(Widget&& rhs) noexcept
         d_widgetLabel   = rhs.d_widgetLabel;
         d_root          = rhs.d_root;
         d_textHit       = rhs.d_textHit;
-        d_hidden        = rhs.d_hidden;
-        d_disabled      = rhs.d_disabled;
-        d_relativeId    = rhs.d_relativeId;
+        d_methods       = std::move(rhs.d_methods);
         d_downMethod    = std::move(rhs.d_downMethod);
-        d_drawMethod    = std::move(rhs.d_drawMethod);
-        d_layoutMethod  = std::move(rhs.d_layoutMethod);
-        d_addMethod     = std::move(rhs.d_addMethod);
-        d_serialize     = std::move(rhs.d_serialize);
         d_drawData      = std::move(rhs.d_drawData);
         d_layoutData    = std::move(rhs.d_layoutData);
         d_children      = std::move(rhs.d_children);
 
         if (d_widgetLabel) {
-            *d_widgetLabel = this;
+            *d_widgetLabel    = this;
+            rhs.d_widgetLabel = nullptr;
         }
     }
     return *this;                                                     // RETURN
 }
 
+Widget*
+Widget::addChild(Widget&& child) &
+{
+    children().push_back(std::move(child));
+    if (d_methods && d_methods->d_addMethod) {
+        d_methods->d_addMethod(this, &children().back());
+    }
+    return &children().back();                                        // RETURN
+}
 
-WidgetId
-Widget::assignWidgetIds(WidgetId        next,
+void
+Widget::addChildren(Children&& widgets) &
+{
+    for (auto& child : widgets) {
+        children().push_back(std::move(child));
+
+        if (d_methods && d_methods->d_addMethod) {
+            d_methods->d_addMethod(this, &children().back());
+        }
+    }
+    return;                                                           // RETURN
+}
+
+uint16_t
+Widget::assignWidgetIds(uint16_t        next,
                         uint16_t        relativeId,
                         CharSizeMapPtr  map,
                         Widget         *root) noexcept
 {
     if (root == nullptr) {
+        next = 1;
         root = this;
         map = std::make_shared<Text::CharSizeMap>();
     }
@@ -748,11 +864,13 @@ Widget::assignWidgetIds(WidgetId        next,
         d_drawData.d_options =
             WawtEnv::instance()->defaultOptions(d_drawData.d_className);
     }
-    d_relativeId = relativeId;
+    d_drawData.d_relativeId = relativeId;
     relativeId  = 0;
 
-    for (auto& widget : d_children) {
-        next = widget.assignWidgetIds(next, relativeId++, map, root);
+    if (hasChildren()) {
+        for (auto& widget : children()) {
+            next = widget.assignWidgetIds(next, relativeId++, map, root);
+        }
     }
     d_layoutData.d_charSizeMap  = map;
     d_drawData.d_widgetId       = next++;
@@ -764,6 +882,26 @@ Widget::assignWidgetIds(WidgetId        next,
     return next;                                                      // RETURN
 }
 
+Widget::Children&
+Widget::children() noexcept
+{
+    if (!d_children) {
+        try {
+            d_children = std::make_unique<Children>();
+        }
+        catch(...) {
+            std::terminate();
+        }
+    }
+    return *d_children;                                               // RETURN
+}
+
+const Widget::Children&
+Widget::children() const noexcept
+{
+    return d_children ? *d_children : s_emptyList;                    // RETURN
+}
+
 Widget
 Widget::clone() const
 {
@@ -772,19 +910,18 @@ Widget::clone() const
     copy.d_widgetLabel   = nullptr;
     copy.d_root          = d_root;
     copy.d_textHit       = d_textHit;
-    copy.d_hidden        = d_hidden;
-    copy.d_disabled      = d_disabled;
-    copy.d_relativeId    = d_relativeId;
     copy.d_downMethod    = d_downMethod;
-    copy.d_drawMethod    = d_drawMethod;
-    copy.d_layoutMethod  = d_layoutMethod;
-    copy.d_addMethod     = d_addMethod;
-    copy.d_serialize     = d_serialize;
+
+    if (d_methods) {
+        copy.d_methods = std::make_unique<Methods>(*d_methods);
+    }
     copy.d_drawData      = d_drawData;
     copy.d_layoutData    = d_layoutData;
 
-    for (auto& child : d_children) {
-        copy.d_children.push_back(child.clone());
+    if (hasChildren()) {
+        for (auto& child : children()) {
+            copy.children().push_back(child.clone());
+        }
     }
     return copy;                                                      // RETURN
 }
@@ -807,16 +944,21 @@ Widget::downEvent(float x, float y)
 {
     auto upCb = EventUpCb();
 
-    if (!d_disabled && inside(x, y)) {
-        upCb = d_downMethod(x, y, this);
+    if (!isDisabled() && inside(x, y)) {
+        if (d_downMethod) {
+            upCb = d_downMethod(x, y, this);
+        }
+        else {
+            upCb = defaultDownEventHandler(x, y, this);
+        }
     }
-    return upCb;
+    return upCb;                                                      // RETURN
 }
 
 void
 Widget::draw(DrawProtocol *adapter) noexcept
 {
-    if (!d_hidden) {
+    if (!isHidden()) {
         if (d_layoutData.d_refreshBounds) {
             defaultLayout(&d_drawData,
                           false,
@@ -826,12 +968,16 @@ Widget::draw(DrawProtocol *adapter) noexcept
                           adapter);
             d_layoutData.d_refreshBounds = false;
         }
-        d_drawMethod(adapter, this);
 
-        for (auto& child : d_children) {
-            child.draw(adapter);
+        call(&defaultDraw, &Methods::d_drawMethod, adapter, this);
+
+        if (hasChildren()) {
+            for (auto& child : children()) {
+                child.draw(adapter);
+            }
         }
     }
+    return;                                                           // RETURN
 }
 
 const Widget*
@@ -845,11 +991,11 @@ Widget::lookup(WidgetId id) const noexcept
                 widget = &children().at(id.value());
             }
         }
-        else if (id == widgetId()) {
+        else if (id.value() == widgetId()) {
             widget = this;
         }
         else {
-            findWidget(&widget, *this, id);
+            findWidget(&widget, *this, id.value());
         }
     }
     return widget;                                                    // RETURN
@@ -859,11 +1005,13 @@ void
 Widget::popDialog()
 {
     if (this == d_root) {
-        if (0 == d_children.back().drawData().d_className
-                           .compare(WawtEnv::sDialog)) {
-            d_children.pop_back();
-            d_drawData.d_widgetId = d_children.back().widgetId();
-            d_drawData.d_widgetId++;
+        if (hasChildren()) {
+            if (0 == std::strcmp(children().back().drawData().d_className,
+                                 WawtEnv::sDialog)) {
+                children().pop_back();
+                d_drawData.d_widgetId = children().back().widgetId();
+                d_drawData.d_widgetId++;
+            }
         }
     }
     else {
@@ -877,26 +1025,30 @@ Widget::pushDialog(DrawProtocol *adapter, Widget&& child)
 {
     auto childId = WidgetId{};
 
-    if (this == d_root) {
-        if (0!= d_children.back().drawData().d_className
-                                            .compare(WawtEnv::sDialog)
-         && 0== child.drawData().d_className.compare(WawtEnv::sDialog)) {
-            childId = widgetId();
-            auto relativeId = d_children.back().relativeId() + 1;
-            // Dialog's get their own char size map providing a
-            // seperate "name space" for char size group IDs.
-            d_layoutData.d_charSizeMap = std::make_shared<Text::CharSizeMap>();
-            widgetId() = d_children.back()
-                                   .assignWidgetIds(childId,
-                                                    relativeId,
-                                                    d_layoutData.d_charSizeMap,
-                                                    d_root);
-            d_children.back().layout(adapter, true,  *d_root);
-            d_children.back().layout(adapter, false, *d_root);
+    if (0 == std::strcmp(child.drawData().d_className, WawtEnv::sDialog)) {
+        if (this == d_root) {
+            if (hasChildren()
+             && (0 != std::strcmp(children().back().drawData().d_className,
+                                  WawtEnv::sDialog))) {
+                auto id         = widgetId();
+                auto relativeId = children().back().relativeId() + 1;
+                // Dialog's get their own char size map providing a
+                // seperate "name space" for char size group IDs.
+                d_layoutData.d_charSizeMap
+                    = std::make_shared<Text::CharSizeMap>();
+                id = children().back().assignWidgetIds(id,
+                                                       relativeId,
+                                                       d_layoutData
+                                                            .d_charSizeMap,
+                                                       d_root);
+                children().back().layout(adapter, true,  *d_root);
+                children().back().layout(adapter, false, *d_root);
+                childId = WidgetId(id, false);
+            }
         }
-    }
-    else {
-        childId = d_root->pushDialog(adapter, std::move(child));
+        else {
+            childId = d_root->pushDialog(adapter, std::move(child));
+        }
     }
     return childId;                                                   // RETURN
 }
@@ -919,11 +1071,85 @@ Widget::resizeRoot(DrawProtocol *adapter, float width, float height)
         d_root->d_drawData.d_rectangle.d_width  = width;
         d_root->d_drawData.d_rectangle.d_height = height;
 
-        for (auto& child : d_children) {
-            child.layout(adapter, true, *this);
-            child.layout(adapter, false, *this);
+        if (hasChildren()) {
+            for (auto& child : children()) {
+                child.layout(adapter, true, *this);
+                child.layout(adapter, false, *this);
+            }
         }
     }
+    return;                                                           // RETURN
+}
+
+void
+Widget::serialize(std::ostream&     os,
+                  unsigned int      indent)    const noexcept
+{
+    auto closeTag = std::string{};
+
+    call(&defaultSerialize,
+         &Methods::d_serializeMethod,
+         os,
+         &closeTag,
+         d_drawData,
+         d_layoutData,
+         indent);
+
+    indent += 2;
+
+    for (auto& child : children()) {
+        child.serialize(os, indent);
+    }
+    os << closeTag;
+    return;                                                           // RETURN
+}
+
+void
+Widget::setAddMethod(AddMethod&& method) noexcept
+{
+    if (!d_methods) {
+        d_methods = std::make_unique<Methods>();
+    }
+    d_methods->d_addMethod = std::move(method);
+    return;                                                           // RETURN
+}
+
+void
+Widget::setDownEventMethod(DownEventMethod&& method,
+                           bool              textHit) noexcept
+{
+    d_downMethod = std::move(method);
+    d_textHit    = textHit;
+    return;                                                           // RETURN
+}
+
+void
+Widget::setDrawMethod(DrawMethod&& method) noexcept
+{
+    if (!d_methods) {
+        d_methods = std::make_unique<Methods>();
+    }
+    d_methods->d_drawMethod = std::move(method);
+    return;                                                           // RETURN
+}
+
+void
+Widget::setLayoutMethod(LayoutMethod&& method) noexcept
+{
+    if (!d_methods) {
+        d_methods = std::make_unique<Methods>();
+    }
+    d_methods->d_layoutMethod = std::move(method);
+    return;                                                           // RETURN
+}
+
+void
+Widget::setSerializeMethod(SerializeMethod&& method) noexcept
+{
+    if (!d_methods) {
+        d_methods = std::make_unique<Methods>();
+    }
+    d_methods->d_serializeMethod = std::move(method);
     return;                                                           // RETURN
 }
 
@@ -951,7 +1177,7 @@ Draw::draw(const DrawData& drawData)  noexcept
          << "<draw options='" << int(drawData.d_options.has_value())
          << "' selected='"    << drawData.d_selected
          << "' disable='"     << drawData.d_disableEffect
-//         << "' hidden='"      << int(drawData.d_hidden)
+         << "' hidden='"      << int(drawData.d_hidden)
          << "'>\n";
     spaces += 2;
     d_os << spaces

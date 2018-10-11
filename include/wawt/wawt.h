@@ -67,8 +67,8 @@ constexpr std::size_t sizeOfChar(const Char_t ch) {
     }
     else {
         auto c = static_cast<uint32_t>(ch);
-        return (c & 07770000) ? ((c & 07000000) ? 4 : 3)
-                              : ((c &    07700) ? 2 : 1);
+        return (c & 0x1FF800) ? ((c & 0x1F0000) ? 4 : 3)
+                              : ((c & 03600)    ? 2 : 1);
     }
 }
 
@@ -175,15 +175,13 @@ class WidgetId {
     }
 
     constexpr bool operator==(const WidgetId& rhs)  const noexcept {
-        return isSet() && rhs.isSet()
-            && isRelative() == rhs.isRelative()
-            && d_id         == rhs.d_id;
+        return (isSet() && rhs.isSet() && isRelative() == rhs.isRelative()
+                                       && d_id         == rhs.d_id)
+            || (!isSet() && !rhs.isSet());
     }
 
     constexpr bool operator!=(const WidgetId& rhs)  const noexcept {
-        return isSet()      != rhs.isSet()
-            || isRelative() != rhs.isRelative()
-            || d_id         != rhs.d_id;
+        return !(*this == rhs);
     }
 
     constexpr bool operator<(const WidgetId& rhs)   const noexcept {
@@ -196,10 +194,6 @@ class WidgetId {
     
     constexpr uint16_t value()                      const noexcept {
         return d_id;
-    }
-    
-    constexpr explicit operator int()               const noexcept {
-        return static_cast<int>(d_id);
     }
 };
 
@@ -231,7 +225,7 @@ class  WawtException : public std::runtime_error {
 
     WawtException(const std::string& what_arg, WidgetId widgetId)
         : std::runtime_error(what_arg + " id="
-                                      + std::to_string(int(widgetId))) {
+                                      + std::to_string(widgetId.value())) {
     }
 
     WawtException(const std::string& what_arg, int index)
@@ -239,7 +233,7 @@ class  WawtException : public std::runtime_error {
     }
 
     WawtException(const std::string& what_arg, WidgetId id, int index)
-        : std::runtime_error(what_arg + " id=" + std::to_string(int(id))
+        : std::runtime_error(what_arg + " id=" + std::to_string(id.value())
                                       + " index=" + std::to_string(index)) {
     }
 };

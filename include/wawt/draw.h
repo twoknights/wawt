@@ -37,24 +37,31 @@ namespace Wawt {
 
 struct DrawData {
     using CharSize          = uint16_t;
-    enum class BulletMark { eNONE, eSQUARE, eROUND };
+    enum BulletMark { eNONE = 0, eSQUARE = 1, eROUND = 2 };
 
-    WidgetId            d_widgetId{};
+    uint16_t            d_widgetId          = 0;
+    uint16_t            d_leftMark:1,
+                        d_selected:1,
+                        d_disableEffect:1,
+                        d_hidden:1,
+                        d_labelMark:2,
+                        d_relativeId:10;
     Rectangle           d_rectangle{};
     Rectangle           d_labelBounds{};
     StringView_t        d_label{};
-    CharSize            d_charSize          = 0;
-    BulletMark          d_labelMark         = BulletMark::eNONE;
-    bool                d_leftMark          = true;
-    bool                d_selected          = false;
-    bool                d_disableEffect     = false;
     std::any            d_options{};
-    std::string         d_className{};
+    const char         *d_className         = nullptr;
+    CharSize            d_charSize          = 0;
 
     DrawData()                          = default;
 
-    DrawData(std::string&& className) noexcept
-        : d_className(std::move(className)) { }
+    DrawData(char const * const className) noexcept
+        : d_leftMark(true)
+        , d_selected(false)
+        , d_disableEffect(false)
+        , d_hidden(false)
+        , d_labelMark(eNONE)
+        , d_className(className) { }
 };
 
                             //===================

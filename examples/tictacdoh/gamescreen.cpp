@@ -90,8 +90,8 @@ void
 GameScreen::resetWidgets(const String_t& marker)
 {
     d_marker    = marker;
-    d_boardPanel->hidden() = true;
-    d_boardPanel->disabled() = true;
+    d_boardPanel->setHidden(true);
+    d_boardPanel->setDisabled(true);
 #if 0
     addModalDialogBox(
         {
@@ -127,8 +127,8 @@ GameScreen::showRemainingTime()
 void
 GameScreen::startGame()
 {
-    d_boardPanel->hidden() = false;
-    d_boardPanel->disabled() = false;
+    d_boardPanel->setHidden(false);
+    d_boardPanel->setDisabled(false);
     d_countDown = 10;
     showRemainingTime();
 }

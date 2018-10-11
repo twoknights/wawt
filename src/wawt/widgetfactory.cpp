@@ -76,7 +76,7 @@ Widget checkBox(Widget                **indirect,
                 bool                    leftBox)
 {
     return  Widget(WawtEnv::sCheck, indirect, std::move(layout))
-            .downEventMethod(makeToggleButtonDownMethod(std::move(clicked)),
+            .addDownEventMethod(makeToggleButtonDownMethod(std::move(clicked)),
                              layout.d_thickness <= 0.0)
             .text({string, group, alignment},
                    DrawData::BulletMark::eSQUARE,
@@ -91,7 +91,7 @@ Widget checkBox(Layout&&                layout,
                 bool                    leftBox)
 {
     return  Widget(WawtEnv::sCheck, std::move(layout))
-            .downEventMethod(makeToggleButtonDownMethod(std::move(clicked)),
+            .addDownEventMethod(makeToggleButtonDownMethod(std::move(clicked)),
                              layout.d_thickness <= 0.0)
             .text({string, group, alignment},
                    DrawData::BulletMark::eSQUARE,
@@ -105,7 +105,7 @@ Widget checkBox(Widget                **indirect,
                 Text::Align             alignment)
 {
     return  Widget(WawtEnv::sCheck, indirect, std::move(layout))
-            .downEventMethod(makeToggleButtonDownMethod(ClickCb()),
+            .addDownEventMethod(makeToggleButtonDownMethod(ClickCb()),
                              layout.d_thickness <= 0.0)
             .text({string, group, alignment},
                    DrawData::BulletMark::eSQUARE,
@@ -118,7 +118,7 @@ Widget checkBox(Layout&&                layout,
                 Text::Align             alignment)
 {
     return  Widget(WawtEnv::sCheck, std::move(layout))
-            .downEventMethod(makeToggleButtonDownMethod(ClickCb()),
+            .addDownEventMethod(makeToggleButtonDownMethod(ClickCb()),
                              layout.d_thickness <= 0.0)
             .text({string, group, alignment},
                    DrawData::BulletMark::eSQUARE,
@@ -223,7 +223,7 @@ Widget pushButton(Widget              **indirect,
                   Text::CharSizeGroup   group)
 {
     return  Widget(WawtEnv::sPush, indirect, std::move(layout))
-            .downEventMethod(makePushButtonDownMethod(std::move(clicked)))
+            .addDownEventMethod(makePushButtonDownMethod(std::move(clicked)))
             .text({string, group, alignment});                        // RETURN
 }
 
@@ -234,7 +234,7 @@ Widget pushButton(Layout&&              layout,
                   Text::CharSizeGroup   group)
 {
     return  Widget(WawtEnv::sPush, std::move(layout))
-            .downEventMethod(makePushButtonDownMethod(std::move(clicked)))
+            .addDownEventMethod(makePushButtonDownMethod(std::move(clicked)))
             .text({string, group, alignment});                        // RETURN
 }
 
@@ -245,7 +245,7 @@ Widget pushButton(Widget              **indirect,
                   Text::CharSizeGroup   group)
 {
     return  Widget(WawtEnv::sPush, indirect, std::move(layout))
-            .downEventMethod(makePushButtonDownMethod(std::move(clicked)))
+            .addDownEventMethod(makePushButtonDownMethod(std::move(clicked)))
             .text({string, group});                                   // RETURN
 }
 
@@ -255,7 +255,7 @@ Widget pushButton(Layout&&              layout,
                   Text::CharSizeGroup   group)
 {
     return  Widget(WawtEnv::sPush, std::move(layout))
-            .downEventMethod(makePushButtonDownMethod(std::move(clicked)))
+            .addDownEventMethod(makePushButtonDownMethod(std::move(clicked)))
             .text({string, group});                                   // RETURN
 }
 
