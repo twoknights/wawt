@@ -20,16 +20,18 @@
 
 
 #ifdef WAWT_WIDECHAR
-#define S(str) Wawt::String_t(L"" str)  // wide char strings (std::wstring)
+#define S(str) String_t(L"" str)  // wide char strings (std::wstring)
 #define C(c) (L ## c)
 #else
 #undef  S
 #undef  C
-#define S(str) Wawt::String_t(u8"" str)      // UTF8 strings  (std::string)
+#define S(str) String_t(u8"" str)      // UTF8 strings  (std::string)
 #define C(c) (U ## c)
 #endif
 
 namespace Wawt {
+
+namespace {
 
 Widget::DownEventMethod makePushButtonDownMethod(ClickCb&& onClick)
 {
@@ -63,6 +65,8 @@ Widget::DownEventMethod makeToggleButtonDownMethod(ClickCb&& onClick)
             };                                                        // RETURN
 }
 
+} // unnamed namespace
+
 Widget checkBox(Widget                **indirect,
                 Layout&&                layout,
                 StringView_t            string,
@@ -71,7 +75,7 @@ Widget checkBox(Widget                **indirect,
                 Text::Align             alignment,
                 bool                    leftBox)
 {
-    return  Widget(Wawt::sCheck, indirect, std::move(layout))
+    return  Widget(WawtEnv::sCheck, indirect, std::move(layout))
             .downEventMethod(makeToggleButtonDownMethod(std::move(clicked)),
                              layout.d_thickness <= 0.0)
             .text({string, group, alignment},
@@ -86,7 +90,7 @@ Widget checkBox(Layout&&                layout,
                 Text::Align             alignment,
                 bool                    leftBox)
 {
-    return  Widget(Wawt::sCheck, std::move(layout))
+    return  Widget(WawtEnv::sCheck, std::move(layout))
             .downEventMethod(makeToggleButtonDownMethod(std::move(clicked)),
                              layout.d_thickness <= 0.0)
             .text({string, group, alignment},
@@ -100,7 +104,7 @@ Widget checkBox(Widget                **indirect,
                 Text::CharSizeGroup     group,
                 Text::Align             alignment)
 {
-    return  Widget(Wawt::sCheck, indirect, std::move(layout))
+    return  Widget(WawtEnv::sCheck, indirect, std::move(layout))
             .downEventMethod(makeToggleButtonDownMethod(ClickCb()),
                              layout.d_thickness <= 0.0)
             .text({string, group, alignment},
@@ -113,7 +117,7 @@ Widget checkBox(Layout&&                layout,
                 Text::CharSizeGroup     group,
                 Text::Align             alignment)
 {
-    return  Widget(Wawt::sCheck, std::move(layout))
+    return  Widget(WawtEnv::sCheck, std::move(layout))
             .downEventMethod(makeToggleButtonDownMethod(ClickCb()),
                              layout.d_thickness <= 0.0)
             .text({string, group, alignment},
@@ -127,7 +131,7 @@ Widget label(Widget                   **indirect,
              Text::Align                alignment,
              Text::CharSizeGroup        group)
 {
-    return  Widget(Wawt::sLabel, indirect, std::move(layout))
+    return  Widget(WawtEnv::sLabel, indirect, std::move(layout))
             .text({string, group, alignment});                        // RETURN
 }
 
@@ -136,7 +140,7 @@ Widget label(Layout&&                   layout,
              Text::Align                alignment,
              Text::CharSizeGroup        group)
 {
-    return  Widget(Wawt::sLabel, std::move(layout))
+    return  Widget(WawtEnv::sLabel, std::move(layout))
             .text({string, group, alignment});                        // RETURN
 }
 
@@ -145,24 +149,70 @@ Widget label(Widget                   **indirect,
              StringView_t               string,
              Text::CharSizeGroup        group)
 {
-    return  Widget(Wawt::sLabel, indirect, std::move(layout))
+    return  Widget(WawtEnv::sLabel, indirect, std::move(layout))
             .text({string, group});                                   // RETURN
 }
 
 Widget label(Layout&& layout, StringView_t string, Text::CharSizeGroup group)
 {
-    return  Widget(Wawt::sLabel, std::move(layout))
+    return  Widget(WawtEnv::sLabel, std::move(layout))
             .text({string, group});                                   // RETURN
 }
 
 Widget panel(Widget **indirect, Layout&& layout)
 {
-    return Widget(Wawt::sPanel, indirect, std::move(layout));         // RETURN
+    return Widget(WawtEnv::sPanel, indirect, std::move(layout));      // RETURN
 }
 
 Widget panel(Layout&& layout)
 {
-    return Widget(Wawt::sPanel, std::move(layout));                   // RETURN
+    return Widget(WawtEnv::sPanel, std::move(layout));                // RETURN
+}
+
+Widget panelGrid(Widget       **indirect,
+                 Layout&&       layout,
+                 int            rows,
+                 int            columns,
+                 Widget&&       clonable)
+{
+    auto thickness = clonable.layoutData().d_layout.d_thickness;
+    auto panel     = Widget(WawtEnv::sPanel,
+                            indirect,
+                            std::move(layout).border(0.0));
+
+    auto topLeft = panel.addChild(std::move(clonable));
+    topLeft->layoutData().d_layout
+                    = {{-1.0, -1.0}, // using panel's coordinates.
+                       {-1.0 + 2.0/double(columns), -1.0 + 2.0/double(rows)},
+                       thickness};
+    // All remaining widgets will use the coordinate system of a neighbor.
+    auto col0Id = WidgetId();
+
+    for (auto r = 0; r < rows; ++r) {
+        if (r > 0) {
+            panel.addChild(topLeft->clone())->layoutData().d_layout
+                = {{-1.0, 1.0, col0Id}, { 1.0, 2.0, col0Id}, thickness};
+        }
+        col0Id        = WidgetId(r*columns, true);
+        WidgetId prev = col0Id;
+
+        for (auto c = 1; c < columns; ++c, ++prev) {
+            panel.addChild(topLeft->clone())->layoutData().d_layout
+                = {{ 1.0, -1.0, prev}, { 3.0, 1.0, prev }, thickness};
+        }
+    }
+    return panel;                                                     // RETURN
+}
+
+Widget panelGrid(Layout&&       layout,
+                 int            rows,
+                 int            columns,
+                 Widget&&       cloneable)
+{
+    return panelGrid(nullptr,
+                     std::move(layout),
+                     rows, columns,
+                     std::move(cloneable));
 }
 
 Widget pushButton(Widget              **indirect,
@@ -172,7 +222,7 @@ Widget pushButton(Widget              **indirect,
                   Text::Align           alignment,
                   Text::CharSizeGroup   group)
 {
-    return  Widget(Wawt::sPush, indirect, std::move(layout))
+    return  Widget(WawtEnv::sPush, indirect, std::move(layout))
             .downEventMethod(makePushButtonDownMethod(std::move(clicked)))
             .text({string, group, alignment});                        // RETURN
 }
@@ -183,7 +233,7 @@ Widget pushButton(Layout&&              layout,
                   Text::Align           alignment,
                   Text::CharSizeGroup   group)
 {
-    return  Widget(Wawt::sPush, std::move(layout))
+    return  Widget(WawtEnv::sPush, std::move(layout))
             .downEventMethod(makePushButtonDownMethod(std::move(clicked)))
             .text({string, group, alignment});                        // RETURN
 }
@@ -194,7 +244,7 @@ Widget pushButton(Widget              **indirect,
                   StringView_t          string,
                   Text::CharSizeGroup   group)
 {
-    return  Widget(Wawt::sPush, indirect, std::move(layout))
+    return  Widget(WawtEnv::sPush, indirect, std::move(layout))
             .downEventMethod(makePushButtonDownMethod(std::move(clicked)))
             .text({string, group});                                   // RETURN
 }
@@ -204,7 +254,7 @@ Widget pushButton(Layout&&              layout,
                   StringView_t          string,
                   Text::CharSizeGroup   group)
 {
-    return  Widget(Wawt::sPush, std::move(layout))
+    return  Widget(WawtEnv::sPush, std::move(layout))
             .downEventMethod(makePushButtonDownMethod(std::move(clicked)))
             .text({string, group});                                   // RETURN
 }

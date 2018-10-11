@@ -17,6 +17,8 @@
  * limitations under the License.
  */
 
+#include "wawt/wawt.h"
+
 #include "gamescreen.h"
 
 #include <chrono>
@@ -28,64 +30,32 @@ namespace {
 
 } // unnamed namespace
 
+using namespace Wawt;
                             //-----------------
                             // class GameScreen
                             //-----------------
 
-Wawt::Panel
+Widget
 GameScreen::createScreenPanel()
 {
-    auto   mkClick = [me = this](auto sq) {
-        return [me, sq](auto btn) { me->click(sq, btn); return FocusCb(); };
-    };
-    double third   = 1.0/3.0;
-    return Panel({},
-      {
-      Panel(&d_boardPanel,{{-1.0,-1.0},{1.0,1.0}, Vertex::eUPPER_CENTER, 0.0},
-        {
-        Panel(Layout::centered(0.6, 0.6).border(0),
-          {
-          Button({{-1.0, -1.0}, {-third,-third}, 5},
-                  mkClick(1),
-                  {S(""), Align::eCENTER}),
-          Button(Layout::duplicate(1_wr,5).translate(2.0,0.0),
-                  mkClick(2),
-                  {S(""), Align::eCENTER}),
-          Button(Layout::duplicate(1_wr,5).translate(4.0,0.0),
-                  mkClick(3),
-                  {S(""), Align::eCENTER}),
-
-          Button(Layout::duplicate(1_wr,5).translate(0.0,2.0),
-                  mkClick(4),
-                  {S(""), Align::eCENTER}),
-          Button(Layout::duplicate(1_wr,5).translate(2.0,2.0),
-                  mkClick(5),
-                  {S(""), Align::eCENTER}),
-          Button(Layout::duplicate(1_wr,5).translate(4.0,2.0),
-                  mkClick(6),
-                  {S(""), Align::eCENTER}),
-
-          Button(Layout::duplicate(1_wr,5).translate(0.0,4.0),
-                  mkClick(7),
-                  {S(""), Align::eCENTER}),
-          Button(Layout::duplicate(1_wr,5).translate(2.0,4.0),
-                  mkClick(8),
-                  {S(""), Align::eCENTER}),
-          Button(Layout::duplicate(1_wr,5).translate(4.0,4.0),
-                  mkClick(9),
-                  {S(""), Align::eCENTER})
-          }),
-        Panel({{-1.0,-1.0,1_wr},{1.0,1.0,1_wr},5},
-              DrawOptions().lineColor(defaultScreenOptions().d_fillColor)),
-        Label(Layout::slice(false, 0.05, 0.15), S("Tic-Tac-DOH!")),
-        Label(&d_timeLabel, Layout::slice(false,-0.17,-0.10), S(""))
-        })
-    , Button({{},{-0.95,-0.95}, Vertex::eUPPER_LEFT},
-            {[this](auto) { d_screen.serialize(std::cout);
-            return FocusCb();
-            }, ActionType::eCLICK},
-            {S("*")})
-      });
+    return panel({})
+      .addChild(panel(&d_boardPanel,
+                      {{-1.0,-1.0},{1.0,1.0}, Vertex::eUPPER_CENTER, 0.0})
+                .addChild(panelGrid(Layout::centered(0.6, 0.6).border(0), 3, 3,
+                                    pushButton({{},{},5},
+                                               [](auto w) {
+                                                  w->resetLabel(S("X"), false);
+                                               },
+                                               S(" "))))
+                .addChild(panel({{-1.0,-1.0,0_wr},{1.0,1.0,0_wr},5})
+                          .options(DrawOptions().lineColor(
+                                     defaultOptions(WawtEnv::sScreen)
+                                        .d_fillColor)))
+                .addChild(label({{-1.0,-1.0},{1.0,0.7}},
+                                S("Tic-Tac-DOH!"))))
+      .addChild(pushButton({{},{-0.95,-0.95}, Vertex::eUPPER_LEFT},
+                           {[this](auto) { d_screen.serialize(std::cout); }},
+                           S("*")));
 }
 
 void
@@ -97,6 +67,7 @@ GameScreen::gameOver(GameResult result)
         resultString = S("You have forfeited the game.");
     }
 
+#if 0
     addModalDialogBox(
         {
             Label(Layout::slice(false, 0.1, 0.3), {resultString, 254_F}),
@@ -112,13 +83,16 @@ GameScreen::gameOver(GameResult result)
                                                return FocusCb();}}
                 })
         });
+#endif
 }
 
 void
 GameScreen::resetWidgets(const String_t& marker)
 {
     d_marker    = marker;
-    d_boardPanel->setEnablement(Enablement::eHIDDEN);
+    d_boardPanel->hidden() = true;
+    d_boardPanel->disabled() = true;
+#if 0
     addModalDialogBox(
         {
             Label(Layout::slice(false, 0.1, 0.3),
@@ -132,13 +106,7 @@ GameScreen::resetWidgets(const String_t& marker)
                                               return FocusCb();}}
                 })
         });
-}
-
-Wawt::FocusCb
-GameScreen::click(int, Wawt::Text *button)
-{
-    button->textView().setText(d_marker);
-    return FocusCb();
+#endif
 }
 
 void
@@ -150,7 +118,7 @@ GameScreen::showRemainingTime()
     else {
         String_t message
             = S("Remaining time: ") + Wawt::toString(d_countDown--);
-        d_timeLabel->textView().setText(message);
+        d_timeLabel->resetLabel(message, true);
         resize();
         setTimedEvent(1000ms, [this]() { showRemainingTime(); });
     }
@@ -159,7 +127,8 @@ GameScreen::showRemainingTime()
 void
 GameScreen::startGame()
 {
-    d_boardPanel->setEnablement(Enablement::eACTIVE);
+    d_boardPanel->hidden() = false;
+    d_boardPanel->disabled() = false;
     d_countDown = 10;
     showRemainingTime();
 }

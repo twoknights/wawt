@@ -44,12 +44,12 @@ struct Text {
     Text(StringView_t   string,
          CharSizeGroup  group     = CharSizeGroup(),
          Align          alignment = Align::eCENTER)
-        : d_stringView(Wawt::instance()->translate(std::move(string)))
+        : d_stringView(WawtEnv::instance()->translate(std::move(string)))
         , d_alignment(alignment)
         , d_charSizeGroup(group) { }
 
     Text(StringView_t string, Align alignment)
-        : d_stringView(Wawt::instance()->translate(std::move(string)))
+        : d_stringView(WawtEnv::instance()->translate(std::move(string)))
         , d_alignment(alignment)
         , d_charSizeGroup() { }
 

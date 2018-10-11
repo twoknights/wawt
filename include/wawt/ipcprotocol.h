@@ -83,6 +83,7 @@ struct IpcMessage {
     }
 };
 
+inline
 IpcMessage::IpcMessage(std::unique_ptr<char[]>&&    data,
                        uint16_t                     size,
                        uint16_t                     offset)
@@ -92,6 +93,7 @@ IpcMessage::IpcMessage(std::unique_ptr<char[]>&&    data,
 {
 }
 
+inline
 IpcMessage::IpcMessage(const std::string_view& data)
 : d_data(std::make_unique<char[]>(data.size()))
 , d_size(data.size())
@@ -99,6 +101,7 @@ IpcMessage::IpcMessage(const std::string_view& data)
     data.copy(d_data.get(), d_size);
 }
 
+inline
 IpcMessage::IpcMessage(const char* data, uint16_t length)
 : d_data(std::make_unique<char[]>(length))
 , d_size(length)
@@ -106,6 +109,7 @@ IpcMessage::IpcMessage(const char* data, uint16_t length)
     std::memcpy(d_data.get(), data, length);
 }
 
+inline
 IpcMessage::IpcMessage(const IpcMessage& copy)
 : d_data(std::make_unique<char[]>(copy.d_size))
 , d_size(copy.d_size)
@@ -114,6 +118,7 @@ IpcMessage::IpcMessage(const IpcMessage& copy)
     std::memcpy(d_data.get(), copy.d_data.get(), d_size);
 }
 
+inline
 IpcMessage& IpcMessage::operator=(const IpcMessage& rhs)
 {
     if (this != &rhs) {
@@ -146,13 +151,10 @@ class IpcProtocol
         uint32_t        d_adapterId  : 8,
                         d_internalId : 24;
 
-        // PUBLIC CLASS MEMBERS
-        static constexpr uint32_t kINVALID_ID = UINT32_MAX;
-
         // PUBLIC CONSTRUCTORS
-        ChannelId() : d_adapterId(0xFF), d_internalId(0xFFFFFF) { }
+        constexpr ChannelId() : d_adapterId(0xFF), d_internalId(0xFFFFFF) { }
 
-        ChannelId(int adapter, int internal)
+        constexpr ChannelId(int adapter, int internal)
             : d_adapterId(adapter), d_internalId(internal) { }
 
         // PUBLIC ACCESSORS
@@ -160,6 +162,9 @@ class IpcProtocol
             return (d_adapterId << 8)|d_internalId;
         }
     };
+
+    // PUBLIC CLASS MEMBERS
+    static const ChannelId kINVALID_ID;
 
     using MessageChain      = std::forward_list<IpcMessage>;
 
@@ -197,6 +202,8 @@ class IpcProtocol
     virtual bool            sendMessage(ChannelId           id,
                                         MessageChain&&      chain)  noexcept=0;
 };
+
+constexpr IpcProtocol::ChannelId IpcProtocol::kINVALID_ID;
 
 } // end Wawt namespace
 

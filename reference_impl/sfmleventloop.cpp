@@ -117,14 +117,14 @@ SfmlEventLoop::run(sf::RenderWindow&                 window,
                     if (event.mouseButton.button == sf::Mouse::Button::Left
                      && mouseUp) {
                         if (onKey) {
-                            onKey(Wawt::Wawt::kFocusChg); // erase cursor
+                            onKey(Wawt::WawtEnv::kFocusChg); // erase cursor
                         }
                         onKey = mouseUp(event.mouseButton.x,
                                         event.mouseButton.y,
                                         true);
 
                         if (onKey) {
-                            onKey(Wawt::Wawt::kFocusChg); // show cursor
+                            onKey(Wawt::WawtEnv::kFocusChg); // show cursor
                         }
                         window.clear();
                         router.draw();

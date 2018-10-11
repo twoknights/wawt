@@ -8,11 +8,8 @@ link_libraries(${CMAKE_THREAD_LIBS_INIT})
 include_directories(../../reference_impl)
 
 add_executable(tictacdoh
-               controller.cpp
                gamescreen.cpp
-               sfmlmain.cpp
-               setupscreen.cpp
-               stringid.cpp)
+               sfmlmain.cpp)
 
 target_link_libraries(tictacdoh   wawtsfml${LIBSUFFIX}
                                   wawt${LIBSUFFIX}

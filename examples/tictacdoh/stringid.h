@@ -19,9 +19,9 @@
 #ifndef TICTACDOH_STRINGID_H
 #define TICTACDOH_STRINGID_H
 
-#include <wawt.h>
-#include <wawtscreen.h>
-#include <wawteventrouter.h>
+#include <wawt/wawt.h>
+#include <wawt/screen.h>
+#include <wawt/eventrouter.h>
 
 #include <drawoptions.h>
 #include <sfmldrawadapter.h>
@@ -78,12 +78,6 @@ class StringIdLookup {
     // PUBLIC ACCESSORS
     // Map StringId to string.
     Wawt::String_t operator()(StringId lookup) const;
-
-    operator Wawt::TextMapper() {
-        return [this](Wawt::TextId lookup) {
-            return this->operator()(static_cast<StringId>(lookup));
-        };
-    }
 
     Language currentLanguage() const {
         return static_cast<Language>(d_currentLanguage.load());

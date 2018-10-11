@@ -19,11 +19,15 @@
 #ifndef WAWT_SCREEN_H
 #define WAWT_SCREEN_H
 
-#include "wawt/widget.h"
+#include "wawt/wawt.h"
+#include "wawt/widgetfactory.h"
 
 #include <any>
+#include <cassert>
 #include <chrono>
 #include <experimental/type_traits>
+#include <functional>
+#include <ostream>
 #include <sstream>
 #include <string>
 #include <typeinfo>
@@ -398,7 +402,7 @@ class ScreenImpl : public Screen {
 
     //! Get the draw options for the named widget class.
     Option defaultOptions(const std::string& name)   const noexcept {
-        return optionCast(Wawt::instance()->defaultOptions(name));
+        return optionCast(WawtEnv::instance()->defaultOptions(name));
     }
 
     // PROTECTED DATA MEMBERS
@@ -420,14 +424,14 @@ Screen::addModalDialogBox(Widgets&&       widgets,
         d_modalActive = true;
 
         if (!options.has_value()) {
-            options = Wawt::instance()->defaultOptions(Wawt::Screen);
+            options = WawtEnv::instance()->defaultOptions(WawtEnv::sScreen);
         }
         ret = d_screen.pushDialog(
                 d_adapter,
-                Widget(Wawt::sDialog,
+                Widget(WawtEnv::sDialog,
                        Layout::centered(width, height).border(borderThickness))
                 .options(std::move(options))
-                .push(std::move(widgets)));
+                .addChildren(std::move(widgets)));
     }
     return ret;                                                       // RETURN
 }
@@ -447,6 +451,7 @@ ScreenImpl<Derived,Option>::activate(double         width,
                                      Types&...      args)
 {
     try {
+        assert(d_adapter);
         resize(width, height);
         static_cast<Derived*>(this)->resetWidgets(args...);
     }

@@ -56,26 +56,29 @@ struct Layout {
 
     class Position {
       public:
-        double                  d_sX            = -1.0;
-        double                  d_sY            = -1.0;
+        float                   d_sX            = -1.0;
+        float                   d_sY            = -1.0;
         WidgetRef               d_widgetRef     = WidgetId::kPARENT;
         Normalize               d_normalizeX    = Normalize::eDEFAULT;
         Normalize               d_normalizeY    = Normalize::eDEFAULT;
 
         constexpr Position()                = default;
 
-        constexpr Position(double x, double y) noexcept : d_sX(x) , d_sY(y) { }
+        constexpr Position(double x, double y) noexcept
+            : d_sX(float(x)), d_sY(float(y)) { }
 
         constexpr Position(double x, double y, WidgetRef&& widgetRef) noexcept
-            : d_sX(x), d_sY(y), d_widgetRef(std::move(widgetRef)) { }
+            : d_sX(float(x))
+            , d_sY(float(y))
+            , d_widgetRef(std::move(widgetRef))  { }
 
         constexpr Position(double      x,
                            double      y,
                            WidgetRef&& widgetRef,
                            Normalize   normalizeX,
                            Normalize   normalizeY)                  noexcept
-            : d_sX(x)
-            , d_sY(y)
+            : d_sX(float(x))
+            , d_sY(float(y))
             , d_widgetRef(std::move(widgetRef))
             , d_normalizeX(normalizeX)
             , d_normalizeY(normalizeY) { }
@@ -97,7 +100,7 @@ struct Layout {
     Position            d_upperLeft{};
     Position            d_lowerRight{};
     Vertex              d_pin{Vertex::eNONE};
-    double              d_thickness = -1.0;
+    float               d_thickness = -1.0;
 
     // PUBLIC CONSTRUCTORS
     constexpr Layout()                  = default;
@@ -107,7 +110,7 @@ struct Layout {
                      double           thickness = -1.0)             noexcept
         : d_upperLeft(upperLeft)
         , d_lowerRight(lowerRight)
-        , d_thickness(thickness) { }
+        , d_thickness(float(thickness)) { }
 
     constexpr Layout(const Position&   upperLeft,
                      const Position&   lowerRight,
@@ -116,14 +119,14 @@ struct Layout {
         : d_upperLeft(upperLeft)
         , d_lowerRight(lowerRight)
         , d_pin(pin)
-        , d_thickness(thickness) { }
+        , d_thickness(float(thickness)) { }
 
     constexpr Layout(Position&& upperLeft,
                      Position&& lowerRight,
                      double     thickness = -1.0)                   noexcept
         : d_upperLeft(std::move(upperLeft))
         , d_lowerRight(std::move(lowerRight))
-        , d_thickness(thickness) { }
+        , d_thickness(float(thickness)) { }
 
     constexpr Layout(Position&& upperLeft,
                      Position&& lowerRight,
@@ -132,7 +135,7 @@ struct Layout {
         : d_upperLeft(std::move(upperLeft))
         , d_lowerRight(std::move(lowerRight))
         , d_pin(pin)
-        , d_thickness(thickness) { }
+        , d_thickness(float(thickness)) { }
 
     // PUBLIC MANIPULATORS (rvalues)
     constexpr Layout&& pin(Vertex vertex) &&                        noexcept {
@@ -141,15 +144,15 @@ struct Layout {
     }
 
     constexpr Layout&& translate(double x, double y) &&             noexcept {
-        d_upperLeft.d_sX  += x;
-        d_upperLeft.d_sY  += y;
-        d_lowerRight.d_sX += x;
-        d_lowerRight.d_sY += y;
+        d_upperLeft.d_sX  += float(x);
+        d_upperLeft.d_sY  += float(y);
+        d_lowerRight.d_sX += float(x);
+        d_lowerRight.d_sY += float(y);
         return std::move(*this);
     }
 
     Layout&& border(double thickness) &&                            noexcept {
-        d_thickness = thickness;
+        d_thickness = float(thickness);
         return std::move(*this);
     }
 };

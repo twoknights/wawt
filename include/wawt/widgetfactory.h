@@ -21,23 +21,11 @@
 
 #include "wawt/widget.h"
 
-#include <cassert>
-#include <deque>
-#include <initializer_list>
-#include <limits>
-#include <ostream>
-#include <string>
-#include <utility>
-#include <variant>
-#include <vector>
+#include <functional>
 
 namespace Wawt {
 
 using ClickCb = std::function<void(Widget *)>;
-
-Widget::DownEventMethod makePushButtonDownMethod(ClickCb&& onClick);
-
-Widget::DownEventMethod makeToggleButtonDownMethod(ClickCb&& onClick);
 
 Widget checkBox(Widget             **indirect,
                 Layout&&             layout,
@@ -86,6 +74,14 @@ Widget label(Layout&& layout, StringView_t string, Text::CharSizeGroup group);
 Widget panel(Widget **indirect, Layout&& layout);
 
 Widget panel(Layout&& layout);
+
+Widget panelGrid(Widget   **indirect,
+                 Layout&&   layout,
+                 int        rows,
+                 int        columns,
+                 Widget&&   clonable);
+
+Widget panelGrid(Layout&& layout, int rows, int columns, Widget&& clonable);
 
 Widget pushButton(Widget              **indirect,
                   Layout&&              layout,

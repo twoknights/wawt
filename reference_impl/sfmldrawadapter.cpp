@@ -179,8 +179,8 @@ SfmlDrawAdapter::SfmlDrawAdapter(sf::RenderWindow&   window,
     }
 
     if (!noArrow) {
-        Wawt::Wawt::kDownArrow  = C('\u25BC');
-        Wawt::Wawt::kUpArrow    = C('\u25B2');
+        Wawt::WawtEnv::kDownArrow  = C('\u25BC');
+        Wawt::WawtEnv::kUpArrow    = C('\u25B2');
     }
 }
 

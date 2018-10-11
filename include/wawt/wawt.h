@@ -49,6 +49,7 @@ using String_t      = std::basic_string<char>;
 using StringView_t  = std::basic_string_view<char>;
 #endif
 
+inline
 auto toString(int n) {
     if constexpr(std::is_same_v<String_t, std::string>) {
         return std::to_string(n);
@@ -59,6 +60,7 @@ auto toString(int n) {
 }
 
 //! Compute the bytes required by a character when represented in a string.
+inline
 constexpr std::size_t sizeOfChar(const Char_t ch) {
     if constexpr(std::is_same_v<Char_t, wchar_t>) {
         return sizeof(wchar_t); // Wide-char is a fixed size encoding
@@ -147,6 +149,13 @@ class WidgetId {
         , d_flags(isRelative ? 3 : 1) { }
 
     // PUBLIC MANIPULATORS
+    constexpr WidgetId operator++()                   noexcept { // pre
+        if (isSet()) {
+            ++d_id;
+        }
+        return *this;
+    }
+
     constexpr WidgetId operator++(int)                noexcept { // post
         WidgetId post(*this);
 
@@ -235,23 +244,23 @@ class  WawtException : public std::runtime_error {
     }
 };
 
-                                //===========
-                                // class Wawt
-                                //===========
+                                //==============
+                                // class WawtEnv
+                                //==============
 
-class Wawt {
+class WawtEnv {
   public:
     // PUBLIC TYPES
     using Defaults      = std::pair<float , std::any>;
 
     template <typename Options>
-    using OptionTuple = std::tuple<std::string, float , Options>;
+    using OptionTuple = std::tuple<std::string, float, Options>;
 
     template <typename Options, std::size_t NumClasses>
     using DefaultArray  = std::array<OptionTuple<Options>,NumClasses>;
 
     // PUBLIC CLASS MEMBERS
-    static Wawt *instance() {
+    static WawtEnv *instance() {
         return d_instance.load();
     }
     // PUBLIC CLASS DATA
@@ -268,10 +277,16 @@ class Wawt {
     static constexpr char    sCheck[]  = "checkBox";
 
     // PUBLIC CONSTRUCTOR
+    WawtEnv() {
+        WawtEnv* expected   = nullptr;
+        WawtEnv* desired    = this;
+        d_instance.compare_exchange_strong(expected, desired);
+    }
+
     template <typename Options, std::size_t NumClasses>
-    Wawt(const DefaultArray<Options, NumClasses>& classDefaults) {
-        Wawt* expected   = nullptr;
-        Wawt* desired    = this;
+    WawtEnv(const DefaultArray<Options, NumClasses>& classDefaults) {
+        WawtEnv* expected   = nullptr;
+        WawtEnv* desired    = this;
         d_instance.compare_exchange_strong(expected, desired);
 
         for (auto& [className, border, options] : classDefaults) {
@@ -280,9 +295,9 @@ class Wawt {
     }
 
     // PUBLIC DESTRUCTOR
-    ~Wawt() {
-        Wawt* desired    = nullptr;
-        Wawt* expected   = this;
+    ~WawtEnv() {
+        WawtEnv* desired    = nullptr;
+        WawtEnv* expected   = this;
         d_instance.compare_exchange_strong(expected, desired);
     }
 
@@ -306,7 +321,7 @@ class Wawt {
 
   private:
     // PRIVATE CLASS MEMBERS
-    static std::atomic<Wawt*> d_instance;
+    static std::atomic<WawtEnv*> d_instance;
 
     // PRIVATE DATA MEMBERS
     std::map<std::string, Defaults> d_classDefaults{};

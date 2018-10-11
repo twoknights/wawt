@@ -29,6 +29,7 @@
 #include <deque>
 #include <initializer_list>
 #include <limits>
+#include <memory>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -46,11 +47,14 @@ class  Widget final {
     using Children          = std::deque<Widget>;
     using OptionsFactory    = std::function<std::any(const std::string&)>;
     using BorderDefaults    = std::function<float(const std::string&)>;
+    using CharSizeMapPtr    = std::shared_ptr<Text::CharSizeMap>;
 
     struct LayoutData {
         Layout              d_layout{};
         Text::Align         d_textAlign     = Text::Align::eCENTER;
         Text::CharSizeGroup d_charSizeGroup{};
+        CharSizeMapPtr      d_charSizeMap{};
+        bool                d_refreshBounds = false;
 
         LayoutData()                        = default;
         LayoutData(Layout&& layout) noexcept : d_layout(std::move(layout)) { }
@@ -62,21 +66,18 @@ class  Widget final {
                                   Widget   *widget)>;
 
     using DrawMethod
-        = std::function<void(DrawProtocol      *adapter,
-                             const DrawData&    data,
-                             const Children&    widgets)>;
+        = std::function<void(DrawProtocol *adapter, Widget *widget)>;
 
     using LayoutMethod
         = std::function<void(DrawData                *data,
-                             Text::CharSizeMap       *charSizeMap,
                              bool                     firstPass,
                              const Widget&            root,
                              const Widget&            parent,
                              const LayoutData&        layoutData,
                              DrawProtocol            *adapter)>;
 
-    using PushMethod
-        = std::function<void(Widget*)>;
+    using AddMethod
+        = std::function<void(Widget* parent, Widget* newChild)>;
 
     using SerializeMethod
         = std::function<void(std::ostream&      os,
@@ -90,17 +91,14 @@ class  Widget final {
                                              float      y,
                                              Widget    *widget);
 
-    static void      defaultDraw(DrawProtocol      *adapter,
-                                 const DrawData&    data,
-                                 const Children&    children);
+    static void      defaultDraw(DrawProtocol *adapter, Widget *widget);
 
     static void      defaultLayout(DrawData                *data,
-                                   Text::CharSizeMap       *charSizeMap,
                                    bool                     firstPass,
                                    const Widget&            root,
                                    const Widget&            parent,
                                    const LayoutData&        layoutData,
-                                   DrawProtocol            *adapter);
+                                   DrawProtocol            *adapter) noexcept;
 
     static void     defaultSerialize(std::ostream&      os,
                                      std::string       *closeTag,
@@ -157,16 +155,26 @@ class  Widget final {
         return std::move(*this);
     }
 
-    Widget push(Widget&& child) && {
+    Widget addChild(Widget&& child) && {
         d_children.push_back(std::move(child));
-        if (d_pushMethod) {
-            d_pushMethod(this);
+        if (d_addMethod) {
+            d_addMethod(this, &d_children.back());
         }
         return std::move(*this);
     }
 
-    Widget pushMethod(PushMethod&& method) &&                        noexcept {
-        d_pushMethod = std::move(method);
+    Widget addChildren(Children&& widgets) && {
+        for (auto& child : widgets) {
+            d_children.push_back(std::move(child));
+            if (d_addMethod) {
+                d_addMethod(this, &d_children.back());
+            }
+        }
+        return std::move(*this);
+    }
+
+    Widget addMethod(AddMethod&& method) &&                          noexcept {
+        d_addMethod = std::move(method);
         return std::move(*this);
     }
 
@@ -189,19 +197,22 @@ class  Widget final {
 
     // PUBLIC MANIPULATORS
 
-    WidgetId  assignWidgetIds(WidgetId next, Widget *root = nullptr) noexcept;
+    WidgetId  assignWidgetIds(WidgetId         next,
+                              uint16_t         relativeId  = 0,
+                              CharSizeMapPtr   mapPtr   = nullptr,
+                              Widget          *root     = nullptr)   noexcept;
 
     Children& children()                                             noexcept {
         return d_children;
     }
-
-    Widget    clone();
 
     bool&     disabled()                                             noexcept {
         return d_disabled;
     }
 
     EventUpCb downEvent(float x, float y);
+
+    void      draw(DrawProtocol *adapter)                             noexcept;
 
     DrawData& drawData()                                             noexcept {
         return d_drawData;
@@ -211,9 +222,33 @@ class  Widget final {
         return d_hidden;
     }
 
+    LayoutData& layoutData()                                         noexcept {
+        return d_layoutData;
+    }
+
     void      popDialog();
 
     WidgetId  pushDialog(DrawProtocol *adapter, Widget&& child);
+
+    Widget   *addChild(Widget&& child) & {
+        d_children.push_back(std::move(child));
+        if (d_addMethod) {
+            d_addMethod(this, &d_children.back());
+        }
+        return &d_children.back();
+    }
+
+    void      addChildren(Children&& widgets) & {
+        for (auto& child : widgets) {
+            d_children.push_back(std::move(child));
+            if (d_addMethod) {
+                d_addMethod(this, &d_children.back());
+            }
+        }
+        return;
+    }
+
+    void      resetLabel(StringView_t newLabel, bool copy = true);
 
     void      resizeRoot(DrawProtocol *adapter, float  width, float  height);
 
@@ -227,14 +262,10 @@ class  Widget final {
         return d_children;
     }
 
+    Widget    clone()                                          const;
+
     bool            disabled()                                 const noexcept {
         return d_disabled;
-    }
-
-    void            draw(DrawProtocol *adapter)                const noexcept {
-        if (!d_hidden) {
-            d_drawMethod(adapter, d_drawData, d_children);
-        }
     }
 
     const DrawData& drawData()                                 const noexcept {
@@ -250,7 +281,15 @@ class  Widget final {
                          : d_drawData.d_rectangle.inside(x, y);
     }
 
+    const LayoutData& layoutData()                             const noexcept {
+        return d_layoutData;
+    }
+
     const Widget   *lookup(WidgetId id)                        const noexcept;
+
+    uint16_t        relativeId()                               const noexcept {
+        return d_relativeId;
+    }
 
     void            serialize(std::ostream&     os,
                               unsigned int      indent = 0)    const noexcept {
@@ -270,22 +309,9 @@ class  Widget final {
 
   private:
     // PRIVATE METHODS
-    void layout(Text::CharSizeMap  *charSizeMap,
-                DrawProtocol       *adapter,
+    void layout(DrawProtocol       *adapter,
                 bool                firstPass,
-                const Widget&       parent) {
-        d_layoutMethod(&d_drawData,
-                        charSizeMap,
-                        firstPass,
-                        *d_root,
-                        parent,
-                        d_layoutData,
-                        adapter);
-
-        for (auto& child : d_children) {
-            child.layout(charSizeMap, adapter, firstPass, *this);
-        }
-    }
+                const Widget&       parent);
 
     // PRIVATE DATA MEMBERS
     Widget            **d_widgetLabel   = nullptr;
@@ -293,11 +319,12 @@ class  Widget final {
     bool                d_textHit       = false;
     bool                d_hidden        = false;
     bool                d_disabled      = false;
+    uint16_t            d_relativeId    = 0u;
     DownEventMethod     d_downMethod    = DownEventMethod(
                                             &Widget::defaultDownEventHandler);
     DrawMethod          d_drawMethod    = DrawMethod(&Widget::defaultDraw);
     LayoutMethod        d_layoutMethod  = LayoutMethod(&Widget::defaultLayout);
-    PushMethod          d_pushMethod    = PushMethod();
+    AddMethod           d_addMethod     = AddMethod();
     SerializeMethod     d_serialize     = SerializeMethod(&Widget
                                                            ::defaultSerialize);
 

@@ -32,7 +32,7 @@
 // select the same cell, a pop-up dialog presents a selection for a
 // "rock-scissors-paper" round which continues until there is a winner.
 //
-class GameScreen : public WawtScreenImpl<GameScreen,DrawOptions> {
+class GameScreen : public Wawt::ScreenImpl<GameScreen,DrawOptions> {
   public:
     // PUBLIC TYPES
     struct Calls {
@@ -45,29 +45,27 @@ class GameScreen : public WawtScreenImpl<GameScreen,DrawOptions> {
 
     // PUBLIC CONSTRUCTORS
     GameScreen(Calls *controller)
-        : WawtScreenImpl(), d_controller(controller) { }
+        : ScreenImpl(), d_controller(controller) { }
 
     // PUBLIC MANIPULATORS
     // Called by 'WawtScreenImpl::setup()':
-    Panel createScreenPanel();
+    Wawt::Widget createScreenPanel();
 
     // Called by 'WawtScreenImpl::activate()':
     void gameOver(GameResult result);
 
-    void resetWidgets(const String_t& marker);
+    void resetWidgets(const Wawt::String_t& marker);
 
     void startGame();
 
     void showRemainingTime();
 
-    FocusCb click(int square, Wawt::Text *button);
-    
 private:
     // PRIVATE DATA MEMBERS
     GameScreen::Calls      *d_controller;
-    Label                  *d_timeLabel;
-    Panel                  *d_boardPanel;
-    String_t                d_marker;
+    Wawt::Widget           *d_timeLabel;
+    Wawt::Widget           *d_boardPanel;
+    Wawt::String_t          d_marker;
     int                     d_countDown = -1;
 };
 

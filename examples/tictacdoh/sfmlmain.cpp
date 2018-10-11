@@ -21,6 +21,15 @@
 #include "stringid.h"
 #include "controller.h"
 
+#include <SFML/System/String.hpp>
+#include <SFML/Window/ContextSettings.hpp>
+#include <SFML/Window/Event.hpp>
+#include <SFML/Window/Mouse.hpp>
+#include <SFML/Window/VideoMode.hpp>
+#include <SFML/Window/WindowStyle.hpp>
+#include <SFML/System/Utf.hpp>
+
+#include <drawoptions.h>
 #include <sfmldrawadapter.h>
 #include <sfmleventloop.h>
 #include <sfmlipcadapter.h>
@@ -72,18 +81,41 @@ int main()
         }
         arial = true;
     }
+    Wawt::WawtEnv wawtEnv(DrawOptions::classDefaults());
+#if 0
     sf::RenderWindow window(sf::VideoMode(float(WIDTH), float(HEIGHT)),
                             "Tic-Tac-DOH!",
                             sf::Style::Default,
                             sf::ContextSettings());
 
-    StringIdLookup   idMapper;
-    SfmlDrawAdapter  drawAdapter(window, path, arial);
-    SfmlIpcAdapter   ipcAdapter;
+    SfmlDrawAdapter   drawAdapter(window, path, arial);
+#endif
+    Wawt::Draw draw;
+    GameScreen screen(nullptr);
+    screen.setup();
+    screen.wawtScreenSetup("GameScreen",
+                           Wawt::Screen::SetTimerCb(),
+                           &draw); // &drawAdapter);
+    screen.activate(double(WIDTH), double(HEIGHT), "X");
+    screen.draw();
+#if 0
+    window.display();
+    while (window.isOpen()) {
+        sf::Event event;
 
-    WawtEventRouter  router(&drawAdapter, idMapper, DrawOptions::defaults());
+        if (window.waitEvent(event)) {
+            if (event.type == sf::Event::Closed) {
+                window.close();
+            }
+        }
+    }
+#endif
+#if 0
+    SfmlIpcAdapter    ipcAdapter(0);
 
-    Controller       controller(router, idMapper, &ipcAdapter);
+    Wawt::EventRouter router(&drawAdapter);
+
+    Controller        controller(router, &ipcAdapter);
     auto shutdown = [&controller]() {
                         return controller.shutdown();
                     };
@@ -92,11 +124,12 @@ int main()
         controller.startup();
         SfmlEventLoop::run(window, router, shutdown, 5ms, WIDTH/4, HEIGHT/4);
     }
-    catch (Wawt::Exception& e) {
+    catch (Wawt::WawtException& e) {
         std::cout << e.what() << std::endl;
 
         return 1;                                                     // RETURN
     }
+#endif
     return 0;
 }
 

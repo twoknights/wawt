@@ -145,12 +145,13 @@ struct DrawOptions {
     }
 
     static auto classDefaults() {
-        using Tuple = Wawt::Wawt::OptionTuple<DrawOptions>;
-        static std::array defaults = {
-            Tuple{ "screen",
+        using Tuple = Wawt::WawtEnv::OptionTuple<DrawOptions>;
+
+        static std::array<Tuple,2> defaults = {
+            Tuple{ Wawt::WawtEnv::sScreen,
                    0.0, 
                    DrawOptions(Color(160u, 160u, 255u, 255u), kBLACK) },
-            Tuple{ "button",
+            Tuple{ Wawt::WawtEnv::sPush,
                    2.0, 
                    DrawOptions(Color(192u, 192u, 255u, 255u), kBLACK) } 
         };

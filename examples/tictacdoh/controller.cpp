@@ -39,19 +39,20 @@ void
 Controller::cancel()
 {
     std::lock_guard<std::mutex> guard(d_cbLock);
-    d_ipc->closeConnection(d_currentId);
+    d_ipc->closeChannel(d_currentId);
 }
 
 void
-Controller::connectionChange(WawtIpcProtocol::ConnectionId     id,
-                             WawtIpcProtocol::ConnectionStatus status)
+Controller::connectionChange(Wawt::IpcProtocol::ChannelId,
+                             Wawt::IpcProtocol::ChannelStatus)
 {
+#if 0
     // Note: no other connection update for 'id' can be delivered
     // until this function returns.
     std::lock_guard<std::mutex> guard(d_cbLock);
 
     if (d_currentId == id) {
-        if (WawtIpcProtocol::ConnectionStatus::eOK == status) {
+        if (Wawt::IpcProtocol::ChannelStatus::eOK == status) {
             d_cbLock.unlock();
 
             auto callRet = d_router.call(d_setupScreen,
@@ -79,14 +80,16 @@ Controller::connectionChange(WawtIpcProtocol::ConnectionId     id,
         // TBD: DISCONNECT
     }
     return;                                                           // RETURN
+#endif
 }
 
 Controller::StatusPair
-Controller::connect(const Wawt::String_t& connectString)
+Controller::connect(const Wawt::String_t&)
 {
+#if 0
     Wawt::String_t           diagnostic;
 
-    WawtIpcProtocol::ConnectionId id;
+    Wawt::IpcProtocol::ChannelId id;
 
     auto status = d_ipc->prepareConnection(&diagnostic,
                                            &id,
@@ -106,6 +109,7 @@ Controller::connect(const Wawt::String_t& connectString)
         return {false, diagnostic};
     }
     d_currentId = id;
+#endif
 
     return {true, S("Attempting to connect to opponent.")};           // RETURN
 }

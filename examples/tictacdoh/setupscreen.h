@@ -42,7 +42,7 @@
 // with, and the controller is notified using a callback defined when
 // the screen was created.
 //
-class SetupScreen : public WawtScreenImpl<SetupScreen,DrawOptions> {
+class SetupScreen : public Wawt::ScreenImpl<SetupScreen,DrawOptions> {
   public:
     // PUBLIC TYPES
 
@@ -59,30 +59,27 @@ class SetupScreen : public WawtScreenImpl<SetupScreen,DrawOptions> {
     };
 
     // PUBLIC CONSTRUCTORS
-    SetupScreen(Calls *controller, StringIdLookup& mapper)
-        : WawtScreenImpl()
-        , d_controller(controller)
-        , d_mapper(mapper) { }
+    SetupScreen(Calls *controller)
+        : ScreenImpl() , d_controller(controller) { }
 
     // PUBLIC MANIPULATORS
     // Called by 'WawtScreenImpl::setup()':
-    Panel createScreenPanel();
+    Wawt::Widget createScreenPanel();
 
     // Called by 'WawtScreenImpl::activate()':
     void resetWidgets();
 
-    Wawt::EnterFn connectCallback(bool listen);
+    /*Wawt::EnterFn*/ void connectCallback(bool listen);
 
     void connectionResult(bool success, Wawt::String_t status);
 
   private:  
     // PRIVATE DATA MEMBERS
-    TextEntry              *d_connectEntry;
-    TextEntry              *d_listenEntry;
-    List                   *d_playerMark;
+//    TextEntry              *d_connectEntry;
+//    TextEntry              *d_listenEntry;
+//    List                   *d_playerMark;
     Calls                  *d_controller;
     int                     d_moveTime = 10;
-    StringIdLookup&         d_mapper;
 };
 
 #endif

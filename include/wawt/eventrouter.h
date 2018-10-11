@@ -115,6 +115,7 @@ class EventRouter {
     std::function<void()>        d_timedCallback{};
     Time                         d_lastTick{};
     Time                         d_nextTimedEvent{};
+    DrawProtocol                *d_adapter         = nullptr;
     Screen                      *d_current         = nullptr;
     double                       d_currentWidth    = 1280.0;
     double                       d_currentHeight   =  720.0;
@@ -124,7 +125,6 @@ class EventRouter {
     std::shared_ptr<Widget>      d_alert{};
     std::atomic_flag             d_spinLock;
     std::atomic_bool             d_shutdownFlag;
-    Wawt                         d_wawt;
     SetTimerFn                   d_setTimedEvent;
 
   public:
@@ -197,7 +197,7 @@ EventRouter::create(std::string_view name, Args&&... args)
                   "'Screen' must be derived from ScreenImpl");
     auto ptr  = std::make_unique<Scrn>(std::forward<Args>(args)...);
     auto hash = typeid(*ptr).hash_code();
-    ptr->wawtScreenSetup(&d_wawt, name, d_setTimedEvent);
+    ptr->wawtScreenSetup(name, d_setTimedEvent, d_adapter);
     ptr->setup();
 
     return install(static_cast<Screen*>(ptr.release()), hash);
