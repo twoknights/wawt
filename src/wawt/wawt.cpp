@@ -306,8 +306,8 @@ Corner findCorner(const Layout::Position& position,
     auto&      rectangle  = widget->drawData().d_rectangle;
     auto&      ul_x       = rectangle.d_ux;
     auto&      ul_y       = rectangle.d_uy;
-    auto       lr_x       = ul_x + rectangle.d_width  - 1;
-    auto       lr_y       = ul_y + rectangle.d_height - 1;
+    auto       lr_x       = ul_x + rectangle.d_width;
+    auto       lr_y       = ul_y + rectangle.d_height;
     auto       thickness  = rectangle.d_borderThickness;
 
     auto xorigin = (ul_x  + lr_x)/2.0;
@@ -360,8 +360,8 @@ Rectangle makeRectangle(const Layout&         layout,
                                  layout.d_thickness);
     auto [ux, uy]   = findCorner(layout.d_upperLeft,  parent, root);
     auto [lx, ly]   = findCorner(layout.d_lowerRight, parent, root);
-    auto width      = lx - ux + 1;
-    auto height     = ly - uy + 1;
+    auto width      = lx - ux;
+    auto height     = ly - uy;
 
     if (layout.d_pin != Layout::Vertex::eNONE) {
         auto  square = (width + height)/2.0;
@@ -413,7 +413,7 @@ Rectangle makeRectangle(const Layout&         layout,
           default: break;
         }
     }
-    return { ux, uy, lx - ux + 1, ly - uy + 1, thickness };           // RETURN
+    return { ux, uy, lx - ux, ly - uy, thickness };           // RETURN
 }
 
 } // end unnamed namespace
@@ -618,12 +618,12 @@ Widget::defaultLayout(DrawData                *data,
         data->d_labelBounds.d_uy = data->d_rectangle.d_uy
                                  + data->d_rectangle.d_borderThickness + 1;
 
-        if (layoutData.d_textAlign != Text::Align::eLEFT) {
+        if (layoutData.d_textAlign != TextAlign::eLEFT) {
             auto space = data->d_rectangle.d_width
                        - data->d_labelBounds.d_width
                        - 2*data->d_rectangle.d_borderThickness - 2;
 
-            if (layoutData.d_textAlign == Text::Align::eCENTER) {
+            if (layoutData.d_textAlign == TextAlign::eCENTER) {
                 space /= 2.0f;
             }
             data->d_labelBounds.d_ux += space;
@@ -777,34 +777,12 @@ Widget::addChild(Widget&& child) &&
 }
 
 Widget
-Widget::addChildren(Children&& widgets) &&
-{
-    for (auto& child : widgets) {
-        children().push_back(std::move(child));
-
-        if (d_methods && d_methods->d_newChildMethod) {
-            d_methods->d_newChildMethod(this, &children().back());
-        }
-    }
-    return std::move(*this);                                          // RETURN
-}
-
-template<class Method>
-Widget
-Widget::addMethod(Method&& method) && noexcept
-{
-    return Widget();
-}
-
-template<>
-Widget
 Widget::addMethod(DownEventMethod&& method) && noexcept
 {
     d_downMethod = std::move(method);
     return std::move(*this);                                          // RETURN
 }
 
-template<>
 Widget
 Widget::addMethod(DrawMethod&& method) && noexcept
 {
@@ -815,7 +793,6 @@ Widget::addMethod(DrawMethod&& method) && noexcept
     return std::move(*this);                                          // RETURN
 }
 
-template<>
 Widget
 Widget::addMethod(LayoutMethod&& method) && noexcept
 {
@@ -826,7 +803,6 @@ Widget::addMethod(LayoutMethod&& method) && noexcept
     return std::move(*this);                                          // RETURN
 }
 
-template<>
 Widget
 Widget::addMethod(NewChildMethod&& method) && noexcept
 {
@@ -837,7 +813,6 @@ Widget::addMethod(NewChildMethod&& method) && noexcept
     return std::move(*this);                                          // RETURN
 }
 
-template<>
 Widget
 Widget::addMethod(SerializeMethod&& method) && noexcept
 {
@@ -849,15 +824,12 @@ Widget::addMethod(SerializeMethod&& method) && noexcept
 }
 
 Widget
-Widget::text(const Text&             textInfo,
-             DrawData::BulletMark    mark,
-             bool                    leftMark) &&                     noexcept
+Widget::text(StringView_t string, CharSizeGroup group, TextAlign alignment) &&
+                                                                      noexcept
 {
-    d_drawData.d_labelMark          = mark;
-    d_drawData.d_leftMark           = leftMark;
-    d_layoutData.d_charSizeGroup    = textInfo.d_charSizeGroup;
-    d_layoutData.d_textAlign        = textInfo.d_alignment;
-    d_drawData.d_label              = textInfo.d_stringView;
+    d_layoutData.d_charSizeGroup    = group;
+    d_layoutData.d_textAlign        = alignment;
+    d_drawData.d_label              = WawtEnv::instance()->translate(string);
     return std::move(*this);                                          // RETURN
 }
 
@@ -919,19 +891,6 @@ Widget::addChild(Widget&& child) &
     return &children().back();                                        // RETURN
 }
 
-void
-Widget::addChildren(Children&& widgets) &
-{
-    for (auto& child : widgets) {
-        children().push_back(std::move(child));
-
-        if (d_methods && d_methods->d_newChildMethod) {
-            d_methods->d_newChildMethod(this, &children().back());
-        }
-    }
-    return;                                                           // RETURN
-}
-
 uint16_t
 Widget::assignWidgetIds(uint16_t        next,
                         uint16_t        relativeId,
@@ -941,7 +900,7 @@ Widget::assignWidgetIds(uint16_t        next,
     if (root == nullptr) {
         next = 1;
         root = this;
-        map = std::make_shared<Text::CharSizeMap>();
+        map = std::make_shared<CharSizeMap>();
     }
 
     if (d_layoutData.d_layout.d_thickness == -1.0) {
@@ -995,7 +954,7 @@ Widget::children() const noexcept
 Widget
 Widget::clone() const
 {
-    auto copy = Widget{};
+    auto copy = Widget{d_drawData.d_className, {}};
 
     copy.d_widgetLabel   = nullptr;
     copy.d_root          = d_root;
@@ -1125,7 +1084,7 @@ Widget::pushDialog(DrawProtocol *adapter, Widget&& child)
                 // Dialog's get their own char size map providing a
                 // seperate "name space" for char size group IDs.
                 d_layoutData.d_charSizeMap
-                    = std::make_shared<Text::CharSizeMap>();
+                    = std::make_shared<CharSizeMap>();
                 id = children().back().assignWidgetIds(id,
                                                        relativeId,
                                                        d_layoutData
@@ -1193,14 +1152,6 @@ Widget::serialize(std::ostream&     os,
     return;                                                           // RETURN
 }
 
-template <typename Method>
-void
-Widget::setMethod(Method&& method)                             noexcept
-{
-    return;                                                           // RETURN
-}
-
-template<>
 void
 Widget::setMethod(DownEventMethod&& method) noexcept
 {
@@ -1208,7 +1159,6 @@ Widget::setMethod(DownEventMethod&& method) noexcept
     return;                                                           // RETURN
 }
 
-template<>
 void
 Widget::setMethod(DrawMethod&& method) noexcept
 {
@@ -1219,7 +1169,6 @@ Widget::setMethod(DrawMethod&& method) noexcept
     return;                                                           // RETURN
 }
 
-template<>
 void
 Widget::setMethod(LayoutMethod&& method) noexcept
 {
@@ -1230,7 +1179,6 @@ Widget::setMethod(LayoutMethod&& method) noexcept
     return;                                                           // RETURN
 }
 
-template<>
 void
 Widget::setMethod(NewChildMethod&& method) noexcept
 {
@@ -1241,7 +1189,6 @@ Widget::setMethod(NewChildMethod&& method) noexcept
     return;                                                           // RETURN
 }
 
-template<>
 void
 Widget::setMethod(SerializeMethod&& method) noexcept
 {

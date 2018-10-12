@@ -27,49 +27,49 @@ namespace Wawt {
 
 using ClickCb = std::function<void(Widget *)>;
 
-Widget checkBox(Widget             **indirect,
-                Layout&&             layout,
-                StringView_t         string,
-                Text::CharSizeGroup  group,
-                ClickCb              clicked,
-                Text::Align          alignment = Text::Align::eLEFT,
-                bool                 leftBox   = true);
+Widget checkBox(Widget              **indirect,
+                Layout&&              layout,
+                StringView_t          string,
+                Widget::CharSizeGroup group,
+                ClickCb               clicked,
+                TextAlign             alignment = TextAlign::eLEFT,
+                bool                  leftBox   = true);
 
-Widget checkBox(Layout&&             layout,
-                StringView_t         string,
-                Text::CharSizeGroup  group,
-                ClickCb              clicked,
-                Text::Align          alignment = Text::Align::eLEFT,
-                bool                 leftBox   = true);
+Widget checkBox(Layout&&              layout,
+                StringView_t          string,
+                Widget::CharSizeGroup group,
+                ClickCb               clicked,
+                TextAlign             alignment = TextAlign::eLEFT,
+                bool                  leftBox   = true);
 
-Widget checkBox(Widget             **indirect,
-                Layout&&             layout,
-                StringView_t         string,
-                Text::CharSizeGroup  group     = Text::CharSizeGroup(),
-                Text::Align          alignment = Text::Align::eLEFT);
+Widget checkBox(Widget              **indirect,
+                Layout&&              layout,
+                StringView_t          string,
+                Widget::CharSizeGroup group     = Widget::CharSizeGroup(),
+                TextAlign             alignment = TextAlign::eLEFT);
 
-Widget checkBox(Layout&&             layout,
-                StringView_t         string,
-                Text::CharSizeGroup  group     = Text::CharSizeGroup(),
-                Text::Align          alignment = Text::Align::eLEFT);
+Widget checkBox(Layout&&              layout,
+                StringView_t          string,
+                Widget::CharSizeGroup group     = Widget::CharSizeGroup(),
+                TextAlign            alignment  = TextAlign::eLEFT);
 
 Widget label(Widget               **indirect,
              Layout&&               layout,
              StringView_t           string,
-             Text::Align            alignment = Text::Align::eCENTER,
-             Text::CharSizeGroup    group     = Text::CharSizeGroup());
+             TextAlign              alignment = TextAlign::eCENTER,
+             Widget::CharSizeGroup  group     = Widget::CharSizeGroup());
 
 Widget label(Layout&&               layout,
              StringView_t           string,
-             Text::Align            alignment = Text::Align::eCENTER,
-             Text::CharSizeGroup    group     = Text::CharSizeGroup());
+             TextAlign              alignment = TextAlign::eCENTER,
+             Widget::CharSizeGroup  group     = Widget::CharSizeGroup());
 
 Widget label(Widget               **indirect,
              Layout&&               layout,
              StringView_t           string,
-             Text::CharSizeGroup    group);
+             Widget::CharSizeGroup  group);
 
-Widget label(Layout&& layout, StringView_t string, Text::CharSizeGroup group);
+Widget label(Layout&& layout, StringView_t string, Widget::CharSizeGroup       group);
 
 Widget panel(Widget **indirect, Layout&& layout);
 
@@ -87,25 +87,25 @@ Widget pushButton(Widget              **indirect,
                   Layout&&              layout,
                   ClickCb               clicked,
                   StringView_t          string,
-                  Text::Align           alignment = Text::Align::eCENTER,
-                  Text::CharSizeGroup   group     = Text::CharSizeGroup());
+                  TextAlign             alignment = TextAlign::eCENTER,
+                  Widget::CharSizeGroup group     = Widget::CharSizeGroup());
 
 Widget pushButton(Layout&&              layout,
                   ClickCb               clicked,
                   StringView_t          string,
-                  Text::Align           alignment = Text::Align::eCENTER,
-                  Text::CharSizeGroup   group     = Text::CharSizeGroup());
+                  TextAlign             alignment = TextAlign::eCENTER,
+                  Widget::CharSizeGroup group     = Widget::CharSizeGroup());
 
 Widget pushButton(Widget              **indirect,
                   Layout&&              layout,
                   ClickCb               clicked,
                   StringView_t          string,
-                  Text::CharSizeGroup   group);
+                  Widget::CharSizeGroup group);
 
 Widget pushButton(Layout&&              layout,
                   ClickCb               clicked,
                   StringView_t          string,
-                  Text::CharSizeGroup   group);
+                  Widget::CharSizeGroup group);
 
 } // end Wawt namespace
 

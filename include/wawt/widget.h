@@ -22,7 +22,6 @@
 #include "wawt/wawt.h"
 
 #include "wawt/layout.h"
-#include "wawt/text.h"
 #include "wawt/draw.h"
 
 #include <cassert>
@@ -42,18 +41,22 @@ namespace Wawt {
                                 // class Widget
                                 //=============
 
+enum class TextAlign { eINVALID, eLEFT, eCENTER, eRIGHT };
+
 class  Widget final {
   public:
     using Children          = std::deque<Widget>;
     using ChildrenPtr       = std::unique_ptr<Children>;
     using OptionsFactory    = std::function<std::any(const std::string&)>;
     using BorderDefaults    = std::function<float(const std::string&)>;
-    using CharSizeMapPtr    = std::shared_ptr<Text::CharSizeMap>;
+    using CharSizeGroup     = std::optional<uint16_t>;
+    using CharSizeMap       = std::map<uint16_t, uint16_t>;
+    using CharSizeMapPtr    = std::shared_ptr<CharSizeMap>;
 
     struct LayoutData {
         Layout              d_layout{};
-        Text::Align         d_textAlign     = Text::Align::eCENTER;
-        Text::CharSizeGroup d_charSizeGroup{};
+        TextAlign           d_textAlign     = TextAlign::eCENTER;
+        CharSizeGroup       d_charSizeGroup{};
         CharSizeMapPtr      d_charSizeMap{};
         bool                d_refreshBounds = false;
 
@@ -107,7 +110,7 @@ class  Widget final {
 
 
     // PUBLIC CONSTRUCTORS
-    Widget()                                = default;
+    Widget()                                = delete;
 
     Widget(const Widget&)                   = delete;
 
@@ -137,12 +140,13 @@ class  Widget final {
 
     Widget addChild(Widget&& child) &&;
 
-    Widget addChildren(Children&& widgets) &&;
+    Widget addMethod(DownEventMethod&& method) &&                     noexcept;
+    Widget addMethod(DrawMethod&&      method) &&                     noexcept;
+    Widget addMethod(LayoutMethod&&    method) &&                     noexcept;
+    Widget addMethod(NewChildMethod&&  method) &&                     noexcept;
+    Widget addMethod(SerializeMethod&& method) &&                     noexcept;
 
-    template <typename Method>
-    Widget    addMethod(Method&& method) &&                           noexcept;
-
-    Widget    labelSelect(bool setting) &&                            noexcept{
+    Widget labelSelect(bool setting) &&                               noexcept{
         d_textHit = setting;
         return std::move(*this);
     }
@@ -152,22 +156,38 @@ class  Widget final {
         return std::move(*this);
     }
 
-    Widget text(const Text&             textInfo,
-                DrawData::BulletMark    mark     = DrawData::BulletMark::eNONE,
-                bool                    leftMark = true) &&           noexcept;
+    Widget text(StringView_t   string,
+                CharSizeGroup  group     = CharSizeGroup(),
+                TextAlign      alignment = TextAlign::eCENTER) &&     noexcept;
+
+    Widget text(StringView_t string, TextAlign alignment) &&          noexcept{
+        return std::move(*this).text(string, CharSizeGroup(), alignment);
+    }
+
+    Widget textMark(DrawData::BulletMark  mark,
+                    bool                  leftMark = true) &&         noexcept{
+        d_drawData.d_labelMark = mark;
+        d_drawData.d_leftMark  = leftMark;
+        return std::move(*this);
+    }
 
     // PUBLIC MANIPULATORS
 
     Widget   *addChild(Widget&& child) &;
 
-    void      addChildren(Children&& widgets) &;
+    uint16_t  assignWidgetIds(uint16_t         next       = 1,
+                              uint16_t         relativeId = 0,
+                              CharSizeMapPtr   mapPtr     = nullptr,
+                              Widget          *root       = nullptr)  noexcept;
 
-    uint16_t  assignWidgetIds(uint16_t         next        = 1,
-                              uint16_t         relativeId  = 0,
-                              CharSizeMapPtr   mapPtr   = nullptr,
-                              Widget          *root     = nullptr)   noexcept;
+    Children& children()                                              noexcept;
 
-    Children& children()                                             noexcept;
+    void      clearTrackingPointer()                                  noexcept{
+        if (d_widgetLabel) {
+            *d_widgetLabel = nullptr;
+            d_widgetLabel  = nullptr;
+        }
+    }
 
     EventUpCb downEvent(float x, float y);
 
@@ -197,8 +217,11 @@ class  Widget final {
         d_drawData.d_hidden = setting;
     }
 
-    template <typename Method>
-    void      setMethod(Method&& method)                             noexcept;
+    void      setMethod(DownEventMethod&& method)                    noexcept;
+    void      setMethod(DrawMethod&&      method)                    noexcept;
+    void      setMethod(LayoutMethod&&    method)                    noexcept;
+    void      setMethod(NewChildMethod&&  method)                    noexcept;
+    void      setMethod(SerializeMethod&& method)                    noexcept;
 
     void      setLabelSelect(bool setting)                           noexcept {
         d_textHit = setting;

@@ -70,93 +70,91 @@ Widget::DownEventMethod makeToggleButtonDownMethod(ClickCb&& onClick)
 Widget checkBox(Widget                **indirect,
                 Layout&&                layout,
                 StringView_t            string,
-                Text::CharSizeGroup     group,
+                Widget::CharSizeGroup   group,
                 ClickCb                 clicked,
-                Text::Align             alignment,
+                TextAlign               alignment,
                 bool                    leftBox)
 {
     return  Widget(WawtEnv::sCheck, indirect, std::move(layout))
             .addMethod(makeToggleButtonDownMethod(std::move(clicked)))
             .labelSelect(layout.d_thickness <= 0.0)
-            .text({string, group, alignment},
-                   DrawData::BulletMark::eSQUARE,
-                   leftBox);                                          // RETURN
+            .text(string, group, alignment)
+            .textMark(DrawData::BulletMark::eSQUARE, leftBox);        // RETURN
 }
 
 Widget checkBox(Layout&&                layout,
                 StringView_t            string,
-                Text::CharSizeGroup     group,
+                Widget::CharSizeGroup   group,
                 ClickCb                 clicked,
-                Text::Align             alignment,
+                TextAlign               alignment,
                 bool                    leftBox)
 {
     return  Widget(WawtEnv::sCheck, std::move(layout))
             .addMethod(makeToggleButtonDownMethod(std::move(clicked)))
             .labelSelect(layout.d_thickness <= 0.0)
-            .text({string, group, alignment},
-                   DrawData::BulletMark::eSQUARE,
-                   leftBox);                                          // RETURN
+            .text(string, group, alignment)
+            .textMark(DrawData::BulletMark::eSQUARE, leftBox);        // RETURN
 }
 
 Widget checkBox(Widget                **indirect,
                 Layout&&                layout,
                 StringView_t            string,
-                Text::CharSizeGroup     group,
-                Text::Align             alignment)
+                Widget::CharSizeGroup   group,
+                TextAlign               alignment)
 {
     return  Widget(WawtEnv::sCheck, indirect, std::move(layout))
             .addMethod(makeToggleButtonDownMethod(ClickCb()))
             .labelSelect(layout.d_thickness <= 0.0)
-            .text({string, group, alignment},
-                   DrawData::BulletMark::eSQUARE,
-                   alignment != Text::Text::Align::eRIGHT);           // RETURN
+            .text(string, group, alignment)
+            .textMark(DrawData::BulletMark::eSQUARE,
+                      alignment != TextAlign::eRIGHT);        // RETURN
 }
 
 Widget checkBox(Layout&&                layout,
                 StringView_t            string,
-                Text::CharSizeGroup     group,
-                Text::Align             alignment)
+                Widget::CharSizeGroup   group,
+                TextAlign               alignment)
 {
     return  Widget(WawtEnv::sCheck, std::move(layout))
             .addMethod(makeToggleButtonDownMethod(ClickCb()))
             .labelSelect(layout.d_thickness <= 0.0)
-            .text({string, group, alignment},
-                   DrawData::BulletMark::eSQUARE,
-                   alignment != Text::Text::Align::eRIGHT);           // RETURN
+            .text(string, group, alignment)
+            .textMark(DrawData::BulletMark::eSQUARE,
+                      alignment != TextAlign::eRIGHT);        // RETURN
 }
 
 Widget label(Widget                   **indirect,
              Layout&&                   layout,
              StringView_t               string,
-             Text::Align                alignment,
-             Text::CharSizeGroup        group)
+             TextAlign                  alignment,
+             Widget::CharSizeGroup      group)
 {
     return  Widget(WawtEnv::sLabel, indirect, std::move(layout))
-            .text({string, group, alignment});                        // RETURN
+            .text(string, group, alignment);                          // RETURN
 }
 
 Widget label(Layout&&                   layout,
              StringView_t               string,
-             Text::Align                alignment,
-             Text::CharSizeGroup        group)
+             TextAlign                  alignment,
+             Widget::CharSizeGroup      group)
 {
     return  Widget(WawtEnv::sLabel, std::move(layout))
-            .text({string, group, alignment});                        // RETURN
+            .text(string, group, alignment);                          // RETURN
 }
 
 Widget label(Widget                   **indirect,
              Layout&&                   layout,
              StringView_t               string,
-             Text::CharSizeGroup        group)
+             Widget::CharSizeGroup      group)
 {
     return  Widget(WawtEnv::sLabel, indirect, std::move(layout))
-            .text({string, group});                                   // RETURN
+            .text(string, group);                                     // RETURN
 }
 
-Widget label(Layout&& layout, StringView_t string, Text::CharSizeGroup group)
+Widget label(Layout&& layout, StringView_t string, Widget::CharSizeGroup group)
 {
     return  Widget(WawtEnv::sLabel, std::move(layout))
-            .text({string, group});                                   // RETURN
+            .text(string, group);                                     // RETURN
 }
 
 Widget panel(Widget **indirect, Layout&& layout)
@@ -219,44 +217,44 @@ Widget pushButton(Widget              **indirect,
                   Layout&&              layout,
                   ClickCb               clicked,
                   StringView_t          string,
-                  Text::Align           alignment,
-                  Text::CharSizeGroup   group)
+                  TextAlign             alignment,
+                  Widget::CharSizeGroup group)
 {
     return  Widget(WawtEnv::sPush, indirect, std::move(layout))
             .addMethod(makePushButtonDownMethod(std::move(clicked)))
-            .text({string, group, alignment});                        // RETURN
+            .text(string, group, alignment);                          // RETURN
 }
 
 Widget pushButton(Layout&&              layout,
                   ClickCb               clicked,
                   StringView_t          string,
-                  Text::Align           alignment,
-                  Text::CharSizeGroup   group)
+                  TextAlign             alignment,
+                  Widget::CharSizeGroup group)
 {
     return  Widget(WawtEnv::sPush, std::move(layout))
             .addMethod(makePushButtonDownMethod(std::move(clicked)))
-            .text({string, group, alignment});                        // RETURN
+            .text(string, group, alignment);                          // RETURN
 }
 
 Widget pushButton(Widget              **indirect,
                   Layout&&              layout,
                   ClickCb               clicked,
                   StringView_t          string,
-                  Text::CharSizeGroup   group)
+                  Widget::CharSizeGroup group)
 {
     return  Widget(WawtEnv::sPush, indirect, std::move(layout))
             .addMethod(makePushButtonDownMethod(std::move(clicked)))
-            .text({string, group});                                   // RETURN
+            .text(string, group);                                     // RETURN
 }
 
 Widget pushButton(Layout&&              layout,
                   ClickCb               clicked,
                   StringView_t          string,
-                  Text::CharSizeGroup   group)
+                  Widget::CharSizeGroup group)
 {
     return  Widget(WawtEnv::sPush, std::move(layout))
             .addMethod(makePushButtonDownMethod(std::move(clicked)))
-            .text({string, group});                                   // RETURN
+            .text(string, group);                                     // RETURN
 }
 
 }  // namespace Wawt
