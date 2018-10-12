@@ -22,6 +22,7 @@
 #include <cstring>
 #include <cmath>
 #include <iomanip>
+#include <ios>
 #include <iostream>
 #include <ostream>
 #include <sstream>
@@ -315,15 +316,15 @@ Corner findCorner(const Layout::Position& position,
     auto yradius = lr_y - yorigin;
 
     switch (position.d_normalizeX) {
-      case Normalize::eOUTER:  { // Already have this.
+      case Layout::Normalize::eOUTER:  { // Already have this.
         } break;
-      case Normalize::eMIDDLE: {
+      case Layout::Normalize::eMIDDLE: {
             xradius -= thickness/2;
         } break;
-      case Normalize::eINNER: {
+      case Layout::Normalize::eINNER: {
             xradius -= thickness;
         } break;
-      case Normalize::eDEFAULT: {
+      case Layout::Normalize::eDEFAULT: {
             if (widget == &parent) {
                 xradius -= thickness; // eINNER
             }
@@ -331,15 +332,15 @@ Corner findCorner(const Layout::Position& position,
     };
 
     switch (position.d_normalizeY) {
-      case Normalize::eOUTER:  { // Already have this.
+        case Layout::Normalize::eOUTER:  { // Already have this.
         } break;
-      case Normalize::eMIDDLE: {
+      case Layout::Normalize::eMIDDLE: {
             yradius -= thickness/2;
         } break;
-      case Normalize::eINNER: {
+      case Layout::Normalize::eINNER: {
             yradius -= thickness;
         } break;
-      case Normalize::eDEFAULT: {
+      case Layout::Normalize::eDEFAULT: {
             if (widget == &parent) {
                 yradius -= thickness; // eINNER
             }
@@ -362,7 +363,7 @@ Rectangle makeRectangle(const Layout&         layout,
     auto width      = lx - ux + 1;
     auto height     = ly - uy + 1;
 
-    if (layout.d_pin != Vertex::eNONE) {
+    if (layout.d_pin != Layout::Vertex::eNONE) {
         auto  square = (width + height)/2.0;
 
         if (square > width) {
@@ -375,38 +376,38 @@ Rectangle makeRectangle(const Layout&         layout,
         auto  deltaH = square - height;
 
         switch (layout.d_pin) {
-          case Vertex::eUPPER_LEFT: {
+          case Layout::Vertex::eUPPER_LEFT: {
                 ly += deltaH; lx += deltaW;
             } break;
-          case Vertex::eUPPER_CENTER: {
+          case Layout::Vertex::eUPPER_CENTER: {
                 ly += deltaH; lx += deltaW/2.0;
                               ux -= deltaW/2.0;
             } break;
-          case Vertex::eUPPER_RIGHT: {
+          case Layout::Vertex::eUPPER_RIGHT: {
                 ly += deltaH;
                               ux -= deltaW;
             } break;
-          case Vertex::eCENTER_LEFT: {
+          case Layout::Vertex::eCENTER_LEFT: {
                 uy -= deltaH/2.0;
                 ly += deltaH/2.0; lx += deltaW;
             } break;
-          case Vertex::eCENTER_CENTER: {
+          case Layout::Vertex::eCENTER_CENTER: {
                 uy -= deltaH/2.0; ux -= deltaW/2.0;
                 ly += deltaH/2.0; lx += deltaW/2.0;
             } break;
-          case Vertex::eCENTER_RIGHT: {
+          case Layout::Vertex::eCENTER_RIGHT: {
                 uy -= deltaH/2.0; ux -= deltaW;
                 ly += deltaH/2.0;
             } break;
-          case Vertex::eLOWER_LEFT: {
+          case Layout::Vertex::eLOWER_LEFT: {
                 uy -= deltaH;
                               lx += deltaW;
             } break;
-          case Vertex::eLOWER_CENTER: {
+          case Layout::Vertex::eLOWER_CENTER: {
                 uy -= deltaH; ux -= deltaW/2.0;
                               lx += deltaW/2.0;
             } break;
-          case Vertex::eLOWER_RIGHT: {
+          case Layout::Vertex::eLOWER_RIGHT: {
                 uy -= deltaH; ux -= deltaW;
             } break;
           default: break;
@@ -484,6 +485,49 @@ Layout::WidgetRef::getWidgetId() const noexcept
                                 //-------------
                                 // class Widget
                                 //-------------
+
+// SPECIALIZATIONS
+template<class Method>
+Method
+Widget::getInstalled() const noexcept
+{
+    return Method();
+}
+
+template<>
+Widget::DownEventMethod
+Widget::getInstalled() const noexcept
+{
+    return d_downMethod;
+}
+
+template<>
+Widget::DrawMethod
+Widget::getInstalled() const noexcept
+{
+    return d_methods ? d_methods->d_drawMethod : DrawMethod();
+}
+
+template<>
+Widget::LayoutMethod
+Widget::getInstalled() const noexcept
+{
+    return d_methods ? d_methods->d_layoutMethod : LayoutMethod();
+}
+
+template<>
+Widget::NewChildMethod
+Widget::getInstalled() const noexcept
+{
+    return d_methods ? d_methods->d_newChildMethod : NewChildMethod();
+}
+
+template<>
+Widget::SerializeMethod
+Widget::getInstalled() const noexcept
+{
+    return d_methods ? d_methods->d_serializeMethod : SerializeMethod();
+}
 
 // PRIVATE MEMBERS
 void
@@ -591,18 +635,23 @@ Widget::defaultLayout(DrawData                *data,
 void
 Widget::defaultSerialize(std::ostream&      os,
                          std::string       *closeTag,
-                         const DrawData&    drawData,
-                         const LayoutData&  layoutData,
+                         const Widget&      widget,
                          unsigned int       indent)
 {
     auto  spaces     = Indent(indent);
+    auto& drawData   = widget.drawData();
+    auto& layoutData = widget.layoutData();
     auto& widgetName = drawData.d_className;
     auto& widgetId   = drawData.d_widgetId;
     auto& layout     = layoutData.d_layout;
 
+    auto fmtflags = os.flags();
+    os.setf(std::ios::boolalpha);
+
     std::ostringstream ss;
     ss << spaces << "</" << widgetName << ">\n";
-    os << spaces << "<" << widgetName << " id='" << widgetId << "'>\n";
+    os << spaces << "<" << widgetName << " id='" << widgetId
+       << "' rid='" << drawData.d_relativeId << "'>\n";
 
     *closeTag = ss.str();
 
@@ -613,7 +662,7 @@ Widget::defaultSerialize(std::ostream&      os,
         os << layout.d_thickness;
     }
 
-    if (layout.d_pin != Vertex::eNONE) {
+    if (layout.d_pin != Layout::Vertex::eNONE) {
         os << "' pin='" << int(layout.d_pin);
     }
     os << "'>\n";
@@ -623,24 +672,17 @@ Widget::defaultSerialize(std::ostream&      os,
        <<       "' sy='" << layout.d_upperLeft.d_sY
        <<   "' widget='" << layout.d_upperLeft.d_widgetRef.getWidgetId()
        <<   "' norm_x='" << int(layout.d_upperLeft.d_normalizeX)
-       <<   "' norm_y='" << int(layout.d_upperLeft.d_normalizeX)
+       <<   "' norm_y='" << int(layout.d_upperLeft.d_normalizeY)
        << "'/>\n";
     os << spaces
        <<     "<lr sx='" << layout.d_lowerRight.d_sX
        <<       "' sy='" << layout.d_lowerRight.d_sY
        <<   "' widget='" << layout.d_lowerRight.d_widgetRef.getWidgetId()
        <<   "' norm_x='" << int(layout.d_lowerRight.d_normalizeX)
-       <<   "' norm_y='" << int(layout.d_lowerRight.d_normalizeX)
+       <<   "' norm_y='" << int(layout.d_lowerRight.d_normalizeY)
        << "'/>\n";
     spaces -= 2;
     os << spaces << "</layout>\n";
-
-#if 0
-    os << spaces
-       << "<input action='" << int(d_input.d_action)
-       << "' disabled='"    << int(d_input.d_disabled)
-       << "' variant='"     << d_input.d_callback.index() << "'/>\n";
-#endif
 
     if (!drawData.d_label.empty()) {
         os << spaces
@@ -653,18 +695,53 @@ Widget::defaultSerialize(std::ostream&      os,
         }
 
         if (drawData.d_labelMark != DrawData::BulletMark::eNONE) {
-            os << "' mark='"    << int(drawData.d_labelMark);
+            os << "' mark='"    << int(drawData.d_labelMark)
+               << "' left='"    << bool(drawData.d_leftMark);
         }
         os << "'>";
         outputXMLString(os, drawData.d_label);
         os << "</text>\n";
     }
+    else {
+        os << spaces << "<text/>\n";
+    }
+    std::stringstream im;
+    spaces += 2;
+
+    if (widget.getInstalled<Widget::DownEventMethod>()) {
+        im << spaces << "<downMethod type='functor'/>\n";
+    }
+    
+    if (widget.getInstalled<Widget::DrawMethod>()) {
+        im << spaces << "<drawMethod type='functor'/>\n";
+    }
+
+    if (widget.getInstalled<Widget::LayoutMethod>()) {
+        im << spaces << "<layoutMethod type='functor'/>\n";
+    }
+    
+    if (widget.getInstalled<Widget::NewChildMethod>()) {
+        im << spaces << "<newChildMethod type='functor'/>\n";
+    }
+    
+    if (widget.getInstalled<Widget::SerializeMethod>()) {
+        im << spaces << "<serializeMethod type='functor'/>\n";
+    }
+    spaces -= 2;
+
+    if (im.str().empty()) {
+        os << spaces << "<installedMethods/>\n";
+    }
+    else {
+        os << spaces << "<installedMethods>\n" << im.str()
+           << spaces << "</installedMethods>\n";
+    }
 
     os << spaces
-       << "<draw options='" << int(drawData.d_options.has_value())
-       << "' selected='"    << drawData.d_selected
-       << "' disable='"     << drawData.d_disableEffect
-       << "' hidden='"      << int(drawData.d_hidden)
+       << "<draw options='" << drawData.d_options.has_value()
+       << "' selected='"    << bool(drawData.d_selected)
+       << "' disable='"     << bool(drawData.d_disableEffect)
+       << "' hidden='"      << bool(drawData.d_hidden)
        << "'>\n";
     spaces += 2;
     os << spaces
@@ -674,6 +751,7 @@ Widget::defaultSerialize(std::ostream&      os,
        <<     "' height='"  << drawData.d_rectangle.d_height
        <<     "' border='"  << drawData.d_rectangle.d_borderThickness
        << "'/>\n"
+       << spaces
        << "<bounds x='"     << drawData.d_labelBounds.d_ux
        <<       "' y='"     << drawData.d_labelBounds.d_uy
        <<       "' width='" << drawData.d_labelBounds.d_width
@@ -681,27 +759,19 @@ Widget::defaultSerialize(std::ostream&      os,
        << "'/>\n";
     spaces -= 2;
     os << spaces << "</draw>\n";
+    os.flags(fmtflags);
     return;                                                           // RETURN
 }
 
 // PUBLIC R-Value MANIPULATORS
-Widget
-Widget::addAddMethod(AddMethod&& method) && noexcept
-{
-    if (!d_methods) {
-        d_methods = std::make_unique<Methods>();
-    }
-    d_methods->d_addMethod = std::move(method);
-    return std::move(*this);                                          // RETURN
-}
 
 Widget
 Widget::addChild(Widget&& child) &&
 {
     children().push_back(std::move(child));
 
-    if (d_methods && d_methods->d_addMethod) {
-        d_methods->d_addMethod(this, &children().back());
+    if (d_methods && d_methods->d_newChildMethod) {
+        d_methods->d_newChildMethod(this, &children().back());
     }
     return std::move(*this);                                          // RETURN
 }
@@ -712,24 +782,31 @@ Widget::addChildren(Children&& widgets) &&
     for (auto& child : widgets) {
         children().push_back(std::move(child));
 
-        if (d_methods && d_methods->d_addMethod) {
-            d_methods->d_addMethod(this, &children().back());
+        if (d_methods && d_methods->d_newChildMethod) {
+            d_methods->d_newChildMethod(this, &children().back());
         }
     }
     return std::move(*this);                                          // RETURN
 }
 
+template<class Method>
 Widget
-Widget::addDownEventMethod(DownEventMethod&& method,
-                           bool              textHit) &&              noexcept
+Widget::addMethod(Method&& method) && noexcept
+{
+    return Widget();
+}
+
+template<>
+Widget
+Widget::addMethod(DownEventMethod&& method) && noexcept
 {
     d_downMethod = std::move(method);
-    d_textHit    = textHit;
     return std::move(*this);                                          // RETURN
 }
 
+template<>
 Widget
-Widget::addDrawMethod(DrawMethod&& method) &&                         noexcept
+Widget::addMethod(DrawMethod&& method) && noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
@@ -738,8 +815,9 @@ Widget::addDrawMethod(DrawMethod&& method) &&                         noexcept
     return std::move(*this);                                          // RETURN
 }
 
+template<>
 Widget
-Widget::addLayoutMethod(LayoutMethod&& method) &&                     noexcept
+Widget::addMethod(LayoutMethod&& method) && noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
@@ -748,8 +826,20 @@ Widget::addLayoutMethod(LayoutMethod&& method) &&                     noexcept
     return std::move(*this);                                          // RETURN
 }
 
+template<>
 Widget
-Widget::addSerializeMethod(SerializeMethod&& method) &&               noexcept
+Widget::addMethod(NewChildMethod&& method) && noexcept
+{
+    if (!d_methods) {
+        d_methods = std::make_unique<Methods>();
+    }
+    d_methods->d_newChildMethod = std::move(method);
+    return std::move(*this);                                          // RETURN
+}
+
+template<>
+Widget
+Widget::addMethod(SerializeMethod&& method) && noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
@@ -823,8 +913,8 @@ Widget*
 Widget::addChild(Widget&& child) &
 {
     children().push_back(std::move(child));
-    if (d_methods && d_methods->d_addMethod) {
-        d_methods->d_addMethod(this, &children().back());
+    if (d_methods && d_methods->d_newChildMethod) {
+        d_methods->d_newChildMethod(this, &children().back());
     }
     return &children().back();                                        // RETURN
 }
@@ -835,8 +925,8 @@ Widget::addChildren(Children&& widgets) &
     for (auto& child : widgets) {
         children().push_back(std::move(child));
 
-        if (d_methods && d_methods->d_addMethod) {
-            d_methods->d_addMethod(this, &children().back());
+        if (d_methods && d_methods->d_newChildMethod) {
+            d_methods->d_newChildMethod(this, &children().back());
         }
     }
     return;                                                           // RETURN
@@ -1091,8 +1181,7 @@ Widget::serialize(std::ostream&     os,
          &Methods::d_serializeMethod,
          os,
          &closeTag,
-         d_drawData,
-         d_layoutData,
+         *this,
          indent);
 
     indent += 2;
@@ -1104,27 +1193,24 @@ Widget::serialize(std::ostream&     os,
     return;                                                           // RETURN
 }
 
+template <typename Method>
 void
-Widget::setAddMethod(AddMethod&& method) noexcept
+Widget::setMethod(Method&& method)                             noexcept
 {
-    if (!d_methods) {
-        d_methods = std::make_unique<Methods>();
-    }
-    d_methods->d_addMethod = std::move(method);
     return;                                                           // RETURN
 }
 
+template<>
 void
-Widget::setDownEventMethod(DownEventMethod&& method,
-                           bool              textHit) noexcept
+Widget::setMethod(DownEventMethod&& method) noexcept
 {
     d_downMethod = std::move(method);
-    d_textHit    = textHit;
     return;                                                           // RETURN
 }
 
+template<>
 void
-Widget::setDrawMethod(DrawMethod&& method) noexcept
+Widget::setMethod(DrawMethod&& method) noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
@@ -1133,8 +1219,9 @@ Widget::setDrawMethod(DrawMethod&& method) noexcept
     return;                                                           // RETURN
 }
 
+template<>
 void
-Widget::setLayoutMethod(LayoutMethod&& method) noexcept
+Widget::setMethod(LayoutMethod&& method) noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
@@ -1143,8 +1230,20 @@ Widget::setLayoutMethod(LayoutMethod&& method) noexcept
     return;                                                           // RETURN
 }
 
+template<>
 void
-Widget::setSerializeMethod(SerializeMethod&& method) noexcept
+Widget::setMethod(NewChildMethod&& method) noexcept
+{
+    if (!d_methods) {
+        d_methods = std::make_unique<Methods>();
+    }
+    d_methods->d_newChildMethod = std::move(method);
+    return;                                                           // RETURN
+}
+
+template<>
+void
+Widget::setMethod(SerializeMethod&& method) noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
@@ -1170,7 +1269,8 @@ Draw::draw(const DrawData& drawData)  noexcept
     auto& widgetName = drawData.d_className;
     auto& widgetId   = drawData.d_widgetId;
 
-    d_os << spaces << "<" << widgetName << " id='" << widgetId << "'>\n";
+    d_os << spaces << "<" << widgetName << " id='" << widgetId
+         << "' rid=" << drawData.d_relativeId << "'>\n";
 
     spaces += 2;
     d_os << spaces
@@ -1186,21 +1286,24 @@ Draw::draw(const DrawData& drawData)  noexcept
          <<     "' width='"   << drawData.d_rectangle.d_width
          <<     "' height='"  << drawData.d_rectangle.d_height
          <<     "' border='"  << drawData.d_rectangle.d_borderThickness
-         << "'/>\n"
-         << spaces
-         << "<text x='"       << drawData.d_labelBounds.d_ux
-         <<       "' y='"     << drawData.d_labelBounds.d_uy
-         <<       "' width='" << drawData.d_labelBounds.d_width
-         <<       "' height='"<< drawData.d_labelBounds.d_height
-         <<       "' charSize='" << drawData.d_charSize;
+         << "'/>\n";
 
-    if (drawData.d_labelMark != DrawData::BulletMark::eNONE) {
-        d_os << "' mark='"    << int(drawData.d_labelMark)
-             << "' left='"    << drawData.d_leftMark;
+    if (drawData.d_labelBounds.d_width > 0) {
+        d_os << spaces
+             << "<text x='"       << drawData.d_labelBounds.d_ux
+             <<       "' y='"     << drawData.d_labelBounds.d_uy
+             <<       "' width='" << drawData.d_labelBounds.d_width
+             <<       "' height='"<< drawData.d_labelBounds.d_height
+             <<       "' charSize='" << drawData.d_charSize;
+
+        if (drawData.d_labelMark != DrawData::BulletMark::eNONE) {
+            d_os << "' mark='"    << int(drawData.d_labelMark)
+                 << "' left='"    << drawData.d_leftMark;
+        }
+        d_os << "'/>\n" << spaces << "<string>";
+        outputXMLString(d_os, drawData.d_label);
+        d_os << "</string>\n";
     }
-    d_os << "'/>\n" << spaces << "<string>";
-    outputXMLString(d_os, drawData.d_label);
-    d_os << "</string>\n";
     spaces -= 2;
     d_os << spaces << "</draw>\n";
     spaces -= 2;

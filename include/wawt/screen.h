@@ -124,9 +124,9 @@ class Screen {
     // PUBLIC CONSTANTS
 
     //! Scale normalization adjustment constants.
-    constexpr static const Normalize kOUTER  = Normalize::eOUTER;
-    constexpr static const Normalize kMIDDLE = Normalize::eMIDDLE;
-    constexpr static const Normalize kINNER  = Normalize::eINNER;
+    static constexpr Normalize kOUTER  = Layout::Normalize::eOUTER;
+    static constexpr Normalize kMIDDLE = Layout::Normalize::eMIDDLE;
+    static constexpr Normalize kINNER  = Layout::Normalize::eINNER;
 
     // PUBLIC MANIPULATORS
 

@@ -78,27 +78,6 @@ constexpr std::size_t sizeOfChar(const Char_t ch) {
 using FocusCb     = std::function<bool(Char_t)>;
 using EventUpCb   = std::function<FocusCb(float x, float y, bool)>;
 
-// Layout attributes:
-enum class Normalize {
-          eOUTER         ///< Normalize to widget's width/2
-        , eMIDDLE        ///< Normalize to middle of border.
-        , eINNER         ///< Normalize to 1 pixel before inner edge
-        , eDEFAULT       ///< eINNER for parent, otherwise eOUTER
-};
-
-enum class Vertex  {
-          eUPPER_LEFT
-        , eUPPER_CENTER
-        , eUPPER_RIGHT
-        , eCENTER_LEFT
-        , eCENTER_CENTER
-        , eCENTER_RIGHT
-        , eLOWER_LEFT
-        , eLOWER_CENTER
-        , eLOWER_RIGHT
-        , eNONE
-};
-
                             //==================
                             // struct Dimensions
                             //==================

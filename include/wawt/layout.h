@@ -34,6 +34,27 @@ class Widget;
 
 struct Layout {
     // PUBLIC TYPES
+    // Layout attributes:
+    enum class Normalize {
+              eOUTER         ///< Normalize to widget's width/2
+            , eMIDDLE        ///< Normalize to middle of border.
+            , eINNER         ///< Normalize to 1 pixel before inner edge
+            , eDEFAULT       ///< eINNER for parent, otherwise eOUTER
+    };
+
+    enum class Vertex  {
+              eUPPER_LEFT
+            , eUPPER_CENTER
+            , eUPPER_RIGHT
+            , eCENTER_LEFT
+            , eCENTER_CENTER
+            , eCENTER_RIGHT
+            , eLOWER_LEFT
+            , eLOWER_CENTER
+            , eLOWER_RIGHT
+            , eNONE
+    };
+
     class WidgetRef {
         WidgetId    d_widgetId{};
         Widget    **d_widget  = nullptr;
@@ -118,22 +139,6 @@ struct Layout {
                      double            thickness = -1.0)            noexcept
         : d_upperLeft(upperLeft)
         , d_lowerRight(lowerRight)
-        , d_pin(pin)
-        , d_thickness(float(thickness)) { }
-
-    constexpr Layout(Position&& upperLeft,
-                     Position&& lowerRight,
-                     double     thickness = -1.0)                   noexcept
-        : d_upperLeft(std::move(upperLeft))
-        , d_lowerRight(std::move(lowerRight))
-        , d_thickness(float(thickness)) { }
-
-    constexpr Layout(Position&& upperLeft,
-                     Position&& lowerRight,
-                     Vertex     pin,
-                     double     thickness = -1.0)                   noexcept
-        : d_upperLeft(std::move(upperLeft))
-        , d_lowerRight(std::move(lowerRight))
         , d_pin(pin)
         , d_thickness(float(thickness)) { }
 

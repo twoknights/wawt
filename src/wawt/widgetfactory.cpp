@@ -76,8 +76,8 @@ Widget checkBox(Widget                **indirect,
                 bool                    leftBox)
 {
     return  Widget(WawtEnv::sCheck, indirect, std::move(layout))
-            .addDownEventMethod(makeToggleButtonDownMethod(std::move(clicked)),
-                             layout.d_thickness <= 0.0)
+            .addMethod(makeToggleButtonDownMethod(std::move(clicked)))
+            .labelSelect(layout.d_thickness <= 0.0)
             .text({string, group, alignment},
                    DrawData::BulletMark::eSQUARE,
                    leftBox);                                          // RETURN
@@ -91,8 +91,8 @@ Widget checkBox(Layout&&                layout,
                 bool                    leftBox)
 {
     return  Widget(WawtEnv::sCheck, std::move(layout))
-            .addDownEventMethod(makeToggleButtonDownMethod(std::move(clicked)),
-                             layout.d_thickness <= 0.0)
+            .addMethod(makeToggleButtonDownMethod(std::move(clicked)))
+            .labelSelect(layout.d_thickness <= 0.0)
             .text({string, group, alignment},
                    DrawData::BulletMark::eSQUARE,
                    leftBox);                                          // RETURN
@@ -105,8 +105,8 @@ Widget checkBox(Widget                **indirect,
                 Text::Align             alignment)
 {
     return  Widget(WawtEnv::sCheck, indirect, std::move(layout))
-            .addDownEventMethod(makeToggleButtonDownMethod(ClickCb()),
-                             layout.d_thickness <= 0.0)
+            .addMethod(makeToggleButtonDownMethod(ClickCb()))
+            .labelSelect(layout.d_thickness <= 0.0)
             .text({string, group, alignment},
                    DrawData::BulletMark::eSQUARE,
                    alignment != Text::Text::Align::eRIGHT);           // RETURN
@@ -118,8 +118,8 @@ Widget checkBox(Layout&&                layout,
                 Text::Align             alignment)
 {
     return  Widget(WawtEnv::sCheck, std::move(layout))
-            .addDownEventMethod(makeToggleButtonDownMethod(ClickCb()),
-                             layout.d_thickness <= 0.0)
+            .addMethod(makeToggleButtonDownMethod(ClickCb()))
+            .labelSelect(layout.d_thickness <= 0.0)
             .text({string, group, alignment},
                    DrawData::BulletMark::eSQUARE,
                    alignment != Text::Text::Align::eRIGHT);           // RETURN
@@ -223,7 +223,7 @@ Widget pushButton(Widget              **indirect,
                   Text::CharSizeGroup   group)
 {
     return  Widget(WawtEnv::sPush, indirect, std::move(layout))
-            .addDownEventMethod(makePushButtonDownMethod(std::move(clicked)))
+            .addMethod(makePushButtonDownMethod(std::move(clicked)))
             .text({string, group, alignment});                        // RETURN
 }
 
@@ -234,7 +234,7 @@ Widget pushButton(Layout&&              layout,
                   Text::CharSizeGroup   group)
 {
     return  Widget(WawtEnv::sPush, std::move(layout))
-            .addDownEventMethod(makePushButtonDownMethod(std::move(clicked)))
+            .addMethod(makePushButtonDownMethod(std::move(clicked)))
             .text({string, group, alignment});                        // RETURN
 }
 
@@ -245,7 +245,7 @@ Widget pushButton(Widget              **indirect,
                   Text::CharSizeGroup   group)
 {
     return  Widget(WawtEnv::sPush, indirect, std::move(layout))
-            .addDownEventMethod(makePushButtonDownMethod(std::move(clicked)))
+            .addMethod(makePushButtonDownMethod(std::move(clicked)))
             .text({string, group});                                   // RETURN
 }
 
@@ -255,7 +255,7 @@ Widget pushButton(Layout&&              layout,
                   Text::CharSizeGroup   group)
 {
     return  Widget(WawtEnv::sPush, std::move(layout))
-            .addDownEventMethod(makePushButtonDownMethod(std::move(clicked)))
+            .addMethod(makePushButtonDownMethod(std::move(clicked)))
             .text({string, group});                                   // RETURN
 }
 

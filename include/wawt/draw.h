@@ -61,6 +61,7 @@ struct DrawData {
         , d_disableEffect(false)
         , d_hidden(false)
         , d_labelMark(eNONE)
+        , d_relativeId{}
         , d_className(className) { }
 };
 

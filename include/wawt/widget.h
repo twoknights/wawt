@@ -61,9 +61,6 @@ class  Widget final {
         LayoutData(Layout&& layout) noexcept : d_layout(std::move(layout)) { }
     };
 
-    using AddMethod
-        = std::function<void(Widget* parent, Widget* newChild)>;
-
     using DownEventMethod
         = std::function<EventUpCb(float     x,
                                   float     y,
@@ -80,20 +77,14 @@ class  Widget final {
                              const LayoutData&        layoutData,
                              DrawProtocol            *adapter)>;
 
+    using NewChildMethod
+        = std::function<void(Widget* parent, Widget* newChild)>;
+
     using SerializeMethod
         = std::function<void(std::ostream&      os,
                              std::string       *closeTag,
-                             const DrawData&    drawData,
-                             const LayoutData&  layoutData,
+                             const Widget&      widget,
                              unsigned int       indent)>;
-
-    struct Methods {
-        AddMethod           d_addMethod;
-        DrawMethod          d_drawMethod;
-        LayoutMethod        d_layoutMethod;
-        SerializeMethod     d_serializeMethod;
-    };
-    using MethodsPtr = std::unique_ptr<Methods>;
 
     // PUBLIC CLASS METHODS
     static EventUpCb defaultDownEventHandler(float      x,
@@ -111,8 +102,7 @@ class  Widget final {
 
     static void     defaultSerialize(std::ostream&      os,
                                      std::string       *closeTag,
-                                     const DrawData&    drawData,
-                                     const LayoutData&  layoutData,
+                                     const Widget&      widget,
                                      unsigned int       indent);
 
 
@@ -132,7 +122,9 @@ class  Widget final {
            Layout&&           layout)                                 noexcept
         : d_widgetLabel(indirect)
         , d_drawData(className)
-        , d_layoutData(std::move(layout)) { }
+        , d_layoutData(std::move(layout)) {
+            if (d_widgetLabel) *d_widgetLabel = this;
+        }
 
     Widget(char const * const className, Layout&& layout)             noexcept
         : d_drawData(className)
@@ -143,20 +135,17 @@ class  Widget final {
 
     // PUBLIC R-Value MANIPULATORS
 
-    Widget addAddMethod(AddMethod&& method) &&                        noexcept;
-
     Widget addChild(Widget&& child) &&;
 
     Widget addChildren(Children&& widgets) &&;
 
-    Widget addDownEventMethod(DownEventMethod&& method,
-                              bool              textHit = false) &&   noexcept;
+    template <typename Method>
+    Widget    addMethod(Method&& method) &&                           noexcept;
 
-    Widget addDrawMethod(DrawMethod&& method) &&                      noexcept;
-
-    Widget addLayoutMethod(LayoutMethod&& method) &&                  noexcept;
-
-    Widget addSerializeMethod(SerializeMethod&& method) &&            noexcept;
+    Widget    labelSelect(bool setting) &&                            noexcept{
+        d_textHit = setting;
+        return std::move(*this);
+    }
 
     Widget options(std::any options) &&                               noexcept{
         d_drawData.d_options = std::move(options);
@@ -200,23 +189,19 @@ class  Widget final {
 
     void      resizeRoot(DrawProtocol *adapter, float  width, float  height);
 
-    void      setAddMethod(AddMethod&& method)                       noexcept;
-
-    void      setDownEventMethod(DownEventMethod&& method,
-                                 bool              textHit = false)  noexcept;
-
-    void      setDrawMethod(DrawMethod&& method)                     noexcept;
-
-    void      setLayoutMethod(LayoutMethod&& method)                 noexcept;
-
-    void      setSerializeMethod(SerializeMethod&& method)           noexcept;
-
     void      setDisabled(bool setting)                              noexcept {
         d_drawData.d_disableEffect = setting;
     }
 
     void      setHidden(bool setting)                                noexcept {
         d_drawData.d_hidden = setting;
+    }
+
+    template <typename Method>
+    void      setMethod(Method&& method)                             noexcept;
+
+    void      setLabelSelect(bool setting)                           noexcept {
+        d_textHit = setting;
     }
 
     void      setWidgetId(const WidgetId& id)                        noexcept {
@@ -233,8 +218,15 @@ class  Widget final {
         return d_drawData;
     }
 
+    template<class Method>
+    Method          getInstalled()                             const noexcept;
+
     bool            hasChildren()                              const noexcept {
         return d_children && !d_children->empty();
+    }
+
+    bool            hasLabelSelect()                           const noexcept {
+        return d_textHit;
     }
 
     bool            inside(float x, float y)                   const noexcept {
@@ -268,6 +260,15 @@ class  Widget final {
     }
 
   private:
+    // PRIVATE TYPES
+    struct Methods {
+        DrawMethod          d_drawMethod;
+        LayoutMethod        d_layoutMethod;
+        NewChildMethod      d_newChildMethod;
+        SerializeMethod     d_serializeMethod;
+    };
+    using MethodsPtr = std::unique_ptr<Methods>;
+
     // PRIVATE METHODS
     template <typename Callable, typename R, typename... Args>
     void call(Callable *defaultFn, R(Methods::*fn), Args&&... args) const {
