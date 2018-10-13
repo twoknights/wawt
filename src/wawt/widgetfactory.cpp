@@ -17,6 +17,7 @@
  */
 
 #include "wawt/widgetfactory.h"
+#include "wawt/wawtenv.h"
 
 
 #ifdef WAWT_WIDECHAR

@@ -19,17 +19,11 @@
 #ifndef WAWT_WAWT_H
 #define WAWT_WAWT_H
 
-#include <any>
-#include <array>
-#include <atomic>
-#include <cassert>
-#include <cstdint>
+#include <cstdlib>
 #include <exception>
 #include <functional>
-#include <map>
 #include <string>
 #include <type_traits>
-#include <unordered_set>
 
 namespace Wawt {
 
@@ -215,90 +209,6 @@ class  WawtException : public std::runtime_error {
         : std::runtime_error(what_arg + " id=" + std::to_string(id.value())
                                       + " index=" + std::to_string(index)) {
     }
-};
-
-                                //==============
-                                // class WawtEnv
-                                //==============
-
-class WawtEnv {
-  public:
-    // PUBLIC TYPES
-    using Defaults      = std::pair<float , std::any>;
-
-    template <typename Options>
-    using OptionTuple = std::tuple<std::string, float, Options>;
-
-    template <typename Options, std::size_t NumClasses>
-    using DefaultArray  = std::array<OptionTuple<Options>,NumClasses>;
-
-    // PUBLIC CLASS MEMBERS
-    static WawtEnv *instance() {
-        return d_instance.load();
-    }
-    // PUBLIC CLASS DATA
-    static Char_t   kDownArrow;
-    static Char_t   kUpArrow;
-    static Char_t   kCursor;
-    static Char_t   kFocusChg;
-
-    static constexpr char    sScreen[] = "screen";
-    static constexpr char    sDialog[] = "dialog";
-    static constexpr char    sPanel[]  = "panel";
-    static constexpr char    sLabel[]  = "label";
-    static constexpr char    sPush[]   = "pushButton";
-    static constexpr char    sCheck[]  = "checkBox";
-
-    // PUBLIC CONSTRUCTOR
-    WawtEnv() {
-        WawtEnv* expected   = nullptr;
-        WawtEnv* desired    = this;
-        d_instance.compare_exchange_strong(expected, desired);
-    }
-
-    template <typename Options, std::size_t NumClasses>
-    WawtEnv(const DefaultArray<Options, NumClasses>& classDefaults) {
-        WawtEnv* expected   = nullptr;
-        WawtEnv* desired    = this;
-        d_instance.compare_exchange_strong(expected, desired);
-
-        for (auto& [className, border, options] : classDefaults) {
-            d_classDefaults.try_emplace(className, border, options);
-        }
-    }
-
-    // PUBLIC DESTRUCTOR
-    ~WawtEnv() {
-        WawtEnv* desired    = nullptr;
-        WawtEnv* expected   = this;
-        d_instance.compare_exchange_strong(expected, desired);
-    }
-
-    // PUBLIC MANIPULATORS
-    StringView_t      translate(const StringView_t& phrase) {
-        return *d_strings.emplace(phrase).first; // TBD: translate
-    }
-
-    // PUBLIC ACCESSORS
-    float       defaultBorderThickness(const std::string& className) const
-                                                                     noexcept {
-        auto it = d_classDefaults.find(className);
-        return d_classDefaults.end() != it ? it->second.first : 0.0;
-    }
-
-    std::any    defaultOptions(const std::string& className) const
-                                                                     noexcept {
-        auto it = d_classDefaults.find(className);
-        return d_classDefaults.end() != it ? it->second.second : std::any();
-    }
-
-  private:
-    // PRIVATE CLASS MEMBERS
-    static std::atomic<WawtEnv*> d_instance;
-
-    // PRIVATE DATA MEMBERS
-    std::map<std::string, Defaults> d_classDefaults{};
-    std::unordered_set<String_t>    d_strings{};
 };
 
 } // end Wawt namespace

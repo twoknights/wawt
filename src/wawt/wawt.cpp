@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+#include "wawt/wawtenv.h"
 #include "wawt/widget.h"
 
 #include <cassert>
@@ -267,16 +268,21 @@ void outputXMLString(std::ostream& os, const std::wstring_view& text) {
 }
 
 float borderSize(const Rectangle& root, float thickness) {
-    auto scalex = thickness * root.d_width  / 1000.0;
-    auto scaley = thickness * root.d_height / 1000.0;
-    return std::ceil(std::max(scalex, scaley));
+    auto scalex = thickness * root.d_width  / 1280.0;
+    auto scaley = thickness * root.d_height /  720.0;
+    auto value  = std::round(std::min(scalex, scaley));
+
+    if (thickness > 0 && value == 0) {
+        value = 1.f;
+    }
+    return value;
 }
 
 bool findWidget(const Widget              **widget,
                 const Widget&               parent,
                 uint16_t                    id) {
     for (auto& next : parent.children()) {
-        if (next.widgetId() == id) {
+        if (next.widgetIdValue() == id) {
             *widget = &next;
             return true;                                              // RETURN
         }
@@ -286,11 +292,11 @@ bool findWidget(const Widget              **widget,
                 return true;                                          // RETURN
             }
 
-            if (!next.widgetId() || id < next.widgetId()) {
+            if (!next.widgetIdValue() || id < next.widgetIdValue()) {
                 return false;                                         // RETURN
             }
         }
-        else if (next.widgetId() > id) {
+        else if (next.widgetIdValue() > id) {
             return false;                                             // RETURN
         }
     }
@@ -413,12 +419,14 @@ Rectangle makeRectangle(const Layout&         layout,
           default: break;
         }
     }
-    return { ux, uy, lx - ux, ly - uy, thickness };           // RETURN
+    return { ux, uy, lx - ux, ly - uy, thickness };                   // RETURN
 }
 
 } // end unnamed namespace
 
-std::atomic<WawtEnv*> WawtEnv::d_instance{nullptr};
+std::atomic_flag    WawtEnv::d_atomicFlag   = ATOMIC_FLAG_INIT;
+WawtEnv            *WawtEnv::d_instance     = nullptr;
+DrawProtocol       *WawtEnv::d_drawAdapter  = nullptr;
 
 // The following defaults should be found in all fonts.
 Char_t   WawtEnv::kDownArrow = C('v');
@@ -455,7 +463,7 @@ Layout::WidgetRef::getWidgetPointer(const Widget&     parent,
                 }
             }
         }
-        else if (root.widgetId() == d_widgetId.value()) {
+        else if (root.widgetIdValue() == d_widgetId.value()) {
             widget = &root;
         }
         else {
@@ -476,7 +484,7 @@ Layout::WidgetRef::getWidgetId() const noexcept
 
     if (!ret.isSet()) { // if widget ID is not available
         if (d_widget && *d_widget) { // but a forwarding pointer is
-            ret = WidgetId((*d_widget)->widgetId(), false); 
+            ret = WidgetId((*d_widget)->widgetIdValue(), false); 
         }
     }
     return ret;                                                       // RETURN
@@ -829,7 +837,7 @@ Widget::text(StringView_t string, CharSizeGroup group, TextAlign alignment) &&
 {
     d_layoutData.d_charSizeGroup    = group;
     d_layoutData.d_textAlign        = alignment;
-    d_drawData.d_label              = WawtEnv::instance()->translate(string);
+    d_drawData.d_label              = WawtEnv::translate(string);
     return std::move(*this);                                          // RETURN
 }
 
@@ -884,11 +892,14 @@ Widget::operator=(Widget&& rhs) noexcept
 Widget*
 Widget::addChild(Widget&& child) &
 {
-    children().push_back(std::move(child));
-    if (d_methods && d_methods->d_newChildMethod) {
-        d_methods->d_newChildMethod(this, &children().back());
+    if (!d_root) {
+        children().push_back(std::move(child));
+        if (d_methods && d_methods->d_newChildMethod) {
+            d_methods->d_newChildMethod(this, &children().back());
+        }
+        return &children().back();                                    // RETURN
     }
-    return &children().back();                                        // RETURN
+    return nullptr;                                                   // RETURN
 }
 
 uint16_t
@@ -905,13 +916,12 @@ Widget::assignWidgetIds(uint16_t        next,
 
     if (d_layoutData.d_layout.d_thickness == -1.0) {
         d_layoutData.d_layout.d_thickness =
-            WawtEnv::instance()
-                ->defaultBorderThickness(d_drawData.d_className);
+            WawtEnv::defaultBorderThickness(d_drawData.d_className);
     }
 
     if (!d_drawData.d_options.has_value()) {
         d_drawData.d_options =
-            WawtEnv::instance()->defaultOptions(d_drawData.d_className);
+            WawtEnv::defaultOptions(d_drawData.d_className);
     }
     d_drawData.d_relativeId = relativeId;
     relativeId  = 0;
@@ -976,19 +986,6 @@ Widget::clone() const
 }
 
 EventUpCb
-Widget::defaultDownEventHandler(float x, float y, Widget *widget)
-{
-    auto upCb = EventUpCb();
-
-    for (auto& child : widget->children()) {
-        if (upCb = child.downEvent(x, y)) {
-            break;                                                     // BREAK
-        }
-    }
-    return upCb;                                                      // RETURN
-}
-
-EventUpCb
 Widget::downEvent(float x, float y)
 {
     auto upCb = EventUpCb();
@@ -997,8 +994,13 @@ Widget::downEvent(float x, float y)
         if (d_downMethod) {
             upCb = d_downMethod(x, y, this);
         }
-        else {
-            upCb = defaultDownEventHandler(x, y, this);
+
+        if (!upCb && hasChildren()) {
+            for (auto& child : children()) {
+                if (upCb = child.downEvent(x, y)) {
+                    break;                                             // BREAK
+                }
+            }
         }
     }
     return upCb;                                                      // RETURN
@@ -1040,7 +1042,7 @@ Widget::lookup(WidgetId id) const noexcept
                 widget = &children().at(id.value());
             }
         }
-        else if (id.value() == widgetId()) {
+        else if (id.value() == widgetIdValue()) {
             widget = this;
         }
         else {
@@ -1058,8 +1060,9 @@ Widget::popDialog()
             if (0 == std::strcmp(children().back().drawData().d_className,
                                  WawtEnv::sDialog)) {
                 children().pop_back();
-                d_drawData.d_widgetId = children().back().widgetId();
-                d_drawData.d_widgetId++;
+                d_drawData.d_widgetId
+                        = hasChildren() ? children().back().widgetIdValue() + 1
+                                        : 1;
             }
         }
     }
@@ -1074,24 +1077,30 @@ Widget::pushDialog(DrawProtocol *adapter, Widget&& child)
 {
     auto childId = WidgetId{};
 
-    if (0 == std::strcmp(child.drawData().d_className, WawtEnv::sDialog)) {
+    if (0      == std::strcmp(child.drawData().d_className, WawtEnv::sDialog)
+     && d_root != nullptr) {
         if (this == d_root) {
-            if (hasChildren()
-             && (0 != std::strcmp(children().back().drawData().d_className,
+            if (!hasChildren()
+             || (0 != std::strcmp(children().back().drawData().d_className,
                                   WawtEnv::sDialog))) {
-                auto id         = widgetId();
-                auto relativeId = children().back().relativeId() + 1;
+                auto id = widgetIdValue();
+                auto relativeId
+                        = hasChildren() ? children().back().relativeId() + 1
+                                        : 0;
                 // Dialog's get their own char size map providing a
                 // seperate "name space" for char size group IDs.
-                d_layoutData.d_charSizeMap
-                    = std::make_shared<CharSizeMap>();
-                id = children().back().assignWidgetIds(id,
-                                                       relativeId,
-                                                       d_layoutData
-                                                            .d_charSizeMap,
-                                                       d_root);
-                children().back().layout(adapter, true,  *d_root);
-                children().back().layout(adapter, false, *d_root);
+                auto& dialog = children().emplace_back(std::move(child));
+                
+                if (d_methods && d_methods->d_newChildMethod) {
+                    d_methods->d_newChildMethod(this, &dialog);
+                }
+                d_drawData.d_widgetId
+                    = dialog.assignWidgetIds(id,
+                                             relativeId,
+                                             std::make_shared<CharSizeMap>(),
+                                             d_root);
+                dialog.layout(adapter, true,  *d_root);
+                dialog.layout(adapter, false, *d_root);
                 childId = WidgetId(id, false);
             }
         }
@@ -1105,14 +1114,14 @@ Widget::pushDialog(DrawProtocol *adapter, Widget&& child)
 void
 Widget::resetLabel(StringView_t newLabel, bool copy)
 {
-    d_drawData.d_label = 
-        copy ? WawtEnv::instance()->translate(std::move(newLabel)) : newLabel;
+    d_drawData.d_label = copy ? WawtEnv::translate(std::move(newLabel))
+                              : newLabel;
     d_layoutData.d_refreshBounds = true;
     return;                                                           // RETURN
 }
 
 void
-Widget::resizeRoot(DrawProtocol *adapter, float width, float height)
+Widget::resizeScreen(DrawProtocol *adapter, float width, float height)
 {
     if (d_root) {
         assert(d_layoutData.d_charSizeMap);

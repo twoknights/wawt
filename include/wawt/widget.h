@@ -28,6 +28,7 @@
 #include <deque>
 #include <initializer_list>
 #include <limits>
+#include <map>
 #include <memory>
 #include <ostream>
 #include <string>
@@ -90,10 +91,6 @@ class  Widget final {
                              unsigned int       indent)>;
 
     // PUBLIC CLASS METHODS
-    static EventUpCb defaultDownEventHandler(float      x,
-                                             float      y,
-                                             Widget    *widget);
-
     static void      defaultDraw(DrawProtocol *adapter, Widget *widget);
 
     static void      defaultLayout(DrawData                *data,
@@ -178,11 +175,11 @@ class  Widget final {
     uint16_t  assignWidgetIds(uint16_t         next       = 1,
                               uint16_t         relativeId = 0,
                               CharSizeMapPtr   mapPtr     = nullptr,
-                              Widget          *root       = nullptr)  noexcept;
+                              Widget          *root       = nullptr) noexcept;
 
-    Children& children()                                              noexcept;
+    Children& children()                                             noexcept;
 
-    void      clearTrackingPointer()                                  noexcept{
+    void      clearTrackingPointer()                                 noexcept {
         if (d_widgetLabel) {
             *d_widgetLabel = nullptr;
             d_widgetLabel  = nullptr;
@@ -207,7 +204,11 @@ class  Widget final {
 
     void      resetLabel(StringView_t newLabel, bool copy = true);
 
-    void      resizeRoot(DrawProtocol *adapter, float  width, float  height);
+    void      resizeScreen(DrawProtocol *adapter, float  width, float  height);
+
+    Widget   *screen()                                               noexcept {
+        return d_root;                    
+    }
 
     void      setDisabled(bool setting)                              noexcept {
         d_drawData.d_disableEffect = setting;
@@ -235,7 +236,11 @@ class  Widget final {
 
     const Children& children()                                 const noexcept;
 
-    Widget    clone()                                          const;
+    const char     *className()                                const noexcept {
+        return d_drawData.d_className;
+    }
+
+    Widget          clone()                                    const;
 
     const DrawData& drawData()                                 const noexcept {
         return d_drawData;
@@ -275,10 +280,14 @@ class  Widget final {
         return d_drawData.d_relativeId;
     }
 
+    const Widget   *screen()                                   const noexcept {
+        return d_root;                    
+    }
+
     void            serialize(std::ostream&     os,
                               unsigned int      indent = 0)    const noexcept;
 
-    WidgetId::IdType widgetId()                                const noexcept {
+    WidgetId::IdType widgetIdValue()                           const noexcept {
         return d_drawData.d_widgetId;
     }
 
