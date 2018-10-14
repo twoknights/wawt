@@ -45,8 +45,6 @@
 #define C(c) (U ## c)
 #endif
 
-namespace BDS {
-
 namespace {
 
 void drawBox(sf::RenderWindow  *window,
@@ -364,7 +362,5 @@ SfmlDrawAdapter::getTextMetrics(Wawt::Dimensions          *textBounds,
     textBounds->d_height = bounds.height;
     return true;                                                      // RETURN
 }
-
-}  // namespace BDS
 
 // vim: ts=4:sw=4:et:ai

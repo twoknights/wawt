@@ -569,7 +569,7 @@ Widget::layout(DrawProtocol       *adapter,
 
 // PUBLIC CLASS MEMBERS
 void
-Widget::defaultDraw(DrawProtocol *adapter, Widget *widget)
+Widget::defaultDraw(Widget *widget, DrawProtocol *adapter)
 {
     adapter->draw(widget->drawData());
 }
@@ -968,7 +968,7 @@ Widget::clone() const
 }
 
 EventUpCb
-Widget::downEvent(float x, float y)
+Widget::downEvent(double x, double y)
 {
     auto upCb = EventUpCb();
 
@@ -1002,7 +1002,7 @@ Widget::draw(DrawProtocol *adapter) noexcept
             d_layoutData.d_refreshBounds = false;
         }
 
-        call(&defaultDraw, &Methods::d_drawMethod, adapter, this);
+        call(&defaultDraw, &Methods::d_drawMethod, this, adapter);
 
         if (hasChildren()) {
             for (auto& child : children()) {
@@ -1055,7 +1055,7 @@ Widget::popDialog()
 }
 
 WidgetId
-Widget::pushDialog(DrawProtocol *adapter, Widget&& child)
+Widget::pushDialog(Widget&& child, DrawProtocol *adapter)
 {
     auto childId = WidgetId{};
 
@@ -1087,7 +1087,7 @@ Widget::pushDialog(DrawProtocol *adapter, Widget&& child)
             }
         }
         else {
-            childId = d_root->pushDialog(adapter, std::move(child));
+            childId = d_root->pushDialog(std::move(child), adapter);
         }
     }
     return childId;                                                   // RETURN
@@ -1103,9 +1103,9 @@ Widget::resetLabel(StringView_t newLabel, bool copy)
 }
 
 void
-Widget::resizeScreen(DrawProtocol *adapter, float width, float height)
+Widget::resizeScreen(double width, double height, DrawProtocol *adapter)
 {
-    if (d_root) {
+    if (d_root && adapter) {
         assert(d_layoutData.d_charSizeMap);
         d_layoutData.d_charSizeMap->clear();
         d_root->d_drawData.d_rectangle.d_width  = width;
@@ -1143,51 +1143,51 @@ Widget::serialize(std::ostream&     os,
     return;                                                           // RETURN
 }
 
-void
-Widget::setMethod(DownEventMethod&& method) noexcept
+Widget&
+Widget::setMethod(DownEventMethod&& method) & noexcept
 {
     d_downMethod = std::move(method);
-    return;                                                           // RETURN
+    return *this;                                                     // RETURN
 }
 
-void
-Widget::setMethod(DrawMethod&& method) noexcept
+Widget&
+Widget::setMethod(DrawMethod&& method) & noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
     }
     d_methods->d_drawMethod = std::move(method);
-    return;                                                           // RETURN
+    return *this;                                                     // RETURN
 }
 
-void
-Widget::setMethod(LayoutMethod&& method) noexcept
+Widget&
+Widget::setMethod(LayoutMethod&& method) & noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
     }
     d_methods->d_layoutMethod = std::move(method);
-    return;                                                           // RETURN
+    return *this;                                                     // RETURN
 }
 
-void
-Widget::setMethod(NewChildMethod&& method) noexcept
+Widget&
+Widget::setMethod(NewChildMethod&& method) & noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
     }
     d_methods->d_newChildMethod = std::move(method);
-    return;                                                           // RETURN
+    return *this;                                                     // RETURN
 }
 
-void
-Widget::setMethod(SerializeMethod&& method) noexcept
+Widget&
+Widget::setMethod(SerializeMethod&& method) & noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
     }
     d_methods->d_serializeMethod = std::move(method);
-    return;                                                           // RETURN
+    return *this;                                                     // RETURN
 }
 
                                 //-----------

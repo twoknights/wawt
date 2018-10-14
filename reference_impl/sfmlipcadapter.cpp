@@ -41,8 +41,6 @@ using namespace Wawt;
 #define C(c) (U ## c)
 #endif
 
-namespace BDS {
-
 namespace {
 
 static constexpr unsigned char BYTE1 = '\125';
@@ -820,7 +818,5 @@ SfmlIpcAdapter::writeMsgLoop(Connection *connection)
     }
     return;                                                           // RETURN
 }
-
-}  // namespace BDS
 
 // vim: ts=4:sw=4:et:ai

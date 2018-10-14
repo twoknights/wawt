@@ -194,7 +194,7 @@ Widget panelGrid(Widget       **indirect,
                  .back()
                  .layoutData()
                  .d_layout = {{-1.0, 1.0, col0Id},
-                              { 1.0, 2.0, col0Id},
+                              { 1.0, 3.0, col0Id},
                               thickness};
         }
         col0Id        = WidgetId(r*columns, true);

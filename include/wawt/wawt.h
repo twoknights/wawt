@@ -70,7 +70,7 @@ constexpr std::size_t sizeOfChar(const Char_t ch) {
 //! Callback methods used in application's "event loops":
 //
 using FocusCb     = std::function<bool(Char_t)>;
-using EventUpCb   = std::function<FocusCb(float x, float y, bool)>;
+using EventUpCb   = std::function<FocusCb(double x, double y, bool)>;
 
                             //==================
                             // struct Dimensions
@@ -92,9 +92,9 @@ struct  Rectangle  {
     float           d_height            = 0;
     float           d_borderThickness   = 0.0;
 
-    bool inside(float x, float y) const {
-        auto dx = x - d_ux;
-        auto dy = y - d_uy;
+    bool inside(double x, double y) const {
+        auto dx = float(x) - d_ux;
+        auto dy = float(y) - d_uy;
         return dx >= 0 && dy >= 0 && dx < d_width && dy < d_height;
     }
 };

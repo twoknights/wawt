@@ -34,8 +34,6 @@
 
 using namespace std::literals::chrono_literals;
 
-namespace BDS {
-
 namespace {
 
 inline void encodeKey(wchar_t& key, sf::Uint32 unicode) {
@@ -167,7 +165,5 @@ SfmlEventLoop::run(sf::RenderWindow&                 window,
     }
     return;                                                           // RETURN
 }
-
-}  // namespace BDS
 
 // vim: ts=4:sw=4:et:ai

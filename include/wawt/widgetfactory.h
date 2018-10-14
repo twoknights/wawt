@@ -75,7 +75,7 @@ Widget label(Layout&&               layout,
 
 Widget panel(Widget **indirect, Layout&& layout);
 
-Widget panel(Layout&& layout);
+Widget panel(Layout&& layout = Layout());
 
 Widget panelGrid(Widget   **indirect,
                  Layout&&   layout,

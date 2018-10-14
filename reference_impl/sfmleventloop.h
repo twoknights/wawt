@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef BDS_SFMLEVENTLOOP_H
-#define BDS_SFMLEVENTLOOP_H
+#ifndef SFMLEVENTLOOP_H
+#define SFMLEVENTLOOP_H
 
 #include "wawt/eventrouter.h"
 
@@ -25,8 +25,6 @@
 
 #include <chrono>
 #include <functional>
-
-namespace BDS {
 
                             //=====================
                             // struct SfmlEventLoop
@@ -43,8 +41,6 @@ struct SfmlEventLoop {
                     int                               minWidth,
                     int                               minHeight);
 };
-
-} // end BDS namespace
 
 #endif
 // vim: ts=4:sw=4:et:ai

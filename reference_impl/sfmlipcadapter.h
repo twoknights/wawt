@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef BDS_SFMLIPCADAPTER_H
-#define BDS_SFMLIPCADAPTER_H
+#ifndef SFMLIPCADAPTER_H
+#define SFMLIPCADAPTER_H
 
 #include <wawt/ipcprotocol.h>
 
@@ -30,8 +30,6 @@
 #include <mutex>
 #include <memory>
 #include <regex>
-
-namespace BDS {
 
                             //=====================
                             // class SfmlIpcAdapter
@@ -125,8 +123,6 @@ class SfmlIpcAdapter : public Wawt::IpcProtocol {
           R"(^(connect|listen)=([a-z\.\-\d]+)(?:\:(\d+))?$)"};
     uint8_t                         d_adapterId;
 };
-
-} // end BDS namespace
 
 #endif
 // vim: ts=4:sw=4:et:ai

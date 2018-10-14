@@ -16,16 +16,14 @@
  * limitations under the License.
  */
 
-#ifndef BDS_DRAWOPTIONS_H
-#define BDS_DRAWOPTIONS_H
+#ifndef DRAWOPTIONS_H
+#define DRAWOPTIONS_H
 
-#include "wawt/wawt.h"
+#include "wawt/wawtenv.h"
 
 #include <cstdint>
 #include <string>
 #include <utility>
-
-namespace BDS {
 
                                 //===================
                                 // struct DrawOptions
@@ -163,9 +161,6 @@ constexpr const DrawOptions::Color DrawOptions::kBLACK{0u,0u,0u,255u};
 constexpr const DrawOptions::Color DrawOptions::kGREY{159u,159u,159u,255u};
 constexpr const DrawOptions::Color DrawOptions::kWHITE{255u,255u,255u,255u};
 constexpr const DrawOptions::Color DrawOptions::kCLEAR{0u,0u,0u,0u};
-
-
-} // end BDS namespace
 
 #endif
 // vim: ts=4:sw=4:et:ai

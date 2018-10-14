@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef BDS_SFMLDRAWADAPTER_H
-#define BDS_SFMLDRAWADAPTER_H
+#ifndef SFMLDRAWADAPTER_H
+#define SFMLDRAWADAPTER_H
 
 #include <SFML/Graphics/Font.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
@@ -25,8 +25,6 @@
 #include <wawt/draw.h>
 
 #include <string>
-
-namespace BDS {
 
                             //======================
                             // class SfmlDrawAdapter
@@ -73,8 +71,6 @@ class SfmlDrawAdapter : public Wawt::DrawProtocol {
     bool                     d_defaultOk;
     bool                     d_otherOk;
 };
-
-} // end BDS namespace
 
 #endif
 // vim: ts=4:sw=4:et:ai

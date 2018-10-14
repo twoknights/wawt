@@ -19,7 +19,7 @@
 #ifndef WAWT_WIDGET_H
 #define WAWT_WIDGET_H
 
-#include "wawt/wawt.h"
+#include "wawt/wawtenv.h"
 
 #include "wawt/layout.h"
 #include "wawt/draw.h"
@@ -49,7 +49,7 @@ class  Widget final {
     using Children          = std::deque<Widget>;
     using ChildrenPtr       = std::unique_ptr<Children>;
     using OptionsFactory    = std::function<std::any(const std::string&)>;
-    using BorderDefaults    = std::function<float(const std::string&)>;
+    using BorderDefaults    = std::function<double(const std::string&)>;
     using CharSizeGroup     = std::optional<uint16_t>;
     using CharSizeMap       = std::map<uint16_t, uint16_t>;
     using CharSizeMapPtr    = std::shared_ptr<CharSizeMap>;
@@ -66,12 +66,12 @@ class  Widget final {
     };
 
     using DownEventMethod
-        = std::function<EventUpCb(float     x,
-                                  float     y,
+        = std::function<EventUpCb(double    x,
+                                  double    y,
                                   Widget   *widget)>;
 
     using DrawMethod
-        = std::function<void(DrawProtocol *adapter, Widget *widget)>;
+        = std::function<void(Widget *widget, DrawProtocol *adapter)>;
 
     using LayoutMethod
         = std::function<void(DrawData                *data,
@@ -91,7 +91,7 @@ class  Widget final {
                              unsigned int       indent)>;
 
     // PUBLIC CLASS METHODS
-    static void      defaultDraw(DrawProtocol *adapter, Widget *widget);
+    static void      defaultDraw(Widget *widget, DrawProtocol *adapter);
 
     static void      defaultLayout(DrawData                *data,
                                    bool                     firstPass,
@@ -113,20 +113,20 @@ class  Widget final {
 
     Widget& operator=(const Widget&)        = delete;
 
-    Widget(Widget&& copy)                                             noexcept;
+    Widget(Widget&& copy)                                            noexcept;
 
-    Widget& operator=(Widget&& rhs)                                   noexcept;
+    Widget& operator=(Widget&& rhs)                                  noexcept;
 
     Widget(char const * const className,
            Widget           **indirect,
-           Layout&&           layout)                                 noexcept
+           Layout&&           layout)                                noexcept
         : d_widgetLabel(indirect)
         , d_drawData(className)
         , d_layoutData(std::move(layout)) {
             if (d_widgetLabel) *d_widgetLabel = this;
         }
 
-    Widget(char const * const className, Layout&& layout)             noexcept
+    Widget(char const * const className, Layout&& layout)            noexcept
         : d_drawData(className)
         , d_layoutData(std::move(layout)) { }
 
@@ -137,32 +137,37 @@ class  Widget final {
 
     Widget addChild(Widget&& child) &&;
 
-    Widget addMethod(DownEventMethod&& method) &&                     noexcept;
-    Widget addMethod(DrawMethod&&      method) &&                     noexcept;
-    Widget addMethod(LayoutMethod&&    method) &&                     noexcept;
-    Widget addMethod(NewChildMethod&&  method) &&                     noexcept;
-    Widget addMethod(SerializeMethod&& method) &&                     noexcept;
+    Widget addMethod(DownEventMethod&& method) &&                    noexcept;
+    Widget addMethod(DrawMethod&&      method) &&                    noexcept;
+    Widget addMethod(LayoutMethod&&    method) &&                    noexcept;
+    Widget addMethod(NewChildMethod&&  method) &&                    noexcept;
+    Widget addMethod(SerializeMethod&& method) &&                    noexcept;
 
-    Widget labelSelect(bool setting) &&                               noexcept{
+    Widget className(char const * const className) &&                noexcept {
+        d_drawData.d_className = className;
+        return std::move(*this);
+    }
+
+    Widget labelSelect(bool setting) &&                              noexcept {
         d_textHit = setting;
         return std::move(*this);
     }
 
-    Widget options(std::any options) &&                               noexcept{
+    Widget options(std::any options) &&                              noexcept {
         d_drawData.d_options = std::move(options);
         return std::move(*this);
     }
 
     Widget text(StringView_t   string,
                 CharSizeGroup  group     = CharSizeGroup(),
-                TextAlign      alignment = TextAlign::eCENTER) &&     noexcept;
+                TextAlign      alignment = TextAlign::eCENTER) &&    noexcept;
 
-    Widget text(StringView_t string, TextAlign alignment) &&          noexcept{
+    Widget text(StringView_t string, TextAlign alignment) &&         noexcept {
         return std::move(*this).text(string, CharSizeGroup(), alignment);
     }
 
     Widget textMark(DrawData::BulletMark  mark,
-                    bool                  leftMark = true) &&         noexcept{
+                    bool                  leftMark = true) &&        noexcept {
         d_drawData.d_labelMark = mark;
         d_drawData.d_leftMark  = leftMark;
         return std::move(*this);
@@ -186,9 +191,9 @@ class  Widget final {
         }
     }
 
-    EventUpCb downEvent(float x, float y);
+    EventUpCb downEvent(double x, double y);
 
-    void      draw(DrawProtocol *adapter)                            noexcept;
+    void      draw(DrawProtocol *adapter = WawtEnv::drawAdapter())   noexcept;
 
     DrawData& drawData()                                             noexcept {
         return d_drawData;
@@ -200,37 +205,50 @@ class  Widget final {
 
     void      popDialog();
 
-    WidgetId  pushDialog(DrawProtocol *adapter, Widget&& child);
+    WidgetId  pushDialog(Widget&&       child,
+                         DrawProtocol  *adapter = WawtEnv::drawAdapter());
 
     void      resetLabel(StringView_t newLabel, bool copy = true);
 
-    void      resizeScreen(DrawProtocol *adapter, float  width, float  height);
+    void      resizeScreen(double         width,
+                           double         height,
+                           DrawProtocol  *adapter = WawtEnv::drawAdapter());
 
     Widget   *screen()                                               noexcept {
         return d_root;                    
     }
 
-    void      setDisabled(bool setting)                              noexcept {
+    Widget&   setDisabled(bool setting) &                            noexcept {
         d_drawData.d_disableEffect = setting;
+        return *this;
     }
 
-    void      setHidden(bool setting)                                noexcept {
+    Widget&   setHidden(bool setting)   &                            noexcept {
         d_drawData.d_hidden = setting;
+        return *this;
     }
 
-    void      setMethod(DownEventMethod&& method)                    noexcept;
-    void      setMethod(DrawMethod&&      method)                    noexcept;
-    void      setMethod(LayoutMethod&&    method)                    noexcept;
-    void      setMethod(NewChildMethod&&  method)                    noexcept;
-    void      setMethod(SerializeMethod&& method)                    noexcept;
+    Widget&   setMethod(DownEventMethod&& method) &                  noexcept;
+    Widget&   setMethod(DrawMethod&&      method) &                  noexcept;
+    Widget&   setMethod(LayoutMethod&&    method) &                  noexcept;
+    Widget&   setMethod(NewChildMethod&&  method) &                  noexcept;
+    Widget&   setMethod(SerializeMethod&& method) &                  noexcept;
 
-    void      setLabelSelect(bool setting)                           noexcept {
+    Widget&   setLabelSelect(bool setting)        &                  noexcept {
         d_textHit = setting;
+        return *this;
     }
 
+    Widget&   setOptions(std::any options)        &                  noexcept {
+        d_drawData.d_options = std::move(options);
+        return *this;
+    }
+
+#if 0
     void      setWidgetId(const WidgetId& id)                        noexcept {
         d_drawData.d_widgetId = id.value();
     }
+#endif
 
     // PUBLIC ACCESSORS
 
@@ -257,7 +275,7 @@ class  Widget final {
         return d_textHit;
     }
 
-    bool            inside(float x, float y)                   const noexcept {
+    bool            inside(double x, double y)                 const noexcept {
         return d_textHit ? d_drawData.d_labelBounds.inside(x, y)
                          : d_drawData.d_rectangle.inside(x, y);
     }

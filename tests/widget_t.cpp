@@ -118,7 +118,7 @@ TEST(Widget, AddChild)
     screen.assignWidgetIds();
     EXPECT_EQ(&screen, screen.screen());
 
-    screen.resizeScreen(&adapter, 1280, 720);
+    screen.resizeScreen(1280, 720, &adapter);
     screen.draw(&adapter);
     auto drawn =
 "<root id='5' rid=0'>\n"
@@ -167,7 +167,7 @@ TEST(Widget, Text)
     std::ostringstream os;
     auto adapter = Draw(os);
     screen.assignWidgetIds();
-    screen.resizeScreen(&adapter, 1280, 720);
+    screen.resizeScreen(1280, 720, &adapter);
     screen.draw(&adapter);
     auto drawn =
 "<screen id='2' rid=0'>\n"
@@ -198,21 +198,21 @@ TEST(Widget, Dialog)
 
     auto screen
         = Widget(WawtEnv::sScreen, {});
-    auto id = screen.pushDialog(&adapter, Widget(WawtEnv::sDialog, {}));
+    auto id = screen.pushDialog(Widget(WawtEnv::sDialog, {}), &adapter);
     EXPECT_FALSE(id.isSet());
 
     screen.assignWidgetIds();
-    screen.resizeScreen(&adapter, 1280, 720);
+    screen.resizeScreen(1280, 720, &adapter);
     EXPECT_EQ(0, screen.children().size());
     screen.popDialog();
     EXPECT_EQ(0, screen.children().size());
 
-    id = screen.pushDialog(&adapter, Widget(WawtEnv::sLabel, {}));
+    id = screen.pushDialog(Widget(WawtEnv::sLabel, {}), &adapter);
     EXPECT_FALSE(id.isSet());
     EXPECT_EQ(0, screen.children().size());
 
     EXPECT_EQ(1, screen.widgetIdValue());
-    id = screen.pushDialog(&adapter, Widget(WawtEnv::sDialog, {}));
+    id = screen.pushDialog(Widget(WawtEnv::sDialog, {}), &adapter);
     EXPECT_TRUE(id.isSet());
     EXPECT_FALSE(id.isRelative());
     EXPECT_EQ(1, id.value());
@@ -223,10 +223,9 @@ TEST(Widget, Dialog)
     EXPECT_EQ(0, screen.children().size());
     EXPECT_EQ(1, screen.widgetIdValue());
 
-    id = screen.pushDialog(&adapter,
-                           Widget(WawtEnv::sDialog,
+    id = screen.pushDialog(Widget(WawtEnv::sDialog,
                                   Layout::centered(0.25, 0.25))
-                           .text(S("<POP!>"), 1, TextAlign::eRIGHT));
+                           .text(S("<POP!>"), 1, TextAlign::eRIGHT), &adapter);
     EXPECT_TRUE(id.isSet());
     EXPECT_EQ(1, screen.children().size());
     screen.draw(&adapter);
@@ -252,14 +251,14 @@ TEST(Widget, Dialog)
 TEST(Widget, Methods)
 {
     WawtEnv env();
+    bool layout    = false;
     bool down      = false;
     bool draw      = false;
-    bool layout    = false;
-    bool child     = false;
     bool serialize = false;
+    bool child     = false;
     auto screen
         = Widget(WawtEnv::sScreen, {})  // screen layout is never used
-          .addMethod( [&draw](DrawProtocol *, Widget *) { })
+          .addMethod( [&draw](Widget *, DrawProtocol *) { })
           .addMethod( [&serialize](std::ostream&, std::string*,
                                    const Widget&, unsigned int) { })
           .addChild(Widget("foo", {{-1.0,-1.0},{1.0,1.0}})
@@ -272,7 +271,7 @@ TEST(Widget, Methods)
                             down = true;
                             return EventUpCb();
                         })
-            .addMethod( [&draw](DrawProtocol *, Widget *) {
+            .addMethod( [&draw](Widget *, DrawProtocol *) {
                             draw = true;
                         })
             .addMethod( [&serialize](std::ostream&, std::string*,
@@ -294,7 +293,7 @@ TEST(Widget, Methods)
     auto adapter = Draw(os1);
 
     screen.assignWidgetIds();
-    screen.resizeScreen(&adapter, 1280, 720);
+    screen.resizeScreen(1280, 720, &adapter);
     screen.downEvent(600,600);
     screen.draw(&adapter);
     screen.serialize(os2);
@@ -309,7 +308,7 @@ TEST(Widget, Methods)
     EXPECT_TRUE(os2.str().empty()) << os2.str();
 
     w.setMethod(Widget::LayoutMethod());
-    screen.resizeScreen(&adapter, 1280, 720);
+    screen.resizeScreen(1280, 720, &adapter);
     screen.downEvent(600,600);
     EXPECT_TRUE(down);
 }

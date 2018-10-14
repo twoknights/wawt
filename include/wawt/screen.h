@@ -19,7 +19,7 @@
 #ifndef WAWT_SCREEN_H
 #define WAWT_SCREEN_H
 
-#include "wawt/wawt.h"
+#include "wawt/wawtenv.h"
 #include "wawt/widgetfactory.h"
 
 #include <any>
@@ -81,10 +81,8 @@ class Screen {
     // PROTECTED CONSTRUCTOR
     /**
      * @brief Initialize protected data members of the derived object.
-     *
-     * @param adapter Pointer to the object implementing the draw protocol.
      */
-    Screen(DrawProtocol *adapter) : d_adapter(adapter), d_name(), d_screen() {}
+    Screen() : d_name(), d_screen(WawtEnv::sScreen,{}) {}
 
     // PROTECTED MANIPULATOR
 
@@ -115,7 +113,6 @@ class Screen {
     }
 
     // PROTECTED DATA MEMBERS
-    DrawProtocol       *d_adapter = nullptr; ///< Draw protocol provider.
     std::string         d_name;              ///< Identifier for the screen.
     Widget              d_screen;            ///< Root WAWT element.
 
@@ -124,19 +121,19 @@ class Screen {
     // PUBLIC CONSTANTS
 
     //! Scale normalization adjustment constants.
-    static constexpr Normalize kOUTER  = Layout::Normalize::eOUTER;
-    static constexpr Normalize kMIDDLE = Layout::Normalize::eMIDDLE;
-    static constexpr Normalize kINNER  = Layout::Normalize::eINNER;
+    static constexpr Layout::Normalize kOUTER  = Layout::Normalize::eOUTER;
+    static constexpr Layout::Normalize kMIDDLE = Layout::Normalize::eMIDDLE;
+    static constexpr Layout::Normalize kINNER  = Layout::Normalize::eINNER;
 
     // PUBLIC MANIPULATORS
 
     /**
      * @brief Extend the screen definition with a pop dialog box.
      *
-     * @param widgets A vector of "widgets" that are the dialog's contents.
+     * @param dialog  A vector of "widgets" that are the dialog's contents.
      * @param width The width of the panel where 1.0 is the screen width.
      * @param height The height of the panel where 1.0 is the screen height.
-     * @param borderThickness The panels border thickness, defaulting to 2.
+     * @param thickness The dialog's border thickness, defaulting to 2.
      * @param options Panel display options defaulting to the screen options.
      *
      * @return The widget ID of the first widget in 'panel' on success.
@@ -150,14 +147,17 @@ class Screen {
      * prevents any user interface element other than the pop-up 'panel'
      * from receiving input events.
      */
-    WidgetId addModalDialogBox(Widgets&&       widgets,
-                               double          width           = 0.33,
-                               double          height          = 0.33,
-                               double          borderThickness = 2.0,
-                               std::any        options         = std::any());
+    WidgetId addModalDialogBox(
+                const Widget::Children&  dialog,
+                double                   width           = 0.33,
+                double                   height          = 0.33,
+                double                   thickness       = 2.0,
+                std::any                 options         = std::any());
 
     /**
      * @brief Draw the current screen user interface elements.
+     *
+     * @param adapter Optional adapter to use when drawing.
      *
      * @throws WawtException Rethrows intercepted WawtExeption with the
      * screen name attached to the exception message.
@@ -166,9 +166,9 @@ class Screen {
      * marked as "hidden") in the order of declaration.  Thus, a widget's
      * drawn appearance can be obscured by a subsequent widget's.
      */
-    void draw() {
+    void draw(DrawProtocol *adapter = WawtEnv::drawAdapter()) {
         try {
-            d_screen.draw(d_adapter);
+            d_screen.draw(adapter);
         }
         catch (WawtException caught) {
             throw WawtException("Painting: '" + d_name + "', "
@@ -212,26 +212,14 @@ class Screen {
      * the selection test, then an "empty" callback is returned (and evaluates
      * to 'false' in a boolean context).
      */
-    EventUpCb downEvent(int, int) {
-        return EventUpCb(); // TBF
-#if 0
+    EventUpCb downEvent(double x, double y) {
         try {
-            auto cb = d_screen.downEvent(x, y);
-            if (!cb) {
-                return cb;
-            }
-            refresh();
-            return [this, cb](int xup, int yup, bool up) { // !!HACK - FIX
-                auto ret = cb(xup, yup, up);
-                refresh();
-                return ret;
-            };
+            return d_screen.downEvent(x, y);
         }
         catch (WawtException caught) {
             throw WawtException("Click on screen '" + d_name + "', "
                                                             + caught.what());
         }
-#endif
     }
 
     /**
@@ -245,9 +233,8 @@ class Screen {
      * must be called before this method can be used.
      */
     void resize(double newWidth = 0, double newHeight = 0) {
-        d_screen.resizeRoot(d_adapter, 
-                            newWidth  ? newWidth  : width(),
-                            newHeight ? newHeight : height());
+        d_screen.resizeScreen(newWidth  ? newWidth  : width(),
+                              newHeight ? newHeight : height());
     }
                 
     /**
@@ -255,16 +242,10 @@ class Screen {
      *
      * @param name Name to add to intercepted exceptions before rethrowing.
      * @param setTimer Callback to establish/cancel a timed event.
-     * @param adapter Pointer to the object implementing the draw protocol.
      *
      * This method should be called immediately after the screen is created.
      */
-    void wawtScreenSetup(std::string_view   name,
-                         const SetTimerCb&  setTimer,
-                         DrawProtocol      *adapter = nullptr) {
-        if (adapter) {
-            d_adapter = adapter;
-        }
+    void wawtScreenSetup(std::string_view name, const SetTimerCb& setTimer) {
         d_setTimer  = setTimer;
         d_name.assign(name.data(), name.length());
     }
@@ -381,7 +362,7 @@ class ScreenImpl : public Screen {
     // PROTECTED CONSTRUCTORS
 
     //! Initialize the base class with a close function object.
-    ScreenImpl(DrawProtocol *adapter = nullptr);
+    ScreenImpl();
 
     // PROTECTED MANIPULATORS
     /**
@@ -402,18 +383,18 @@ class ScreenImpl : public Screen {
 
     //! Get the draw options for the named widget class.
     Option defaultOptions(const std::string& name)   const noexcept {
-        return optionCast(WawtEnv::instance()->defaultOptions(name));
+        return optionCast(WawtEnv::defaultOptions(name));
     }
 
     // PROTECTED DATA MEMBERS
 };
 
 inline WidgetId
-Screen::addModalDialogBox(Widgets&&       widgets,
-                          double          width,
-                          double          height,
-                          double          borderThickness,
-                          std::any        options)
+Screen::addModalDialogBox(const Widget::Children&  dialog,
+                          double                   width,
+                          double                   height,
+                          double                   thickness,
+                          std::any                 options)
 {
     auto ret = WidgetId{};
 
@@ -426,20 +407,22 @@ Screen::addModalDialogBox(Widgets&&       widgets,
         if (!options.has_value()) {
             options = WawtEnv::instance()->defaultOptions(WawtEnv::sScreen);
         }
-        ret = d_screen.pushDialog(
-                d_adapter,
-                Widget(WawtEnv::sDialog,
-                       Layout::centered(width, height).border(borderThickness))
-                .options(std::move(options))
-                .addChildren(std::move(widgets)));
+        auto modal = Widget(WawtEnv::sDialog,
+                            Layout::centered(width, height).border(thickness))
+                        .options(std::move(options));
+
+        for (auto& child: dialog) {
+            modal.addChild(child.clone());
+        }
+        ret = d_screen.pushDialog(std::move(modal));
     }
     return ret;                                                       // RETURN
 }
 
 template<class Derived,class Option>
 inline
-ScreenImpl<Derived,Option>::ScreenImpl(DrawProtocol *adapter)
-: Screen(adapter)
+ScreenImpl<Derived,Option>::ScreenImpl()
+: Screen()
 {
 }
 
@@ -451,7 +434,6 @@ ScreenImpl<Derived,Option>::activate(double         width,
                                      Types&...      args)
 {
     try {
-        assert(d_adapter);
         resize(width, height);
         static_cast<Derived*>(this)->resetWidgets(args...);
     }
@@ -488,7 +470,8 @@ ScreenImpl<Derived,Option>::setup(Types&...  args)
 {
 
     try {
-        d_screen=reinterpret_cast<Derived*>(this)->createScreenPanel(args...);
+        auto app = reinterpret_cast<Derived*>(this);
+        d_screen = app->createScreenPanel(args...).className(WawtEnv::sScreen);
         d_screen.assignWidgetIds();
     }
     catch (WawtException caught) {

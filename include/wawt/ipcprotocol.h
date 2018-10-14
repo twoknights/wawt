@@ -19,6 +19,7 @@
 #ifndef WAWT_IPCPROTOCOL_H
 #define WAWT_IPCPROTOCOL_H
 
+#include <any>
 #include <cstdint>
 #include <cstring>
 #include <deque>
