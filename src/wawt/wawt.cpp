@@ -701,7 +701,6 @@ Widget::defaultSerialize(std::ostream&      os,
     if (!drawData.d_label.empty()) {
         os << spaces
            << "<text align='"   << int(layoutData.d_textAlign)
-           << "' charSize='"    << drawData.d_charSize
            << "' group='";
 
         if (layoutData.d_charSizeGroup) {
@@ -1207,36 +1206,39 @@ Draw::draw(const DrawData& drawData)  noexcept
     auto& widgetName = drawData.d_className;
     auto& widgetId   = drawData.d_widgetId;
 
+    auto fmtflags = d_os.flags();
+    d_os.setf(std::ios::boolalpha);
+
     d_os << spaces << "<" << widgetName << " id='" << widgetId
          << "' rid=" << drawData.d_relativeId << "'>\n";
 
     spaces += 2;
     d_os << spaces
-         << "<draw options='" << int(drawData.d_options.has_value())
-         << "' selected='"    << drawData.d_selected
-         << "' disable='"     << drawData.d_disableEffect
-         << "' hidden='"      << int(drawData.d_hidden)
+         << "<draw options='" << drawData.d_options.has_value()
+         << "' selected='"    << bool(drawData.d_selected)
+         << "' disable='"     << bool(drawData.d_disableEffect)
+         << "' hidden='"      << bool(drawData.d_hidden)
          << "'>\n";
     spaces += 2;
     d_os << spaces
-         << "<rect x='"       << drawData.d_rectangle.d_ux
-         <<     "' y='"       << drawData.d_rectangle.d_uy
-         <<     "' width='"   << drawData.d_rectangle.d_width
-         <<     "' height='"  << drawData.d_rectangle.d_height
+         << "<rect x='"       << std::round(drawData.d_rectangle.d_ux)
+         <<     "' y='"       << std::round(drawData.d_rectangle.d_uy)
+         <<     "' width='"   << std::round(drawData.d_rectangle.d_width)
+         <<     "' height='"  << std::round(drawData.d_rectangle.d_height)
          <<     "' border='"  << drawData.d_rectangle.d_borderThickness
          << "'/>\n";
 
     if (drawData.d_labelBounds.d_width > 0) {
         d_os << spaces
-             << "<text x='"       << drawData.d_labelBounds.d_ux
-             <<       "' y='"     << drawData.d_labelBounds.d_uy
-             <<       "' width='" << drawData.d_labelBounds.d_width
-             <<       "' height='"<< drawData.d_labelBounds.d_height
-             <<       "' charSize='" << drawData.d_charSize;
+             << "<text x='"      << std::round(drawData.d_labelBounds.d_ux)
+             <<     "' y='"      << std::round(drawData.d_labelBounds.d_uy)
+             <<     "' width='"  << std::round(drawData.d_labelBounds.d_width)
+             <<     "' height='" << std::round(drawData.d_labelBounds.d_height)
+             <<     "' charSize='" << drawData.d_charSize;
 
         if (drawData.d_labelMark != DrawData::BulletMark::eNONE) {
             d_os << "' mark='"    << int(drawData.d_labelMark)
-                 << "' left='"    << drawData.d_leftMark;
+                 << "' left='"    << bool(drawData.d_leftMark);
         }
         d_os << "'/>\n" << spaces << "<string>";
         outputXMLString(d_os, drawData.d_label);
@@ -1246,6 +1248,7 @@ Draw::draw(const DrawData& drawData)  noexcept
     d_os << spaces << "</draw>\n";
     spaces -= 2;
     d_os << spaces << "</" << widgetName << ">\n";
+    d_os.flags(fmtflags);
     return d_os.good();                                               // RETURN
 }
 

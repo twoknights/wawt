@@ -4,7 +4,7 @@ link_directories(${CMAKE_BINARY_DIR}/src/wawt
                  ${SFML_LIBRARY_DIR}
                  ${CRYPTOPP_LIBRARY_DIR})
 
-link_libraries(gtest ${CMAKE_THREAD_LIBS_INIT})
+link_libraries(gtest ${GCOVLIB} ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(wawtenv_t       wawtenv_t.cpp)
 add_executable(widget_t        widget_t.cpp)

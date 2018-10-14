@@ -82,10 +82,6 @@ TEST(Widget, Constructors)
 "  </layout>\n"
 "  <text/>\n"
 "  <installedMethods/>\n"
-"  <draw options='false' selected='false' disable='false' hidden='false'>\n"
-"    <rect x='0' y='0' width='0' height='0' border='0'/>\n"
-"    <bounds x='0' y='0' width='0' height='0'/>\n"
-"  </draw>\n"
 "</bar>\n"s;
     EXPECT_EQ(serialized, os.str());
 }
@@ -122,27 +118,27 @@ TEST(Widget, AddChild)
     screen.draw(&adapter);
     auto drawn =
 "<root id='5' rid=0'>\n"
-"  <draw options='0' selected='0' disable='0' hidden='0'>\n"
+"  <draw options='false' selected='false' disable='false' hidden='false'>\n"
 "    <rect x='0' y='0' width='1280' height='720' border='0'/>\n"
 "  </draw>\n"
 "</root>\n"
 "<child id='1' rid=0'>\n"
-"  <draw options='0' selected='0' disable='0' hidden='0'>\n"
+"  <draw options='false' selected='false' disable='false' hidden='false'>\n"
 "    <rect x='0' y='0' width='640' height='360' border='1'/>\n"
 "  </draw>\n"
 "</child>\n"
 "<child id='2' rid=1'>\n"
-"  <draw options='0' selected='0' disable='0' hidden='0'>\n"
+"  <draw options='false' selected='false' disable='false' hidden='false'>\n"
 "    <rect x='640' y='0' width='640' height='360' border='2'/>\n"
 "  </draw>\n"
 "</child>\n"
 "<child id='3' rid=2'>\n"
-"  <draw options='0' selected='0' disable='0' hidden='0'>\n"
+"  <draw options='false' selected='false' disable='false' hidden='false'>\n"
 "    <rect x='640' y='360' width='640' height='360' border='3'/>\n"
 "  </draw>\n"
 "</child>\n"
 "<child id='4' rid=3'>\n"
-"  <draw options='0' selected='0' disable='0' hidden='0'>\n"
+"  <draw options='false' selected='false' disable='false' hidden='false'>\n"
 "    <rect x='0' y='360' width='640' height='360' border='4'/>\n"
 "  </draw>\n"
 "</child>\n"s;
@@ -171,14 +167,14 @@ TEST(Widget, Text)
     screen.draw(&adapter);
     auto drawn =
 "<screen id='2' rid=0'>\n"
-"  <draw options='1' selected='0' disable='0' hidden='0'>\n"
+"  <draw options='true' selected='false' disable='false' hidden='false'>\n"
 "    <rect x='0' y='0' width='1280' height='720' border='0'/>\n"
 "  </draw>\n"
 "</screen>\n"
 "<label id='1' rid=0'>\n"
-"  <draw options='1' selected='0' disable='0' hidden='0'>\n"
+"  <draw options='true' selected='false' disable='false' hidden='false'>\n"
 "    <rect x='480' y='270' width='320' height='180' border='3'/>\n"
-"    <text x='484' y='274' width='312' height='172' charSize='15' mark='1' left='0'/>\n"
+"    <text x='484' y='274' width='312' height='172' charSize='15' mark='1' left='false'/>\n"
 "    <string>&apos;X&apos; marks the spot:</string>\n"
 "  </draw>\n"
 "</label>\n"s;
@@ -231,12 +227,12 @@ TEST(Widget, Dialog)
     screen.draw(&adapter);
     auto drawn =
 "<screen id='2' rid=0'>\n"
-"  <draw options='1' selected='0' disable='0' hidden='0'>\n"
+"  <draw options='true' selected='false' disable='false' hidden='false'>\n"
 "    <rect x='0' y='0' width='1280' height='720' border='0'/>\n"
 "  </draw>\n"
 "</screen>\n"
 "<dialog id='1' rid=0'>\n"
-"  <draw options='0' selected='0' disable='0' hidden='0'>\n"
+"  <draw options='false' selected='false' disable='false' hidden='false'>\n"
 "    <rect x='480' y='270' width='320' height='180' border='0'/>\n"
 "    <text x='481' y='271' width='318' height='178' charSize='53'/>\n"
 "    <string>&lt;POP!&gt;</string>\n"

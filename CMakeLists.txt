@@ -19,12 +19,17 @@ set(SFML_INCLUDE_DIR "/usr/include"
 set(SFML_LIBRARY_DIR "/usr/lib64"
     CACHE FILEPATH "Install location for SFML")
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 add_compile_options(-std=c++1z -Wall -Wextra -Wshadow -pedantic -pthread)
 
 include_directories(include ${CRYPTO_INCLUDE_DIR} ${SFML_INCLUDE_DIR})
 
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     set(LIBSUFFIX "-d")
+    set(GCOVLIB gcov)
+    add_compile_options(-fprofile-arcs -ftest-coverage)
+    set(CMAKE_CXX_OUTPUT_EXTENSION_REPLACE 1)
 endif()
 
 enable_testing()
