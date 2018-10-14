@@ -69,7 +69,9 @@ Widget label(Widget               **indirect,
              StringView_t           string,
              Widget::CharSizeGroup  group);
 
-Widget label(Layout&& layout, StringView_t string, Widget::CharSizeGroup       group);
+Widget label(Layout&&               layout,
+             StringView_t           string,
+             Widget::CharSizeGroup  group);
 
 Widget panel(Widget **indirect, Layout&& layout);
 

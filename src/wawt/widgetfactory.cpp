@@ -179,8 +179,8 @@ Widget panelGrid(Widget       **indirect,
                             indirect,
                             std::move(layout).border(0.0));
 
-    auto topLeft = panel.addChild(std::move(clonable));
-    topLeft->layoutData().d_layout
+    auto& topLeft = panel.addChild(std::move(clonable)).children().back();
+    topLeft.layoutData().d_layout
                     = {{-1.0, -1.0}, // using panel's coordinates.
                        {-1.0 + 2.0/double(columns), -1.0 + 2.0/double(rows)},
                        thickness};
@@ -189,15 +189,25 @@ Widget panelGrid(Widget       **indirect,
 
     for (auto r = 0; r < rows; ++r) {
         if (r > 0) {
-            panel.addChild(topLeft->clone())->layoutData().d_layout
-                = {{-1.0, 1.0, col0Id}, { 1.0, 2.0, col0Id}, thickness};
+            panel.addChild(topLeft.clone())
+                 .children()
+                 .back()
+                 .layoutData()
+                 .d_layout = {{-1.0, 1.0, col0Id},
+                              { 1.0, 2.0, col0Id},
+                              thickness};
         }
         col0Id        = WidgetId(r*columns, true);
         WidgetId prev = col0Id;
 
         for (auto c = 1; c < columns; ++c, ++prev) {
-            panel.addChild(topLeft->clone())->layoutData().d_layout
-                = {{ 1.0, -1.0, prev}, { 3.0, 1.0, prev }, thickness};
+            panel.addChild(topLeft.clone())
+                 .children()
+                 .back()
+                 .layoutData()
+                 .d_layout = {{ 1.0,-1.0, prev},
+                              { 3.0, 1.0, prev},
+                              thickness};
         }
     }
     return panel;                                                     // RETURN

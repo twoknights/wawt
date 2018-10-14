@@ -170,7 +170,7 @@ class  Widget final {
 
     // PUBLIC MANIPULATORS
 
-    Widget   *addChild(Widget&& child) &;
+    Widget&   addChild(Widget&& child) &;
 
     uint16_t  assignWidgetIds(uint16_t         next       = 1,
                               uint16_t         relativeId = 0,

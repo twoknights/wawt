@@ -73,7 +73,13 @@ std::ostream& operator<<(std::ostream& os, Indent indent) {
 
 inline
 std::ostream& operator<<(std::ostream& os, const WidgetId id) {
-    if (id.isSet()) {
+    if (id == WidgetId::kPARENT) {
+        os << "parent";
+    }
+    else if (id == WidgetId::kROOT) {
+        os << "root";
+    }
+    else if (id.isSet()) {
         os << id.value();
         if (id.isRelative()) {
             os << "_wr";
@@ -744,29 +750,6 @@ Widget::defaultSerialize(std::ostream&      os,
         os << spaces << "<installedMethods>\n" << im.str()
            << spaces << "</installedMethods>\n";
     }
-
-    os << spaces
-       << "<draw options='" << drawData.d_options.has_value()
-       << "' selected='"    << bool(drawData.d_selected)
-       << "' disable='"     << bool(drawData.d_disableEffect)
-       << "' hidden='"      << bool(drawData.d_hidden)
-       << "'>\n";
-    spaces += 2;
-    os << spaces
-       << "<rect x='"       << drawData.d_rectangle.d_ux
-       <<     "' y='"       << drawData.d_rectangle.d_uy
-       <<     "' width='"   << drawData.d_rectangle.d_width
-       <<     "' height='"  << drawData.d_rectangle.d_height
-       <<     "' border='"  << drawData.d_rectangle.d_borderThickness
-       << "'/>\n"
-       << spaces
-       << "<bounds x='"     << drawData.d_labelBounds.d_ux
-       <<       "' y='"     << drawData.d_labelBounds.d_uy
-       <<       "' width='" << drawData.d_labelBounds.d_width
-       <<       "' height='"<< drawData.d_labelBounds.d_height
-       << "'/>\n";
-    spaces -= 2;
-    os << spaces << "</draw>\n";
     os.flags(fmtflags);
     return;                                                           // RETURN
 }
@@ -889,7 +872,7 @@ Widget::operator=(Widget&& rhs) noexcept
     return *this;                                                     // RETURN
 }
 
-Widget*
+Widget&
 Widget::addChild(Widget&& child) &
 {
     if (!d_root) {
@@ -897,9 +880,8 @@ Widget::addChild(Widget&& child) &
         if (d_methods && d_methods->d_newChildMethod) {
             d_methods->d_newChildMethod(this, &children().back());
         }
-        return &children().back();                                    // RETURN
     }
-    return nullptr;                                                   // RETURN
+    return *this;                                                     // RETURN
 }
 
 uint16_t
