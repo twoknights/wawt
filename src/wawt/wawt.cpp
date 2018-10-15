@@ -1122,6 +1122,9 @@ Widget::resizeScreen(double width, double height, DrawProtocol *adapter)
         if (hasChildren()) {
             for (auto& child : children()) {
                 child.layout(adapter, true, *this);
+            }
+
+            for (auto& child : children()) {
                 child.layout(adapter, false, *this);
             }
         }
