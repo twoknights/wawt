@@ -365,6 +365,74 @@ Corner findCorner(const Layout::Position& position,
     return Corner(x,y);                                               // RETURN
 }
 
+void labelLayout(DrawData                  *data,
+                 bool                       firstPass,
+                 const Widget::LayoutData&  layoutData,
+                 DrawProtocol              *adapter) {
+    auto borderAdjustment = 2*data->d_rectangle.d_borderThickness + 2;
+    auto charSizeMap      = layoutData.d_charSizeMap.get();
+    auto charSizeLimit    = data->d_rectangle.d_height;
+
+    if (charSizeLimit <= borderAdjustment) {
+        return;                                                       // RETURN
+    }
+    charSizeLimit -= borderAdjustment;
+
+    if (layoutData.d_charSizeGroup) {
+        if (auto it  = charSizeMap->find(*layoutData.d_charSizeGroup);
+                 it != charSizeMap->end()) {
+            if (charSizeLimit > it->second + 1) {
+                charSizeLimit = it->second + 1;
+            }
+        }
+    }
+
+    if (firstPass || data->d_charSize + 1 != charSizeLimit) {
+        auto textBounds = Dimensions{
+            data->d_rectangle.d_width  - borderAdjustment,
+            data->d_rectangle.d_height - borderAdjustment };
+
+        if (adapter->getTextMetrics(&textBounds,
+                                    &data->d_charSize,
+                                    *data,
+                                    charSizeLimit)) {
+        }
+        else {
+            assert(!"Failed to get text metrics.");
+            data->d_charSize    = charSizeLimit - 1;
+        }
+
+        if (layoutData.d_charSizeGroup) {
+            charSizeMap->emplace(*layoutData.d_charSizeGroup,
+                                 data->d_charSize);
+        }
+        data->d_labelBounds.d_width   = textBounds.d_width;
+        data->d_labelBounds.d_height  = textBounds.d_height;
+    }
+    data->d_labelBounds.d_ux = data->d_rectangle.d_ux
+                             + data->d_rectangle.d_borderThickness + 1;
+    data->d_labelBounds.d_uy = data->d_rectangle.d_uy
+                             + data->d_rectangle.d_borderThickness + 1;
+
+    if (layoutData.d_textAlign != TextAlign::eLEFT) {
+        auto space = data->d_rectangle.d_width
+                   - data->d_labelBounds.d_width
+                   - 2*data->d_rectangle.d_borderThickness - 2;
+
+        if (layoutData.d_textAlign == TextAlign::eCENTER) {
+            space /= 2.0f;
+        }
+        data->d_labelBounds.d_ux += space;
+    }
+    auto space = data->d_rectangle.d_height
+               - data->d_labelBounds.d_height
+               - 2*data->d_rectangle.d_borderThickness - 2;
+
+    space /= 2.0f;
+    data->d_labelBounds.d_uy += space;
+    return;                                                           // RETURN
+}
+
 Rectangle makeRectangle(const Layout&         layout,
                         const Widget&         parent,
                         const Widget&         root) {
@@ -432,7 +500,6 @@ Rectangle makeRectangle(const Layout&         layout,
 
 std::atomic_flag    WawtEnv::d_atomicFlag   = ATOMIC_FLAG_INIT;
 WawtEnv            *WawtEnv::d_instance     = nullptr;
-DrawProtocol       *WawtEnv::d_drawAdapter  = nullptr;
 
 // The following defaults should be found in all fonts.
 Char_t   WawtEnv::kDownArrow = C('v');
@@ -551,11 +618,10 @@ Widget::layout(DrawProtocol       *adapter,
 {
     call(&defaultLayout,
          &Methods::d_layoutMethod,
-         &d_drawData,
-         firstPass,
-         *d_root,
+         this,
          parent,
-         d_layoutData,
+         *d_root,
+         firstPass,
          adapter);
 
     d_layoutData.d_refreshBounds = false;
@@ -575,73 +641,21 @@ Widget::defaultDraw(Widget *widget, DrawProtocol *adapter)
 }
 
 void
-Widget::defaultLayout(DrawData                *data,
-                      bool                     firstPass,
-                      const Widget&            root,
+Widget::defaultLayout(Widget                  *widget,
                       const Widget&            parent,
-                      const LayoutData&        layoutData,
+                      const Widget&            root,
+                      bool                     firstPass,
                       DrawProtocol            *adapter) noexcept
 {
+    auto&       data       = widget->drawData();
+    auto const& layoutData = widget->layoutData();
+
     if (firstPass) {
-        data->d_rectangle = makeRectangle(layoutData.d_layout, parent, root);
+        data.d_rectangle = makeRectangle(layoutData.d_layout, parent, root);
     }
 
-    if (!data->d_label.empty()) {
-        auto borderAdjustment = 2*data->d_rectangle.d_borderThickness + 2;
-        auto charSizeMap      = layoutData.d_charSizeMap.get();
-        auto charSizeLimit    = data->d_rectangle.d_height;
-
-        if (charSizeLimit <= borderAdjustment) {
-            return;                                                   // RETURN
-        }
-        charSizeLimit -= borderAdjustment;
-
-        if (layoutData.d_charSizeGroup) {
-            if (auto it  = charSizeMap->find(*layoutData.d_charSizeGroup);
-                     it != charSizeMap->end()) {
-                if (charSizeLimit > it->second + 1) {
-                    charSizeLimit = it->second + 1;
-                }
-            }
-        }
-
-        if (firstPass || data->d_charSize + 1 != charSizeLimit) {
-            auto textBounds = Dimensions{
-                data->d_rectangle.d_width  - borderAdjustment,
-                data->d_rectangle.d_height - borderAdjustment };
-
-            if (adapter->getTextMetrics(&textBounds,
-                                        &data->d_charSize,
-                                        *data,
-                                        charSizeLimit)) {
-            }
-            else {
-                assert(!"Failed to get text metrics.");
-                data->d_charSize    = charSizeLimit - 1;
-            }
-
-            if (layoutData.d_charSizeGroup) {
-                charSizeMap->emplace(*layoutData.d_charSizeGroup,
-                                     data->d_charSize);
-            }
-            data->d_labelBounds.d_width   = textBounds.d_width;
-            data->d_labelBounds.d_height  = textBounds.d_height;
-        }
-        data->d_labelBounds.d_ux = data->d_rectangle.d_ux
-                                 + data->d_rectangle.d_borderThickness + 1;
-        data->d_labelBounds.d_uy = data->d_rectangle.d_uy
-                                 + data->d_rectangle.d_borderThickness + 1;
-
-        if (layoutData.d_textAlign != TextAlign::eLEFT) {
-            auto space = data->d_rectangle.d_width
-                       - data->d_labelBounds.d_width
-                       - 2*data->d_rectangle.d_borderThickness - 2;
-
-            if (layoutData.d_textAlign == TextAlign::eCENTER) {
-                space /= 2.0f;
-            }
-            data->d_labelBounds.d_ux += space;
-        }
+    if (!data.d_label.empty()) {
+        labelLayout(&data, firstPass, layoutData, adapter);
     }
     return;                                                           // RETURN
 }
@@ -991,13 +1005,8 @@ void
 Widget::draw(DrawProtocol *adapter) noexcept
 {
     if (!isHidden()) {
-        if (d_layoutData.d_refreshBounds) {
-            defaultLayout(&d_drawData,
-                          false,
-                          *d_root,
-                          *this,
-                          d_layoutData,
-                          adapter);
+        if (d_layoutData.d_refreshBounds) { // realign new string
+            labelLayout(&d_drawData, false, d_layoutData, adapter);
             d_layoutData.d_refreshBounds = false;
         }
 
@@ -1268,8 +1277,8 @@ Draw::getTextMetrics(Dimensions          *textBounds,
     auto  height    = drawData.d_rectangle.d_height - 2*thickness - 2;
     auto  size      = count > 0 ? width/count : height;
 
-    *textBounds = { width, height };
     *charSize   = size >= upperLimit ? upperLimit - 1 : size;
+    *textBounds = { float(count*(*charSize)), float(*charSize) };
     return true;                                                      // RETURN
 }
 

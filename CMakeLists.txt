@@ -13,11 +13,7 @@ set(CRYPTOPP_INCLUDE_DIR "/usr/include"
 set(CRYPTOPP_LIBRARY_DIR "/usr/lib64"
     CACHE FILEPATH "Install location for crypto++")
 
-set(SFML_INCLUDE_DIR "/usr/include"
-    CACHE FILEPATH "Install location for SFML")
-
-set(SFML_LIBRARY_DIR "/usr/lib64"
-    CACHE FILEPATH "Install location for SFML")
+find_package(SFML 2.4 COMPONENTS graphics window network system REQUIRED)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 

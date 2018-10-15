@@ -79,17 +79,31 @@ class WawtEnv {
     static Char_t   kCursor;
     static Char_t   kFocusChg;
 
-    static constexpr char    sScreen[] = "screen";
-    static constexpr char    sDialog[] = "dialog";
-    static constexpr char    sPanel[]  = "panel";
-    static constexpr char    sLabel[]  = "label";
-    static constexpr char    sPush[]   = "pushButton";
-    static constexpr char    sCheck[]  = "checkBox";
+    static constexpr char    sScreen[]  = "screen";
+    static constexpr char    sDialog[]  = "dialog";
+    static constexpr char    sPanel[]   = "panel";
+    static constexpr char    sLabel[]   = "label";
+    static constexpr char    sPush[]    = "pushButton";
+    static constexpr char    sBullet[]  = "bulletMark";
 
     // PUBLIC CONSTRUCTOR
     WawtEnv()
     : d_classDefaults{}
     , d_strings{}
+    , d_drawAdapter(nullptr)
+    {
+        while (d_atomicFlag.test_and_set()) {};
+        
+        if (d_instance == nullptr) {
+            d_instance = this;
+        }
+        d_atomicFlag.clear();
+    }
+
+    WawtEnv(DrawProtocol *adapter)
+    : d_classDefaults{}
+    , d_strings{}
+    , d_drawAdapter(adapter)
     {
         while (d_atomicFlag.test_and_set()) {};
         
@@ -104,16 +118,16 @@ class WawtEnv {
             DrawProtocol                             *adapter = nullptr)
     : d_classDefaults{}
     , d_strings{}
+    , d_drawAdapter(adapter)
     {
+        for (auto& [className, border, options] : classDefaults) {
+            d_classDefaults.try_emplace(className, border, options);
+        }
+
         while (d_atomicFlag.test_and_set()) {};
         
         if (d_instance == nullptr) {
             d_instance     = this;
-            d_drawAdapter  = adapter;
-
-            for (auto& [className, border, options] : classDefaults) {
-                d_classDefaults.try_emplace(className, border, options);
-            }
         }
         d_atomicFlag.clear();
     }
@@ -131,7 +145,6 @@ class WawtEnv {
     // PRIVATE CLASS MEMBERS
     static std::atomic_flag     d_atomicFlag;
     static WawtEnv             *d_instance;
-    static DrawProtocol        *d_drawAdapter;
 
     // PRIVATE MANIPULATORS
     StringView_t      _translate(const StringView_t& phrase) {
@@ -154,6 +167,7 @@ class WawtEnv {
     // PRIVATE DATA MEMBERS
     std::map<std::string, Defaults> d_classDefaults{};
     std::unordered_set<String_t>    d_strings{};
+    DrawProtocol                   *d_drawAdapter;
 };
 
 } // end Wawt namespace

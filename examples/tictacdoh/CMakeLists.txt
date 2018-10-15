@@ -13,9 +13,7 @@ add_executable(tictacdoh
 
 target_link_libraries(tictacdoh   wawtsfml${LIBSUFFIX}
                                   wawt${LIBSUFFIX}
-                                  sfml-graphics
-                                  sfml-window
-                                  sfml-network
-                                  sfml-system
+                                  ${SFML_LIBRARIES}
                                   fontconfig
+                                  gcov
                                   cryptopp)

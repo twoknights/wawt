@@ -38,24 +38,26 @@ using namespace Wawt;
 Widget
 GameScreen::createScreenPanel()
 {
-    return panel({})
-      .addChild(panel(&d_boardPanel,
-                      {{-1.0,-1.0},{1.0,1.0}, Vertex::eUPPER_CENTER, 0.0})
-                .addChild(panelGrid(Layout::centered(0.6, 0.6).border(0), 3, 3,
-                                    pushButton({{},{},5},
-                                               [](auto w) {
-                                                  w->resetLabel(S("X"), false);
-                                               },
-                                               S(" "))))
-                .addChild(panel({{-1.0,-1.0,0_wr},{1.0,1.0,0_wr},5})
-                          .options(DrawOptions().lineColor(
-                                     defaultOptions(WawtEnv::sScreen)
-                                        .d_fillColor)))
-                .addChild(label({{-1.0,-1.0},{1.0,0.7}},
-                                S("Tic-Tac-DOH!"))))
-      .addChild(pushButton({{},{-0.95,-0.95}, Vertex::eUPPER_LEFT},
-                           {[this](auto) { d_screen.serialize(std::cout); }},
-                           S("*")));
+    auto click = [](auto *w) { w->resetLabel("X"); };
+
+    auto  screen     = panelGrid({}, 1, 3, panel({}));
+    auto  screenFill = defaultOptions(WawtEnv::sScreen).d_fillColor;
+    auto  overlayOpt = DrawOptions(DrawOptions::kCLEAR, screenFill);
+    auto& middle     = screen.children()[1];
+    auto  border     = 5.0;
+    middle.addChild( // 0_wr
+            panelGrid(&d_boardPanel,
+                      {{-1,-1},{ 1, 1}, Layout::Vertex::eCENTER_CENTER},
+                      3,
+                      3,
+                      pushButton(Layout().border(border), click, S(" "))))
+          .addChild( // 1_wr
+            panel({{-1,-1, 0_wr},{ 1, 1, 0_wr}, border}).options(overlayOpt))
+          .addChild( // 2_wr - this is a "shim"
+            panel({{-1,-1},{-1,-1, 0_wr}}))
+          .addChild( // 3_wr
+            label({{ 1,-1, 2_wr},{ 1,-1, 0_wr}}, S("Tic-Tac-Toe")));
+    return screen;
 }
 
 void
@@ -90,9 +92,9 @@ void
 GameScreen::resetWidgets(const String_t& marker)
 {
     d_marker    = marker;
+#if 0
     d_boardPanel->setHidden(true);
     d_boardPanel->setDisabled(true);
-#if 0
     addModalDialogBox(
         {
             Label(Layout::slice(false, 0.1, 0.3),

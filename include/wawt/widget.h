@@ -74,11 +74,10 @@ class  Widget final {
         = std::function<void(Widget *widget, DrawProtocol *adapter)>;
 
     using LayoutMethod
-        = std::function<void(DrawData                *data,
-                             bool                     firstPass,
-                             const Widget&            root,
+        = std::function<void(Widget                  *widget,
                              const Widget&            parent,
-                             const LayoutData&        layoutData,
+                             const Widget&            root,
+                             bool                     firstPass,
                              DrawProtocol            *adapter)>;
 
     using NewChildMethod
@@ -93,11 +92,10 @@ class  Widget final {
     // PUBLIC CLASS METHODS
     static void      defaultDraw(Widget *widget, DrawProtocol *adapter);
 
-    static void      defaultLayout(DrawData                *data,
-                                   bool                     firstPass,
-                                   const Widget&            root,
+    static void      defaultLayout(Widget                  *widget,
                                    const Widget&            parent,
-                                   const LayoutData&        layoutData,
+                                   const Widget&            root,
+                                   bool                     firstPass,
                                    DrawProtocol            *adapter) noexcept;
 
     static void     defaultSerialize(std::ostream&      os,
@@ -243,12 +241,6 @@ class  Widget final {
         d_drawData.d_options = std::move(options);
         return *this;
     }
-
-#if 0
-    void      setWidgetId(const WidgetId& id)                        noexcept {
-        d_drawData.d_widgetId = id.value();
-    }
-#endif
 
     // PUBLIC ACCESSORS
 

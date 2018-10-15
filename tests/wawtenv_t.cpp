@@ -127,7 +127,7 @@ TEST(Wawt, WawtEnv)
         Tuple{ WawtEnv::sPanel,  2.0, X{3} },
         Tuple{ WawtEnv::sLabel,  3.0, X{2} },
         Tuple{ WawtEnv::sPush,   4.0, X{1} },
-        Tuple{ WawtEnv::sCheck,  5.0, X{0} }
+        Tuple{ WawtEnv::sBullet, 5.0, X{0} }
     };
     WawtEnv obj(defaults);
 

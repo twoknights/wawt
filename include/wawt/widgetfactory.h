@@ -22,10 +22,19 @@
 #include "wawt/widget.h"
 
 #include <functional>
+#include <initializer_list>
+#include <utility>
 
 namespace Wawt {
 
-using ClickCb = std::function<void(Widget *)>;
+using ClickCb         = std::function<void(Widget *)>;
+using ClickLabel      = std::pair<ClickCb, StringView_t>;
+using ClickLabelList  = std::initializer_list<ClickLabel>;
+
+Widget::NewChildMethod genGridParent(bool         spacedLayout,
+                                     int          columns,
+                                     std::size_t  count,
+                                     float        thickness);
 
 Widget checkBox(Widget              **indirect,
                 Layout&&              layout,
@@ -108,6 +117,21 @@ Widget pushButton(Layout&&              layout,
                   ClickCb               clicked,
                   StringView_t          string,
                   Widget::CharSizeGroup group);
+
+Widget pushButtonGrid(Widget                **indirect,
+                      Layout&&                layout,
+                      bool                    spacedLayout,
+                      int                     columns,
+                      TextAlign               alignment,
+                      Widget::CharSizeGroup   group,
+                      ClickLabelList          buttonDefs);
+
+Widget pushButtonGrid(Layout&&                layout,
+                      bool                    spacedLayout,
+                      int                     columns,
+                      TextAlign               alignment,
+                      Widget::CharSizeGroup   group,
+                      ClickLabelList          buttonDefs);
 
 } // end Wawt namespace
 

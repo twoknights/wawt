@@ -81,25 +81,25 @@ int main()
         }
         arial = true;
     }
-    Wawt::WawtEnv wawtEnv(DrawOptions::classDefaults());
-#if 0
+#if 1
     sf::RenderWindow window(sf::VideoMode(float(WIDTH), float(HEIGHT)),
                             "Tic-Tac-DOH!",
                             sf::Style::Default,
                             sf::ContextSettings());
 
     SfmlDrawAdapter   drawAdapter(window, path, arial);
+#else
+    Wawt::Draw drawAdapter;
 #endif
-    std::cout << sizeof(Wawt::Widget{}) << std::endl;
-    Wawt::Draw draw;
+    Wawt::WawtEnv wawtEnv(DrawOptions::classDefaults(), &drawAdapter);
+    std::cout << sizeof(Wawt::Widget("foo",{})) << std::endl;
     GameScreen screen(nullptr);
     screen.setup();
-    screen.wawtScreenSetup("GameScreen",
-                           Wawt::Screen::SetTimerCb(),
-                           &draw); // &drawAdapter);
+    screen.wawtScreenSetup("GameScreen", Wawt::Screen::SetTimerCb());
     screen.activate(double(WIDTH), double(HEIGHT), "X");
+    screen.serializeScreen(std::cout);
     screen.draw();
-#if 0
+#if 1
     window.display();
     while (window.isOpen()) {
         sf::Event event;

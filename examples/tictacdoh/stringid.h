@@ -36,8 +36,6 @@
 //#define C(c) (L ## c)
 
 
-using namespace BDS;
-
 // Note: StringId should be implicitly castable to 'uint16_t'
 enum StringId {
     eNone   // 0 reserved by Wawt framework.
