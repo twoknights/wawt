@@ -162,6 +162,10 @@ struct Layout {
     }
 };
 
+std::function<Layout()> gridLayoutSequencer(std::size_t  columns,
+                                            std::size_t  widgetCount= 0,
+                                            std::size_t *rows       = nullptr);
+
 } // end Wawt namespace
 
 #endif

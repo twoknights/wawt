@@ -157,7 +157,7 @@ TEST(Widget, Text)
     auto screen
         = Widget(WawtEnv::sScreen, {})  // screen layout is never used
           .addChild(Widget(WawtEnv::sLabel, Layout::centered(0.25, 0.25))
-                    .text(S("'X' marks the spot:"), 1, TextAlign::eRIGHT)
+                    .text(S("'X' marks the spot:"), 1_F, TextAlign::eRIGHT)
                     .textMark(DrawData::BulletMark::eSQUARE, false)
                     .labelSelect(true));
     std::ostringstream os;
@@ -222,7 +222,8 @@ TEST(Widget, Dialog)
 
     id = screen.pushDialog(Widget(WawtEnv::sDialog,
                                   Layout::centered(0.25, 0.25))
-                           .text(S("<POP!>"), 1, TextAlign::eRIGHT), &adapter);
+                           .text(S("<POP!>"), 1_F, TextAlign::eRIGHT),
+                           &adapter);
     EXPECT_TRUE(id.isSet());
     EXPECT_EQ(1, screen.children().size());
     screen.draw(&adapter);

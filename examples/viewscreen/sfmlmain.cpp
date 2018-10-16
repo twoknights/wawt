@@ -59,7 +59,16 @@ ViewScreen::createScreenPanel()
     //*********************************************************************
     // START SCREEN DEFINITION
     //*********************************************************************
-    auto screen = panel(); // Replace with screen definition
+    //auto screen = panel(); // Replace with screen definition
+#if 0
+    auto screen = pushButtonGrid({}, false, 3, TextAlign::eCENTER, 1, {
+            { ClickCb(), "1" }, { ClickCb(), "2" }, { ClickCb(), "3" },
+            { ClickCb(), "4" }, { ClickCb(), "5" }, { ClickCb(), "6" },
+            { ClickCb(), "7" }, { ClickCb(), "8" }, { ClickCb(), "9" },
+                                { ClickCb(), "0" }
+        });
+#endif
+    auto screen = panelGrid({}, 3, 3, label({}, "X", 1));
 
     //*********************************************************************
     // END SCREEN DEFINITION
@@ -132,10 +141,21 @@ int main()
     while (window.isOpen()) {
         sf::Event event;
 
-        if (window.waitEvent(event)) {
+        if (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed) {
                 window.close();
             }
+        }
+        else if (event.type == sf::Event::Resized) {
+            float width  = static_cast<float>(event.size.width); 
+            float height = static_cast<float>(event.size.height); 
+            sf::View view(sf::FloatRect(0, 0, width, height));
+            screen.resize(width, height);
+
+            window.clear();
+            window.setView(view);
+            screen.draw();
+            window.display();
         }
     }
     return 0;

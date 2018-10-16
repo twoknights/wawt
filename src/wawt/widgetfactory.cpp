@@ -19,6 +19,9 @@
 #include "wawt/widgetfactory.h"
 #include "wawt/wawtenv.h"
 
+#include <memory>
+#include <utility>
+
 #ifdef WAWT_WIDECHAR
 #define S(str) String_t(L"" str)  // wide char strings (std::wstring)
 #define C(c) (L ## c)
@@ -49,6 +52,22 @@ Widget::DownEventMethod makePushButtonDownMethod(ClickCb&& onClick)
             };                                                        // RETURN
 }
 
+Widget::DownEventMethod makePushButtonDownMethod(FocusChgCb&& onClick)
+{
+    return  [cb=std::move(onClick)] (auto, auto, auto *widget) -> EventUpCb {
+                widget->drawData().d_selected = true;
+                return  [cb, widget](float x, float y, bool up) -> FocusCb {
+                            widget->drawData().d_selected = false;
+                            if (cb) {
+                                if (up && widget->inside(x, y)) {
+                                    return cb(widget);
+                                }
+                            }
+                            return FocusCb();
+                        };
+            };                                                        // RETURN
+}
+
 Widget::DownEventMethod makeToggleButtonDownMethod(ClickCb&& onClick)
 {
     return  [clk=std::move(onClick)] (auto, auto, auto *widget) -> EventUpCb {
@@ -65,17 +84,19 @@ Widget::DownEventMethod makeToggleButtonDownMethod(ClickCb&& onClick)
             };                                                        // RETURN
 }
 
-Widget::LayoutMethod genSpacedLayout(Dimensions    *bounds,
-                                     int            rows,
-                                     int            columns,
-                                     TextAlign      alignment)
+using DimensionPtr = std::shared_ptr<Dimensions>;
+
+Widget::LayoutMethod genSpacedLayout(const DimensionPtr&   bounds,
+                                     int                   rows,
+                                     int                   columns,
+                                     TextAlign             alignment)
 {
     return
-        [bounds, rows, columns, alignment] (Widget        *widget,
-                                            const Widget&  parent,
-                                            const Widget&  root,
-                                            bool           firstPass,
-                                            DrawProtocol  *adapter) -> void {
+        [=] (Widget                 *widget,
+             const Widget&           parent,
+             const Widget&           root,
+             bool                    firstPass,
+             DrawProtocol           *adapter) -> void {
             Widget::defaultLayout(widget, parent, root, firstPass, adapter);
 
             auto& data = widget->drawData();
@@ -105,6 +126,7 @@ Widget::LayoutMethod genSpacedLayout(Dimensions    *bounds,
                 ? 0
                 : (panelHeight - rows*height)/(rows - 1);
 
+            // But don't seperate them by too much:
             if (spacex > width/2) {
                 spacex = width/2;
             }
@@ -112,7 +134,7 @@ Widget::LayoutMethod genSpacedLayout(Dimensions    *bounds,
             if (spacey > height/2) {
                 spacey = height/2;
             }
-            // Calculate the panel's margins:
+            // ... which might mean the panel needs margins:
             auto marginx = (panelWidth - columns*width - (columns-1)*spacex)/2;
             auto marginy = (panelHeight- rows * height -    (rows-1)*spacey)/2;
             auto c       = data.d_relativeId % columns;
@@ -143,40 +165,79 @@ Widget::LayoutMethod genSpacedLayout(Dimensions    *bounds,
 
 } // unnamed namespace
 
+Widget bulletButtonGrid(Widget                **indirect,
+                        Layout&&                layout,
+                        bool                    radioButtons,
+                        SelectCb&&              selectCb,
+                        CharSizeGroup           group,
+                        LabelList               labels,
+                        TextAlign               alignment,
+                        int                     columns)
+{
+    auto gridPanel   = panel(indirect, std::move(layout));
+#if 0
+    auto rows        = std::size_t{};
+    auto childLayout = gridLayoutSequencer(columns, labels.size(), &rows);
+
+    for (auto& label : labels) {
+        auto onClick =...;
+        auto button
+            = Widget(WawtEnv::sBullet, indirect, childLayout())
+                .addMethod(onClick)
+                .labelSelect(true)
+                .text(label, group, alignment)
+                .textMark(radioButtons ? DrawData::BulletMark::eROUND
+                                       : DrawData::BulletMark::eSQUARE,
+                          alignment != TextAlign::eRIGHT);
+
+        gridPanel.addChild(button);
+    }
+#endif
+    return gridPanel;                                                 // RETURN
+}
+
+Widget bulletButtonGrid(Layout&&                layout,
+                        bool                    radioButtons,
+                        SelectCb&&              selectCb,
+                        CharSizeGroup           group,
+                        LabelList               labels,
+                        TextAlign               alignment,
+                        int                     columns)
+{
+    return bulletButtonGrid(nullptr, std::move(layout), radioButtons,
+                            std::move(selectCb), group, labels, alignment,
+                            columns);
+}
+
+Widget bulletButtonGrid(Widget                **indirect,
+                        Layout&&                layout,
+                        bool                    radioButtons,
+                        SelectFocusCb&&         selectCb,
+                        CharSizeGroup           group,
+                        LabelList               labels,
+                        TextAlign               alignment,
+                        int                     columns)
+{
+    return panel({});                                                 // RETURN
+}
+
+Widget bulletButtonGrid(Layout&&                layout,
+                        bool                    radioButtons,
+                        SelectFocusCb&&         selectCb,
+                        CharSizeGroup           group,
+                        LabelList               labels,
+                        TextAlign               alignment,
+                        int                     columns)
+{
+    return bulletButtonGrid(nullptr, std::move(layout), radioButtons,
+                            std::move(selectCb), group, labels, alignment,
+                            columns);
+}
 
 Widget checkBox(Widget                **indirect,
                 Layout&&                layout,
                 StringView_t            string,
-                Widget::CharSizeGroup   group,
-                ClickCb                 clicked,
-                TextAlign               alignment,
-                bool                    leftBox)
-{
-    return  Widget(WawtEnv::sBullet, indirect, std::move(layout))
-            .addMethod(makeToggleButtonDownMethod(std::move(clicked)))
-            .labelSelect(layout.d_thickness <= 0.0)
-            .text(string, group, alignment)
-            .textMark(DrawData::BulletMark::eSQUARE, leftBox);        // RETURN
-}
-
-Widget checkBox(Layout&&                layout,
-                StringView_t            string,
-                Widget::CharSizeGroup   group,
-                ClickCb                 clicked,
-                TextAlign               alignment,
-                bool                    leftBox)
-{
-    return  Widget(WawtEnv::sBullet, std::move(layout))
-            .addMethod(makeToggleButtonDownMethod(std::move(clicked)))
-            .labelSelect(layout.d_thickness <= 0.0)
-            .text(string, group, alignment)
-            .textMark(DrawData::BulletMark::eSQUARE, leftBox);        // RETURN
-}
-
-Widget checkBox(Widget                **indirect,
-                Layout&&                layout,
-                StringView_t            string,
-                Widget::CharSizeGroup   group,
+                CharSizeGroup           group,
                 TextAlign               alignment)
 {
     return  Widget(WawtEnv::sBullet, indirect, std::move(layout))
@@ -189,7 +250,7 @@ Widget checkBox(Widget                **indirect,
 
 Widget checkBox(Layout&&                layout,
                 StringView_t            string,
-                Widget::CharSizeGroup   group,
+                CharSizeGroup           group,
                 TextAlign               alignment)
 {
     return  Widget(WawtEnv::sBullet, std::move(layout))
@@ -198,56 +259,13 @@ Widget checkBox(Layout&&                layout,
             .text(string, group, alignment)
             .textMark(DrawData::BulletMark::eSQUARE,
                       alignment != TextAlign::eRIGHT);        // RETURN
-}
-
-Widget::NewChildMethod genGridParent(bool         spacedLayout,
-                                     int          columns,
-                                     std::size_t  count,
-                                     TextAlign    alignment,
-                                     float        thickness)
-{
-    if (count == 0) {
-        return Widget::NewChildMethod();                              // RETURN
-    }
-    auto rows = count/columns;
-
-    if (count % columns > 0) {
-        rows += 1;
-    }
-    return
-        [c      = 0,
-         r      = 0,
-         xinc   = 2.0/columns,
-         yinc   = 2.0/rows,
-         bounds = Dimensions{},
-         thickness,
-         alignment,
-         spacedLayout,
-         columns,
-         rows] (Widget*, Widget* newChild) mutable -> void {
-            newChild->layoutData().d_layout =
-                Layout{{-1.0 +   c  *xinc, -1.0 +   r  *yinc},
-                       {-1.0 + (c+1)*xinc, -1.0 + (r+1)*yinc},
-                       thickness};
-            if (++c == columns) {
-                c  = 0;
-                r += 1;
-            }
-            
-            if (spacedLayout) {
-                newChild->setMethod(genSpacedLayout(&bounds,
-                                                    rows,
-                                                    columns,
-                                                    alignment));
-            }
-         };                                                           // RETURN
 }
 
 Widget label(Widget                   **indirect,
              Layout&&                   layout,
              StringView_t               string,
              TextAlign                  alignment,
-             Widget::CharSizeGroup      group)
+             CharSizeGroup              group)
 {
     return  Widget(WawtEnv::sLabel, indirect, std::move(layout))
             .text(string, group, alignment);                          // RETURN
@@ -256,7 +274,7 @@ Widget label(Widget                   **indirect,
 Widget label(Layout&&                   layout,
              StringView_t               string,
              TextAlign                  alignment,
-             Widget::CharSizeGroup      group)
+             CharSizeGroup              group)
 {
     return  Widget(WawtEnv::sLabel, std::move(layout))
             .text(string, group, alignment);                          // RETURN
@@ -265,13 +283,13 @@ Widget label(Layout&&                   layout,
 Widget label(Widget                   **indirect,
              Layout&&                   layout,
              StringView_t               string,
-             Widget::CharSizeGroup      group)
+             CharSizeGroup              group)
 {
     return  Widget(WawtEnv::sLabel, indirect, std::move(layout))
             .text(string, group);                                     // RETURN
 }
 
-Widget label(Layout&& layout, StringView_t string, Widget::CharSizeGroup group)
+Widget label(Layout&& layout, StringView_t string, CharSizeGroup         group)
 {
     return  Widget(WawtEnv::sLabel, std::move(layout))
             .text(string, group);                                     // RETURN
@@ -291,51 +309,24 @@ Widget panelGrid(Widget       **indirect,
                  Layout&&       layout,
                  int            rows,
                  int            columns,
-                 Widget&&       clonable)
+                 const Widget&  clonable)
 {
     auto thickness = clonable.layoutData().d_layout.d_thickness;
-    auto panel     = Widget(WawtEnv::sPanel,
-                            indirect,
-                            std::move(layout).border(0.0));
+    auto grid      = panel(indirect, std::move(layout).border(0.0));
+    auto layoutFn  = gridLayoutSequencer(columns, rows*columns);
 
-    auto& topLeft = panel.addChild(std::move(clonable)).children().back();
-    topLeft.layoutData().d_layout
-                    = {{-1.0, -1.0}, // using panel's coordinates.
-                       {-1.0 + 2.0/double(columns), -1.0 + 2.0/double(rows)},
-                       thickness};
-    // All remaining widgets will use the coordinate system of a neighbor.
-    auto col0Id = WidgetId();
-
-    for (auto r = 0; r < rows; ++r) {
-        if (r > 0) {
-            panel.addChild(topLeft.clone())
-                 .children()
-                 .back()
-                 .layoutData()
-                 .d_layout = {{-1.0, 1.0, col0Id},
-                              { 1.0, 3.0, col0Id},
-                              thickness};
-        }
-        col0Id        = WidgetId(r*columns, true);
-        WidgetId prev = col0Id;
-
-        for (auto c = 1; c < columns; ++c, ++prev) {
-            panel.addChild(topLeft.clone())
-                 .children()
-                 .back()
-                 .layoutData()
-                 .d_layout = {{ 1.0,-1.0, prev},
-                              { 3.0, 1.0, prev},
-                              thickness};
-        }
+    for (auto i = 0; i < rows*columns; ++i) {
+        auto child = clonable.clone();
+        child.layoutData().d_layout = layoutFn();
+        grid.addChild(std::move(child));
     }
-    return panel;                                                     // RETURN
+    return grid;                                                      // RETURN
 }
 
 Widget panelGrid(Layout&&       layout,
                  int            rows,
                  int            columns,
-                 Widget&&       cloneable)
+                 const Widget&  cloneable)
 {
     return panelGrid(nullptr,
                      std::move(layout),
@@ -348,7 +339,7 @@ Widget pushButton(Widget              **indirect,
                   ClickCb               clicked,
                   StringView_t          string,
                   TextAlign             alignment,
-                  Widget::CharSizeGroup group)
+                  CharSizeGroup         group)
 {
     return  Widget(WawtEnv::sPush, indirect, std::move(layout))
             .addMethod(makePushButtonDownMethod(std::move(clicked)))
@@ -359,7 +350,7 @@ Widget pushButton(Layout&&              layout,
                   ClickCb               clicked,
                   StringView_t          string,
                   TextAlign             alignment,
-                  Widget::CharSizeGroup group)
+                  CharSizeGroup         group)
 {
     return pushButton(nullptr, std::move(layout),
                       clicked, string, alignment, group);             // RETURN
@@ -368,7 +359,7 @@ Widget pushButton(Layout&&              layout,
 Widget pushButton(Layout&&              layout,
                   ClickCb               clicked,
                   StringView_t          string,
-                  Widget::CharSizeGroup group)
+                  CharSizeGroup         group)
 {
     return pushButton(nullptr, std::move(layout), clicked,
                       string, TextAlign::eCENTER, group);             // RETURN
@@ -378,7 +369,48 @@ Widget pushButton(Widget              **indirect,
                   Layout&&              layout,
                   ClickCb               clicked,
                   StringView_t          string,
-                  Widget::CharSizeGroup group)
+                  CharSizeGroup         group)
+{
+    return pushButton(indirect, std::move(layout), clicked,
+                      string, TextAlign::eCENTER, group);             // RETURN
+}
+
+Widget pushButton(Widget              **indirect,
+                  Layout&&              layout,
+                  FocusChgCb            clicked,
+                  StringView_t          string,
+                  TextAlign             alignment,
+                  CharSizeGroup         group)
+{
+    return  Widget(WawtEnv::sPush, indirect, std::move(layout))
+            .addMethod(makePushButtonDownMethod(std::move(clicked)))
+            .text(string, group, alignment);                          // RETURN
+}
+
+Widget pushButton(Layout&&              layout,
+                  FocusChgCb            clicked,
+                  StringView_t          string,
+                  TextAlign             alignment,
+                  CharSizeGroup         group)
+{
+    return pushButton(nullptr, std::move(layout),
+                      clicked, string, alignment, group);             // RETURN
+}
+
+Widget pushButton(Layout&&              layout,
+                  FocusChgCb            clicked,
+                  StringView_t          string,
+                  CharSizeGroup         group)
+{
+    return pushButton(nullptr, std::move(layout), clicked,
+                      string, TextAlign::eCENTER, group);             // RETURN
+}
+
+Widget pushButton(Widget              **indirect,
+                  Layout&&              layout,
+                  FocusChgCb            clicked,
+                  StringView_t          string,
+                  CharSizeGroup         group)
 {
     return pushButton(indirect, std::move(layout), clicked,
                       string, TextAlign::eCENTER, group);             // RETURN
@@ -386,34 +418,88 @@ Widget pushButton(Widget              **indirect,
 
 Widget pushButtonGrid(Widget                **indirect,
                       Layout&&                layout,
-                      bool                    spacedLayout,
+                      CharSizeGroup           group,
                       int                     columns,
-                      TextAlign               alignment,
-                      Widget::CharSizeGroup   group,
-                      ClickLabelList          buttonDefs)
+                      ClickLabelList          buttonDefs,
+                      bool                    fitted,
+                      TextAlign               alignment)
 {
-    auto thickness  = layout.d_thickness;
-    auto gridPanel  = panel(indirect, std::move(layout).border(0.0))
-                        .addMethod(genGridParent(spacedLayout,
-                                                 columns,
-                                                 buttonDefs.size(),
-                                                 alignment,
-                                                 thickness));
+    auto thickness   = layout.d_thickness;
+    auto gridPanel   = panel(indirect, std::move(layout).border(0.0));
+    auto rows        = std::size_t{};
+    auto childLayout = gridLayoutSequencer(columns, buttonDefs.size(), &rows);
+    auto bounds      = std::make_shared<Dimensions>();
+
     for (auto& [click, label] : buttonDefs) {
-        gridPanel.addChild(pushButton({}, click, label, alignment, group));
+        gridPanel.addChild(pushButton(childLayout().border(thickness),
+                                      click,
+                                      label,
+                                      alignment,
+                                      group));
+        if (fitted) {
+            gridPanel.children()
+                     .back()
+                     .setMethod(genSpacedLayout(bounds,
+                                                rows,
+                                                columns,
+                                                alignment));
+        }
     }
     return gridPanel;                                                 // RETURN
 }
 
 Widget pushButtonGrid(Layout&&                layout,
-                      bool                    spacedLayout,
+                      CharSizeGroup           group,
                       int                     columns,
-                      TextAlign               alignment,
-                      Widget::CharSizeGroup   group,
-                      ClickLabelList          buttonDefs)
+                      ClickLabelList          buttonDefs,
+                      bool                    fitted,
+                      TextAlign               alignment)
 {
-    return pushButtonGrid(nullptr, std::move(layout), spacedLayout, columns,
-                          alignment, group, buttonDefs);              // RETURN
+    return pushButtonGrid(nullptr, std::move(layout), group, columns,
+                          buttonDefs, fitted, alignment);             // RETURN
+}
+
+Widget pushButtonGrid(Widget                **indirect,
+                      Layout&&                layout,
+                      CharSizeGroup           group,
+                      int                     columns,
+                      FocusChgLabelList       buttonDefs,
+                      bool                    fitted,
+                      TextAlign               alignment)
+{
+    auto thickness   = layout.d_thickness;
+    auto gridPanel   = panel(indirect, std::move(layout).border(0.0));
+    auto rows        = std::size_t{};
+    auto childLayout = gridLayoutSequencer(columns, buttonDefs.size(), &rows);
+    auto bounds      = std::make_shared<Dimensions>();
+
+    for (auto& [click, label] : buttonDefs) {
+        gridPanel.addChild(pushButton(childLayout().border(thickness),
+                                      click,
+                                      label,
+                                      alignment,
+                                      group));
+        if (fitted) {
+            gridPanel.children()
+                     .back()
+                     .setMethod(genSpacedLayout(bounds,
+                                                rows,
+                                                columns,
+                                                alignment));
+        }
+    }
+    return gridPanel;                                                 // RETURN
+}
+
+Widget pushButtonGrid(Layout&&                layout,
+                      CharSizeGroup           group,
+                      int                     columns,
+                      FocusChgLabelList       buttonDefs,
+                      bool                    fitted,
+                      TextAlign               alignment)
+{
+    return pushButtonGrid(nullptr, std::move(layout), group, columns,
+                          buttonDefs, fitted, alignment);             // RETURN
 }
 
 }  // namespace Wawt

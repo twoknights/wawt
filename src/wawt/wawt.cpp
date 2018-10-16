@@ -507,6 +507,50 @@ Char_t   WawtEnv::kUpArrow   = C('^');
 Char_t   WawtEnv::kCursor    = C('|');
 Char_t   WawtEnv::kFocusChg  = C('\0');
 
+std::function<Layout()> gridLayoutSequencer(std::size_t  columns,
+                                            std::size_t  widgetCount,
+                                            std::size_t *rowsOut)
+{
+    if (columns == 0) {
+        return [] { return Layout(); };                               // RETURN
+    }
+    auto rows = widgetCount/columns;
+
+    if (widgetCount % columns > 0 || rows == 0) {
+        rows += 1;
+    }
+
+    if (rowsOut) {
+        *rowsOut = rows;
+    }
+    auto ul = Layout{{-1.0, -1.0},
+                     {-1.0 + 2.0/double(columns),-1.0 + 2.0/double(rows)}};
+    return
+        [columns, ul, c = 0u, r = 0u] () mutable {
+            auto layout = Layout{};
+
+            if (c == 0) {
+                if (r == 0) {
+                    layout = ul;
+                }
+                else {
+                    WidgetId id((r-1)*columns, true);
+                    layout = {{-1.0, 1.0, id},{ 1.0, 3.0, id}};
+                }
+            }
+            else {
+                WidgetId id(r*columns+(c-1), true);
+                layout = Layout({ 1.0,-1.0, id}, { 3.0, 1.0, id});
+            }
+
+            if (++c == columns) {
+                c  = 0;
+                r += 1;
+            }
+            return layout;
+        };                                                            // RETURN
+}
+
                             //-------------------------
                             // class  Layout::WidgetRef
                             //-------------------------

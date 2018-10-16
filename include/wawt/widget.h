@@ -42,7 +42,12 @@ namespace Wawt {
                                 // class Widget
                                 //=============
 
-enum class TextAlign { eINVALID, eLEFT, eCENTER, eRIGHT };
+enum class  TextAlign { eINVALID, eLEFT, eCENTER, eRIGHT };
+struct      CharSizeGroup : std::optional<uint16_t> { };
+
+inline constexpr CharSizeGroup operator ""_F(unsigned long long int n) {
+    return CharSizeGroup{n};
+}
 
 class  Widget final {
   public:
@@ -50,7 +55,6 @@ class  Widget final {
     using ChildrenPtr       = std::unique_ptr<Children>;
     using OptionsFactory    = std::function<std::any(const std::string&)>;
     using BorderDefaults    = std::function<double(const std::string&)>;
-    using CharSizeGroup     = std::optional<uint16_t>;
     using CharSizeMap       = std::map<uint16_t, uint16_t>;
     using CharSizeMapPtr    = std::shared_ptr<CharSizeMap>;
 

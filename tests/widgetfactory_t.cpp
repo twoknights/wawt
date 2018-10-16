@@ -32,11 +32,11 @@ TEST(Factory, PushButton)
         = panel(&pp, {})
             .addChild(pushButton(&p1, {{-1.0, -1.0},{-0.9,-0.9}},
                                  [](auto) {},
-                                 S("b1"), TextAlign::eLEFT, 1))
+                                 S("b1"), TextAlign::eLEFT, 1_F))
             .addChild(pushButton(&p2, {{-0.9, -0.9},{-0.8,-0.8}},
-                                 [](auto) {}, S("b2"), 1))
+                                 [](auto) {}, S("b2"), 1_F))
             .addChild(pushButton({{-0.8, -0.8},{-0.7,-0.7}},
-                                 [](auto) {}, S("b3"), 1));
+                                 [](auto) {}, S("b3"), 1_F));
     screen.assignWidgetIds();
     screen.resizeScreen(1000, 1000);
 
@@ -126,13 +126,13 @@ TEST(Factory, PushButtonGrid)
 
     auto screen
         = panel({}).addChild(pushButtonGrid({{-0.5,-0.5},{0.5,0.5},2},
-                                            false,
-                                            1,
-                                            TextAlign::eCENTER,
+                                            1_F,
                                             1,
                                             {
                                                 {[&k1](auto){k1++;}, S("k1")}
-                                            }));
+                                            },
+                                            false,
+                                            TextAlign::eCENTER));
     screen.assignWidgetIds();
     screen.resizeScreen(1000, 1000);
     EXPECT_EQ(0, k1);
@@ -164,14 +164,14 @@ TEST(Factory, PushButtonGrid)
 
     screen
         = panel({}).addChild(pushButtonGrid({{-0.5,-0.5},{0.5,0.5},2},
-                                            false,
-                                            1,
-                                            TextAlign::eCENTER,
+                                            1_F,
                                             1,
                                             {
                                                 {[&k1](auto){k1++;}, S("k1")},
                                                 {[&k2](auto){k2++;}, S("k2")}
-                                            }));
+                                            },
+                                            false,
+                                            TextAlign::eCENTER));
     screen.assignWidgetIds();
     screen.resizeScreen(1000, 1000);
     upCb = screen.downEvent(500,500);
@@ -213,16 +213,16 @@ TEST(Factory, PushButtonGrid)
     k1 = k2 = k3 = k4 = 0;
     screen
         = panel({}).addChild(pushButtonGrid({{-0.5,-0.5},{0.5,0.5},2},
-                                            false,
+                                            1_F,
                                             2,
-                                            TextAlign::eCENTER,
-                                            1,
                                             {
                                                 {[&k1](auto){k1++;}, S("k1")},
                                                 {[&k2](auto){k2++;}, S("k2")},
                                                 {[&k3](auto){k3++;}, S("k3")},
                                                 {[&k4](auto){k4++;}, S("k4")}
-                                            }));
+                                            },
+                                            false,
+                                            TextAlign::eCENTER));
     screen.assignWidgetIds();
     screen.resizeScreen(1000, 1000);
     upCb = screen.downEvent(500,500);
@@ -285,13 +285,13 @@ TEST(Factory, SpacedPushButtonGrid)
 
     auto screen
         = panel({}).addChild(pushButtonGrid({{-1.0,-0.250},{1.0,0.250},2},
-                                            true,
-                                            1,
-                                            TextAlign::eCENTER,
+                                            1_F,
                                             1,
                                             {
                                                 {[&k1](auto){k1++;}, S("*k1")}
-                                            }));
+                                            },
+                                            true,
+                                            TextAlign::eCENTER));
     screen.assignWidgetIds();
     screen.resizeScreen(1000, 1000);
     EXPECT_EQ(0, k1);
@@ -323,14 +323,14 @@ TEST(Factory, SpacedPushButtonGrid)
 
     screen
         = panel({}).addChild(pushButtonGrid({{-1.0,-0.1},{1.0,0.1},2},
-                                            true,
+                                            1_F,
                                             2,
-                                            TextAlign::eCENTER,
-                                            1,
                                             {
                                                 {[&k1](auto){k1++;}, S("*k1")},
                                                 {[&k2](auto){k2++;}, S("*k2")}
-                                            }));
+                                            },
+                                            true,
+                                            TextAlign::eCENTER));
     screen.assignWidgetIds();
     screen.resizeScreen(1000, 1000);
     EXPECT_FALSE(bool(screen.downEvent(500,500)));
@@ -374,15 +374,15 @@ TEST(Factory, SpacedPushButtonGrid)
     k1 = k2 = k3 = 0;
     screen
         = panel({}).addChild(pushButtonGrid({{-0.5,-0.5},{0.5,0.5},2},
-                                            true,
+                                            1_F,
                                             2,
-                                            TextAlign::eCENTER,
-                                            1,
                                             {
                                               {[&k1](auto){k1++;}, S("k1abc")},
                                               {[&k2](auto){k2++;}, S("k2abc")},
                                               {[&k3](auto){k3++;}, S("k3abc")},
-                                            }));
+                                            },
+                                            true,
+                                            TextAlign::eCENTER));
     screen.assignWidgetIds();
     screen.resizeScreen(1000, 1000);
     upCb = screen.downEvent(505,450);
