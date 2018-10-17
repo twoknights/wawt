@@ -60,15 +60,13 @@ ViewScreen::createScreenPanel()
     // START SCREEN DEFINITION
     //*********************************************************************
     //auto screen = panel(); // Replace with screen definition
-#if 0
-    auto screen = pushButtonGrid({}, false, 3, TextAlign::eCENTER, 1, {
+    auto screen = pushButtonGrid({}, 1_F, 3, {
             { ClickCb(), "1" }, { ClickCb(), "2" }, { ClickCb(), "3" },
             { ClickCb(), "4" }, { ClickCb(), "5" }, { ClickCb(), "6" },
             { ClickCb(), "7" }, { ClickCb(), "8" }, { ClickCb(), "9" },
                                 { ClickCb(), "0" }
-        });
-#endif
-    auto screen = panelGrid({}, 3, 3, label({}, "X", 1));
+        }, true);
+//    auto screen = panelGrid({}, 3, 3, label({}, "X", 1_F));
 
     //*********************************************************************
     // END SCREEN DEFINITION

@@ -77,8 +77,8 @@ using EventUpCb   = std::function<FocusCb(double x, double y, bool)>;
                             //==================
 
 struct  Dimensions {
-    float           d_width             = 0;
-    float           d_height            = 0;
+    float           d_x                 = 0;
+    float           d_y                 = 0;
 };
 
                             //=================
@@ -90,7 +90,6 @@ struct  Rectangle  {
     float           d_uy                = 0;
     float           d_width             = 0;
     float           d_height            = 0;
-    float           d_borderThickness   = 0.0;
 
     bool inside(double x, double y) const {
         auto dx = float(x) - d_ux;

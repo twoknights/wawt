@@ -273,17 +273,6 @@ void outputXMLString(std::ostream& os, const std::wstring_view& text) {
     }
 }
 
-float borderSize(const Rectangle& root, float thickness) {
-    auto scalex = thickness * root.d_width  / 1280.0;
-    auto scaley = thickness * root.d_height /  720.0;
-    auto value  = std::round(std::min(scalex, scaley));
-
-    if (thickness > 0 && value == 0) {
-        value = 1.f;
-    }
-    return value;
-}
-
 bool findWidget(const Widget              **widget,
                 const Widget&               parent,
                 uint16_t                    id) {
@@ -314,50 +303,23 @@ using Corner = std::pair<float,float>;
 Corner findCorner(const Layout::Position& position,
                   const Widget&           parent,
                   const Widget&           root) {
-    auto       widget     = position.d_widgetRef.getWidgetPointer(parent, root);
-    auto&      rectangle  = widget->drawData().d_rectangle;
+    auto       reference  = position.d_widgetRef.getWidgetPointer(parent, root);
+    auto&      rectangle  = reference->drawData().d_rectangle;
     auto&      ul_x       = rectangle.d_ux;
     auto&      ul_y       = rectangle.d_uy;
     auto       lr_x       = ul_x + rectangle.d_width;
     auto       lr_y       = ul_y + rectangle.d_height;
-    auto       thickness  = rectangle.d_borderThickness;
 
     auto xorigin = (ul_x  + lr_x)/2.0;
     auto yorigin = (ul_y  + lr_y)/2.0;
     auto xradius = lr_x - xorigin;
     auto yradius = lr_y - yorigin;
 
-    switch (position.d_normalizeX) {
-      case Layout::Normalize::eOUTER:  { // Already have this.
-        } break;
-      case Layout::Normalize::eMIDDLE: {
-            xradius -= thickness/2;
-        } break;
-      case Layout::Normalize::eINNER: {
-            xradius -= thickness;
-        } break;
-      case Layout::Normalize::eDEFAULT: {
-            if (widget == &parent) {
-                xradius -= thickness; // eINNER
-            }
-        } break;
-    };
-
-    switch (position.d_normalizeY) {
-        case Layout::Normalize::eOUTER:  { // Already have this.
-        } break;
-      case Layout::Normalize::eMIDDLE: {
-            yradius -= thickness/2;
-        } break;
-      case Layout::Normalize::eINNER: {
-            yradius -= thickness;
-        } break;
-      case Layout::Normalize::eDEFAULT: {
-            if (widget == &parent) {
-                yradius -= thickness; // eINNER
-            }
-        } break;
-    };
+    if (reference == &parent || reference == &root) {
+        auto       thickness  = reference->drawData().d_borders;
+        xradius -= thickness.d_x;
+        yradius -= thickness.d_y;
+    }
 
     auto x = xorigin + position.d_sX*xradius;
     auto y = yorigin + position.d_sY*yradius;
@@ -369,14 +331,15 @@ void labelLayout(DrawData                  *data,
                  bool                       firstPass,
                  const Widget::LayoutData&  layoutData,
                  DrawProtocol              *adapter) {
-    auto borderAdjustment = 2*data->d_rectangle.d_borderThickness + 2;
     auto charSizeMap      = layoutData.d_charSizeMap.get();
     auto charSizeLimit    = data->d_rectangle.d_height;
+    auto borderAdjustment = Dimensions{2*(data->d_borders.d_x+1),
+                                       2*(data->d_borders.d_y+1)};
 
-    if (charSizeLimit <= borderAdjustment) {
+    if (charSizeLimit <= borderAdjustment.d_y) {
         return;                                                       // RETURN
     }
-    charSizeLimit -= borderAdjustment;
+    charSizeLimit -= borderAdjustment.d_y;
 
     if (layoutData.d_charSizeGroup) {
         if (auto it  = charSizeMap->find(*layoutData.d_charSizeGroup);
@@ -389,8 +352,8 @@ void labelLayout(DrawData                  *data,
 
     if (firstPass || data->d_charSize + 1 != charSizeLimit) {
         auto textBounds = Dimensions{
-            data->d_rectangle.d_width  - borderAdjustment,
-            data->d_rectangle.d_height - borderAdjustment };
+            data->d_rectangle.d_width  - borderAdjustment.d_x,
+            data->d_rectangle.d_height - borderAdjustment.d_y };
 
         if (adapter->getTextMetrics(&textBounds,
                                     &data->d_charSize,
@@ -406,18 +369,16 @@ void labelLayout(DrawData                  *data,
             charSizeMap->emplace(*layoutData.d_charSizeGroup,
                                  data->d_charSize);
         }
-        data->d_labelBounds.d_width   = textBounds.d_width;
-        data->d_labelBounds.d_height  = textBounds.d_height;
+        data->d_labelBounds.d_width   = textBounds.d_x;
+        data->d_labelBounds.d_height  = textBounds.d_y;
     }
-    data->d_labelBounds.d_ux = data->d_rectangle.d_ux
-                             + data->d_rectangle.d_borderThickness + 1;
-    data->d_labelBounds.d_uy = data->d_rectangle.d_uy
-                             + data->d_rectangle.d_borderThickness + 1;
+    data->d_labelBounds.d_ux= data->d_rectangle.d_ux + data->d_borders.d_x + 1;
+    data->d_labelBounds.d_uy= data->d_rectangle.d_uy + data->d_borders.d_y + 1;
 
     if (layoutData.d_textAlign != TextAlign::eLEFT) {
         auto space = data->d_rectangle.d_width
                    - data->d_labelBounds.d_width
-                   - 2*data->d_rectangle.d_borderThickness - 2;
+                   - borderAdjustment.d_x;
 
         if (layoutData.d_textAlign == TextAlign::eCENTER) {
             space /= 2.0f;
@@ -426,7 +387,7 @@ void labelLayout(DrawData                  *data,
     }
     auto space = data->d_rectangle.d_height
                - data->d_labelBounds.d_height
-               - 2*data->d_rectangle.d_borderThickness - 2;
+               - borderAdjustment.d_y;
 
     space /= 2.0f;
     data->d_labelBounds.d_uy += space;
@@ -436,8 +397,6 @@ void labelLayout(DrawData                  *data,
 Rectangle makeRectangle(const Layout&         layout,
                         const Widget&         parent,
                         const Widget&         root) {
-    auto thickness  = borderSize(root.drawData().d_rectangle,
-                                 layout.d_thickness);
     auto [ux, uy]   = findCorner(layout.d_upperLeft,  parent, root);
     auto [lx, ly]   = findCorner(layout.d_lowerRight, parent, root);
     auto width      = lx - ux;
@@ -493,7 +452,7 @@ Rectangle makeRectangle(const Layout&         layout,
           default: break;
         }
     }
-    return { ux, uy, lx - ux, ly - uy, thickness };                   // RETURN
+    return { ux, uy, lx - ux, ly - uy };                              // RETURN
 }
 
 } // end unnamed namespace
@@ -695,7 +654,21 @@ Widget::defaultLayout(Widget                  *widget,
     auto const& layoutData = widget->layoutData();
 
     if (firstPass) {
-        data.d_rectangle = makeRectangle(layoutData.d_layout, parent, root);
+        data.d_rectangle   = makeRectangle(layoutData.d_layout, parent, root);
+
+        auto borderRatio   = layoutData.d_layout.d_percentBorder/200.0;
+        data.d_borders.d_x = std::round(data.d_rectangle.d_width *borderRatio);
+        data.d_borders.d_y = std::round(data.d_rectangle.d_height*borderRatio);
+
+        if (borderRatio > 0) { // There should always be a border displayed...
+            if (data.d_borders.d_x == 0)  {
+                data.d_borders.d_x = 1;
+            }
+
+            if (data.d_borders.d_y == 0)  {
+                data.d_borders.d_y = 1;
+            }
+        }
     }
 
     if (!data.d_label.empty()) {
@@ -730,8 +703,8 @@ Widget::defaultSerialize(std::ostream&      os,
     spaces += 2;
     os << spaces << "<layout border='";
 
-    if (layout.d_thickness >= 0.0) {
-        os << layout.d_thickness;
+    if (layout.d_percentBorder >= 0.0) {
+        os << layout.d_percentBorder;
     }
 
     if (layout.d_pin != Layout::Vertex::eNONE) {
@@ -743,15 +716,11 @@ Widget::defaultSerialize(std::ostream&      os,
        <<     "<ul sx='" << layout.d_upperLeft.d_sX
        <<       "' sy='" << layout.d_upperLeft.d_sY
        <<   "' widget='" << layout.d_upperLeft.d_widgetRef.getWidgetId()
-       <<   "' norm_x='" << int(layout.d_upperLeft.d_normalizeX)
-       <<   "' norm_y='" << int(layout.d_upperLeft.d_normalizeY)
        << "'/>\n";
     os << spaces
        <<     "<lr sx='" << layout.d_lowerRight.d_sX
        <<       "' sy='" << layout.d_lowerRight.d_sY
        <<   "' widget='" << layout.d_lowerRight.d_widgetRef.getWidgetId()
-       <<   "' norm_x='" << int(layout.d_lowerRight.d_normalizeX)
-       <<   "' norm_y='" << int(layout.d_lowerRight.d_normalizeY)
        << "'/>\n";
     spaces -= 2;
     os << spaces << "</layout>\n";
@@ -953,8 +922,8 @@ Widget::assignWidgetIds(uint16_t        next,
         map = std::make_shared<CharSizeMap>();
     }
 
-    if (d_layoutData.d_layout.d_thickness == -1.0) {
-        d_layoutData.d_layout.d_thickness =
+    if (d_layoutData.d_layout.d_percentBorder == -1.0) {
+        d_layoutData.d_layout.d_percentBorder =
             WawtEnv::defaultBorderThickness(d_drawData.d_className);
     }
 
@@ -1281,7 +1250,8 @@ Draw::draw(const DrawData& drawData)  noexcept
          <<     "' y='"       << std::round(drawData.d_rectangle.d_uy)
          <<     "' width='"   << std::round(drawData.d_rectangle.d_width)
          <<     "' height='"  << std::round(drawData.d_rectangle.d_height)
-         <<     "' border='"  << drawData.d_rectangle.d_borderThickness
+         <<     "' xborder='" << drawData.d_borders.d_x
+         <<     "' yborder='" << drawData.d_borders.d_y
          << "'/>\n";
 
     if (drawData.d_labelBounds.d_width > 0) {
@@ -1319,9 +1289,10 @@ Draw::getTextMetrics(Dimensions          *textBounds,
     if (drawData.d_labelMark != DrawData::BulletMark::eNONE) {
         count += 1;
     }
-    auto  thickness = drawData.d_rectangle.d_borderThickness;
-    auto  width     = drawData.d_rectangle.d_width  - 2*thickness - 2;
-    auto  height    = drawData.d_rectangle.d_height - 2*thickness - 2;
+    auto  borders   = Dimensions{2*(drawData.d_borders.d_x+1),
+                                 2*(drawData.d_borders.d_y+1)};
+    auto  width     = drawData.d_rectangle.d_width  - borders.d_x;
+    auto  height    = drawData.d_rectangle.d_height - borders.d_y;
     auto  size      = count > 0 ? width/count : height;
 
     *charSize   = size >= upperLimit ? upperLimit - 1 : size;

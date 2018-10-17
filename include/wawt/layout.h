@@ -35,13 +35,6 @@ class Widget;
 struct Layout {
     // PUBLIC TYPES
     // Layout attributes:
-    enum class Normalize {
-              eOUTER         ///< Normalize to widget's width/2
-            , eMIDDLE        ///< Normalize to middle of border.
-            , eINNER         ///< Normalize to 1 pixel before inner edge
-            , eDEFAULT       ///< eINNER for parent, otherwise eOUTER
-    };
-
     enum class Vertex  {
               eUPPER_LEFT
             , eUPPER_CENTER
@@ -80,29 +73,18 @@ struct Layout {
         float                   d_sX            = -1.0;
         float                   d_sY            = -1.0;
         WidgetRef               d_widgetRef     = WidgetId::kPARENT;
-        Normalize               d_normalizeX    = Normalize::eDEFAULT;
-        Normalize               d_normalizeY    = Normalize::eDEFAULT;
 
         constexpr Position()                = default;
 
-        constexpr Position(double x, double y) noexcept
+        constexpr Position(double x, double y)                        noexcept
             : d_sX(float(x)), d_sY(float(y)) { }
 
-        constexpr Position(double x, double y, WidgetRef&& widgetRef) noexcept
+        constexpr Position(double            x,
+                           double            y,
+                           const WidgetRef&  widgetRef)               noexcept
             : d_sX(float(x))
             , d_sY(float(y))
-            , d_widgetRef(std::move(widgetRef))  { }
-
-        constexpr Position(double      x,
-                           double      y,
-                           WidgetRef&& widgetRef,
-                           Normalize   normalizeX,
-                           Normalize   normalizeY)                  noexcept
-            : d_sX(float(x))
-            , d_sY(float(y))
-            , d_widgetRef(std::move(widgetRef))
-            , d_normalizeX(normalizeX)
-            , d_normalizeY(normalizeY) { }
+            , d_widgetRef(widgetRef) { }
     };
 
     // PUBLIC CLASS MEMBERS
@@ -113,34 +95,34 @@ struct Layout {
     }
 
     constexpr static Layout duplicate(WidgetId  id,
-                                      double    thickness = -1.0)   noexcept {
-        return Layout({-1.0, -1.0, id}, {1.0, 1.0, id}, thickness);
+                                      double    percent   = -1.0)   noexcept {
+        return Layout({-1.0, -1.0, id}, {1.0, 1.0, id}, percent);
     }
 
     // PUBLIC DATA MEMBERS
     Position            d_upperLeft{};
     Position            d_lowerRight{};
     Vertex              d_pin{Vertex::eNONE};
-    float               d_thickness = -1.0;
+    float               d_percentBorder = -1.0;
 
     // PUBLIC CONSTRUCTORS
     constexpr Layout()                  = default;
 
     constexpr Layout(const Position&  upperLeft,
                      const Position&  lowerRight,
-                     double           thickness = -1.0)             noexcept
+                     double           percent   = -1.0)             noexcept
         : d_upperLeft(upperLeft)
         , d_lowerRight(lowerRight)
-        , d_thickness(float(thickness)) { }
+        , d_percentBorder(percent < 100.0 ? float(percent) : 100.f) { }
 
     constexpr Layout(const Position&   upperLeft,
                      const Position&   lowerRight,
                      Vertex            pin,
-                     double            thickness = -1.0)            noexcept
+                     double            percent   = -1.0)            noexcept
         : d_upperLeft(upperLeft)
         , d_lowerRight(lowerRight)
         , d_pin(pin)
-        , d_thickness(float(thickness)) { }
+        , d_percentBorder(percent < 100.0 ? float(percent) : 100.f) { }
 
     // PUBLIC MANIPULATORS (rvalues)
     constexpr Layout&& pin(Vertex vertex) &&                        noexcept {
@@ -156,8 +138,8 @@ struct Layout {
         return std::move(*this);
     }
 
-    Layout&& border(double thickness) &&                            noexcept {
-        d_thickness = float(thickness);
+    Layout&& border(double percent)  &&                             noexcept {
+        d_percentBorder = percent < 100.0 ? float(percent) : 100.f;
         return std::move(*this);
     }
 };

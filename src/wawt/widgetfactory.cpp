@@ -103,21 +103,35 @@ Widget::LayoutMethod genSpacedLayout(const DimensionPtr&   bounds,
 
             if (firstPass) {
                 if (data.d_relativeId == 0 // ignore old values
-                 || data.d_labelBounds.d_width > bounds->d_width) {
-                    bounds->d_width = data.d_labelBounds.d_width;
+                 || data.d_labelBounds.d_width > bounds->d_x) {
+                    bounds->d_x = data.d_labelBounds.d_width;
                 }
 
                 if (data.d_relativeId == 0
-                 || data.d_labelBounds.d_height > bounds->d_height) {
-                    bounds->d_height = data.d_labelBounds.d_height;
+                 || data.d_labelBounds.d_height > bounds->d_y) {
+                    bounds->d_y = data.d_labelBounds.d_height;
                 }
                 return;
             }
-            auto offset      = 2*data.d_rectangle.d_borderThickness + 2;
+            auto borderRatio = widget->layoutData().d_layout
+                                                   .d_percentBorder/200.0;
+            data.d_borders   = Dimensions{std::round(bounds->d_x*borderRatio),
+                                          std::round(bounds->d_y*borderRatio)};
+
+            if (borderRatio > 0) {
+                if (data.d_borders.d_x == 0) {
+                    data.d_borders.d_x = 1;
+                }
+                if (data.d_borders.d_y == 0) {
+                    data.d_borders.d_y = 1;
+                }
+            }
+            auto offset      = Dimensions{2*(data.d_borders.d_x+1),
+                                          2*(data.d_borders.d_y+1)};
             auto panelWidth  = parent.drawData().d_rectangle.d_width;
             auto panelHeight = parent.drawData().d_rectangle.d_height;
-            auto width       = bounds->d_width  + offset;
-            auto height      = bounds->d_height + offset;
+            auto width       = bounds->d_x + offset.d_x;
+            auto height      = bounds->d_y + offset.d_y;
             // Calculate seperator spacing between buttons:
             auto spacex = columns == 1
                 ? 0
@@ -150,10 +164,10 @@ Widget::LayoutMethod genSpacedLayout(const DimensionPtr&   bounds,
                                         + marginy + r * (spacey+height);
             auto& label         = data.d_labelBounds;
             label.d_uy          = rectangle.d_uy + (height-label.d_height)/2.0;
-            label.d_ux          = rectangle.d_ux + offset/2.0;
+            label.d_ux          = rectangle.d_ux + offset.d_x/2.0;
 
             if (alignment != TextAlign::eLEFT) {
-                auto space = width - label.d_width - offset;
+                auto space = width - label.d_width - offset.d_x;
 
                 if (alignment == TextAlign::eCENTER) {
                     space /= 2.0;
@@ -242,7 +256,7 @@ Widget checkBox(Widget                **indirect,
 {
     return  Widget(WawtEnv::sBullet, indirect, std::move(layout))
             .addMethod(makeToggleButtonDownMethod(ClickCb()))
-            .labelSelect(layout.d_thickness <= 0.0)
+            .labelSelect(layout.d_percentBorder <= 0.0)
             .text(string, group, alignment)
             .textMark(DrawData::BulletMark::eSQUARE,
                       alignment != TextAlign::eRIGHT);        // RETURN
@@ -255,7 +269,7 @@ Widget checkBox(Layout&&                layout,
 {
     return  Widget(WawtEnv::sBullet, std::move(layout))
             .addMethod(makeToggleButtonDownMethod(ClickCb()))
-            .labelSelect(layout.d_thickness <= 0.0)
+            .labelSelect(layout.d_percentBorder <= 0.0)
             .text(string, group, alignment)
             .textMark(DrawData::BulletMark::eSQUARE,
                       alignment != TextAlign::eRIGHT);        // RETURN
@@ -311,7 +325,6 @@ Widget panelGrid(Widget       **indirect,
                  int            columns,
                  const Widget&  clonable)
 {
-    auto thickness = clonable.layoutData().d_layout.d_thickness;
     auto grid      = panel(indirect, std::move(layout).border(0.0));
     auto layoutFn  = gridLayoutSequencer(columns, rows*columns);
 
@@ -424,7 +437,7 @@ Widget pushButtonGrid(Widget                **indirect,
                       bool                    fitted,
                       TextAlign               alignment)
 {
-    auto thickness   = layout.d_thickness;
+    auto thickness   = layout.d_percentBorder;
     auto gridPanel   = panel(indirect, std::move(layout).border(0.0));
     auto rows        = std::size_t{};
     auto childLayout = gridLayoutSequencer(columns, buttonDefs.size(), &rows);
@@ -467,7 +480,7 @@ Widget pushButtonGrid(Widget                **indirect,
                       bool                    fitted,
                       TextAlign               alignment)
 {
-    auto thickness   = layout.d_thickness;
+    auto thickness   = layout.d_percentBorder;
     auto gridPanel   = panel(indirect, std::move(layout).border(0.0));
     auto rows        = std::size_t{};
     auto childLayout = gridLayoutSequencer(columns, buttonDefs.size(), &rows);

@@ -150,7 +150,7 @@ struct DrawOptions {
                    0.0, 
                    DrawOptions(Color(160u, 160u, 255u, 255u), kBLACK) },
             Tuple{ Wawt::WawtEnv::sPush,
-                   2.0, 
+                   5.0, 
                    DrawOptions(Color(192u, 192u, 255u, 255u), kBLACK) } 
         };
         return defaults;

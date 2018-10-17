@@ -54,16 +54,37 @@ void drawBox(sf::RenderWindow  *window,
              float              height,
              sf::Color          lineColor,
              sf::Color          fillColor,
-             float              borderThickness) {
+             float              xborder,
+             float              yborder) {
     sf::RectangleShape rectangle({width, height});
 
-    if (lineColor.a > 0 && borderThickness > 0) {
+    if (lineColor.a > 0 && (xborder == 1 || yborder == 1)) {
         rectangle.setOutlineColor(lineColor);
-        rectangle.setOutlineThickness(-borderThickness);
+        rectangle.setOutlineThickness(-1);
     }
     rectangle.setFillColor(fillColor);
     rectangle.setPosition(x, y);
     window->draw(rectangle);
+
+    if (lineColor.a > 0) {
+        rectangle.setFillColor(lineColor);
+
+        if (xborder >= 2) {
+            rectangle.setPosition(x, y);
+            rectangle.setSize({xborder, height});
+            window->draw(rectangle);
+            rectangle.setPosition(x+width-xborder, y);
+            window->draw(rectangle);
+        }
+
+        if (yborder >= 2) {
+            rectangle.setPosition(x, y);
+            rectangle.setSize({width, yborder});
+            window->draw(rectangle);
+            rectangle.setPosition(x, y+height-yborder);
+            window->draw(rectangle);
+        }
+    }
 }
 
 void drawCircle(sf::RenderWindow  *window,
@@ -232,7 +253,6 @@ SfmlDrawAdapter::draw(const Wawt::DrawData& drawData) noexcept
         }
     }
     auto& box = drawData.d_rectangle;
-    float borderThickness = float(std::ceil(box.d_borderThickness));
     drawBox(&d_window,
             float(box.d_ux),
             float(box.d_uy),
@@ -242,7 +262,8 @@ SfmlDrawAdapter::draw(const Wawt::DrawData& drawData) noexcept
             (drawData.d_selected
           && drawData.d_labelMark==Wawt::DrawData::BulletMark::eNONE)
                 ? selectColor : fillColor,
-            borderThickness);
+            drawData.d_borders.d_x,
+            drawData.d_borders.d_y);
 
     if (!drawData.d_label.empty()) {
         sf::Font&  font = getFont(options.d_fontIndex);
@@ -280,7 +301,7 @@ SfmlDrawAdapter::draw(const Wawt::DrawData& drawData) noexcept
             auto lineSpacing= font.getLineSpacing(drawData.d_charSize);
             auto size       = float(drawData.d_charSize);
             auto height     = float(box.d_height) - (lineSpacing - size);
-            auto xcenter    = float(borderThickness + size/2.0);
+            auto xcenter    = float(drawData.d_borders.d_x + size/2.0);
             auto ycenter    = float(height/2.0);
             auto radius     = 0.2*size;
             auto ul_x       = float(box.d_ux + xcenter - radius);
@@ -293,7 +314,8 @@ SfmlDrawAdapter::draw(const Wawt::DrawData& drawData) noexcept
                     2*radius,
                     textColor,
                     drawData.d_selected ? textColor : fillColor,
-                    2);
+                    20,
+                    20);
         }
 
     }
@@ -338,13 +360,13 @@ SfmlDrawAdapter::getTextMetrics(Wawt::Dimensions          *textBounds,
             label.setCharacterSize(charSize);
             auto newBounds   = label.getLocalBounds();
             auto lineSpacing = font.getLineSpacing(charSize);
-            auto widthLimit  = textBounds->d_width;
+            auto widthLimit  = textBounds->d_x;
 
             if (drawData.d_labelMark != Wawt::DrawData::BulletMark::eNONE) {
                 widthLimit -= charSize;
             }
 
-            if (lineSpacing      >= textBounds->d_height
+            if (lineSpacing      >= textBounds->d_y
              || newBounds.width  >= widthLimit) {
                 upperLimit = charSize;
             }
@@ -358,8 +380,8 @@ SfmlDrawAdapter::getTextMetrics(Wawt::Dimensions          *textBounds,
         }
         *charHeight = lowerLimit;
     }
-    textBounds->d_width  = bounds.width;
-    textBounds->d_height = bounds.height;
+    textBounds->d_x  = bounds.width;
+    textBounds->d_y = bounds.height;
     return true;                                                      // RETURN
 }
 

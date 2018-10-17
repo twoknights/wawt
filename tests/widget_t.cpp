@@ -25,7 +25,7 @@ TEST(Widget, Constructors)
 {
     auto w1 = Widget("foo", {});
     auto& layout1 = w1.layoutData().d_layout;
-    EXPECT_EQ(-1.0, layout1.d_thickness);
+    EXPECT_EQ(-1.0, layout1.d_percentBorder);
     EXPECT_EQ(Layout::Vertex::eNONE, layout1.d_pin);
     EXPECT_EQ(-1.0, layout1.d_upperLeft.d_sX);
     EXPECT_EQ(-1.0, layout1.d_upperLeft.d_sY);
@@ -35,26 +35,14 @@ TEST(Widget, Constructors)
               layout1.d_upperLeft.d_widgetRef.getWidgetId());
     EXPECT_EQ(WidgetId::kPARENT,
               layout1.d_lowerRight.d_widgetRef.getWidgetId());
-    EXPECT_EQ(Layout::Normalize::eDEFAULT, layout1.d_upperLeft.d_normalizeX);
-    EXPECT_EQ(Layout::Normalize::eDEFAULT, layout1.d_upperLeft.d_normalizeY);
-    EXPECT_EQ(Layout::Normalize::eDEFAULT, layout1.d_lowerRight.d_normalizeX);
-    EXPECT_EQ(Layout::Normalize::eDEFAULT, layout1.d_lowerRight.d_normalizeY);
 
     Widget *p = nullptr;
-    auto ul = Layout::Position(1.0,
-                               2.0,
-                               1_w,
-                               Layout::Normalize::eOUTER,
-                               Layout::Normalize::eINNER);
-    auto lr = Layout::Position(3.0,
-                               4.0,
-                               2_w,
-                               Layout::Normalize::eMIDDLE,
-                               Layout::Normalize::eOUTER);
+    auto ul = Layout::Position(1.0, 2.0, 1_w);
+    auto lr = Layout::Position(3.0, 4.0, 2_w);
     auto w2 = Widget("bar", &p, {ul, lr, Layout::Vertex::eCENTER_CENTER, 1.0});
     auto& layout2 = w2.layoutData().d_layout;
     EXPECT_EQ(&w2, p);
-    EXPECT_EQ( 1.0, layout2.d_thickness);
+    EXPECT_EQ( 1.0, layout2.d_percentBorder);
     EXPECT_EQ(Layout::Vertex::eCENTER_CENTER, layout2.d_pin);
     EXPECT_EQ( 1.0, layout2.d_upperLeft.d_sX);
     EXPECT_EQ( 2.0, layout2.d_upperLeft.d_sY);
@@ -62,10 +50,6 @@ TEST(Widget, Constructors)
     EXPECT_EQ( 4.0, layout2.d_lowerRight.d_sY);
     EXPECT_TRUE(1_w == layout2.d_upperLeft.d_widgetRef.getWidgetId());
     EXPECT_TRUE(2_w == layout2.d_lowerRight.d_widgetRef.getWidgetId());
-    EXPECT_EQ(Layout::Normalize::eOUTER, layout2.d_upperLeft.d_normalizeX);
-    EXPECT_EQ(Layout::Normalize::eINNER, layout2.d_upperLeft.d_normalizeY);
-    EXPECT_EQ(Layout::Normalize::eMIDDLE, layout2.d_lowerRight.d_normalizeX);
-    EXPECT_EQ(Layout::Normalize::eOUTER, layout2.d_lowerRight.d_normalizeY);
 
     auto w3 = std::move(w2);
     EXPECT_EQ(&w3, p);
