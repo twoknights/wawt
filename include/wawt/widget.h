@@ -155,6 +155,11 @@ class  Widget final {
         return std::move(*this);
     }
 
+    Widget layout(Layout&& newLayout) &&                             noexcept {
+        d_layoutData.d_layout = std::move(newLayout);
+        return std::move(*this);
+    }
+
     Widget options(std::any options) &&                              noexcept {
         d_drawData.d_options = std::move(options);
         return std::move(*this);

@@ -101,7 +101,7 @@ struct Layout {
 
     // PUBLIC DATA MEMBERS
     Position            d_upperLeft{};
-    Position            d_lowerRight{};
+    Position            d_lowerRight{1.0,1.0};
     Vertex              d_pin{Vertex::eNONE};
     float               d_percentBorder = -1.0;
 
@@ -144,7 +144,8 @@ struct Layout {
     }
 };
 
-std::function<Layout()> gridLayoutSequencer(std::size_t  columns,
+std::function<Layout()> gridLayoutSequencer(double       percentBorder,
+                                            std::size_t  columns,
                                             std::size_t  widgetCount= 0,
                                             std::size_t *rows       = nullptr);
 

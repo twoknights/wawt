@@ -109,16 +109,16 @@ Widget panel(Widget **indirect, Layout&& layout);
 
 Widget panel(Layout&& layout = Layout());
 
-Widget panelGrid(Widget       **indirect,
-                 Layout&&       layout,
-                 int            rows,
-                 int            columns,
-                 const Widget&  clonable);
+Widget panelGrid(Widget               **indirect,
+                 Layout&&               layout,
+                 int                    rows,
+                 int                    columns,
+                 const Widget&          clonable);
 
-Widget panelGrid(Layout&&       layout,
-                 int            rows,
-                 int            columns,
-                 const Widget&  clonable);
+Widget panelGrid(Layout&&               layout,
+                 int                    rows,
+                 int                    columns,
+                 const Widget&          clonable);
 
 Widget pushButton(Widget              **indirect,
                   Layout&&              layout,
@@ -197,6 +197,28 @@ Widget pushButtonGrid(Layout&&                layout,
                       FocusChgLabelList       buttonDefs,
                       bool                    fitted    = false,
                       TextAlign               alignment = TextAlign::eCENTER);
+
+template<typename... WIDGET>
+Widget widgetGrid(Widget               **indirect,
+                  Layout&&               layout,
+                  int                    columns,
+                  WIDGET&&...            widgets)
+{
+    auto layoutFn  = gridLayoutSequencer(layout.d_percentBorder,
+                                         columns, sizeof...(widgets));
+    auto grid = panel(indirect, std::move(layout));
+    (grid.addChild(std::move(widgets).layout(layoutFn())),...);
+    return grid;                                                      // RETURN
+}
+
+template<typename... WIDGET>
+Widget widgetGrid(Layout&&               layout,
+                  int                    columns,
+                  WIDGET&&...            widgets)
+{
+    return widgetGrid(nullptr, std::move(layout), columns,
+                     std::forward<WIDGET>(widgets)...);               // RETURN
+}
 
 } // end Wawt namespace
 

@@ -466,12 +466,13 @@ Char_t   WawtEnv::kUpArrow   = C('^');
 Char_t   WawtEnv::kCursor    = C('|');
 Char_t   WawtEnv::kFocusChg  = C('\0');
 
-std::function<Layout()> gridLayoutSequencer(std::size_t  columns,
+std::function<Layout()> gridLayoutSequencer(double       percentBorder,
+                                            std::size_t  columns,
                                             std::size_t  widgetCount,
                                             std::size_t *rowsOut)
 {
-    if (columns == 0) {
-        return [] { return Layout(); };                               // RETURN
+    if (columns == 0 || percentBorder > 100.0) {
+        return std::function<Layout()>();                             // RETURN
     }
     auto rows = widgetCount/columns;
 
@@ -482,26 +483,15 @@ std::function<Layout()> gridLayoutSequencer(std::size_t  columns,
     if (rowsOut) {
         *rowsOut = rows;
     }
-    auto ul = Layout{{-1.0, -1.0},
-                     {-1.0 + 2.0/double(columns),-1.0 + 2.0/double(rows)}};
+    auto yinc = 2.0/(double(rows) - (rows-1)*percentBorder/200.0);
+    auto xinc = 2.0/(double(columns) - (columns-1)*percentBorder/200.0);
     return
-        [columns, ul, c = 0u, r = 0u] () mutable {
-            auto layout = Layout{};
-
-            if (c == 0) {
-                if (r == 0) {
-                    layout = ul;
-                }
-                else {
-                    WidgetId id((r-1)*columns, true);
-                    layout = {{-1.0, 1.0, id},{ 1.0, 3.0, id}};
-                }
-            }
-            else {
-                WidgetId id(r*columns+(c-1), true);
-                layout = Layout({ 1.0,-1.0, id}, { 3.0, 1.0, id});
-            }
-
+        [columns, xinc, yinc, percentBorder, c = 0u, r = 0u] () mutable {
+            auto bx = c == 0 ? 0.0 : c*xinc*percentBorder/200.0;
+            auto by = r == 0 ? 0.0 : r*yinc*percentBorder/200.0;
+            auto layout = Layout({-1.0+  c  *xinc - bx, -1.0+  r  *yinc - by},
+                                 {-1.0+(c+1)*xinc - bx, -1.0+(r+1)*yinc - by},
+                                 percentBorder);
             if (++c == columns) {
                 c  = 0;
                 r += 1;

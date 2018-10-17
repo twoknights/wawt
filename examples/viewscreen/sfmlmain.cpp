@@ -60,13 +60,28 @@ ViewScreen::createScreenPanel()
     // START SCREEN DEFINITION
     //*********************************************************************
     //auto screen = panel(); // Replace with screen definition
-    auto screen = pushButtonGrid({}, 1_F, 3, {
+#if 0
+    auto screen = pushButtonGrid({{},{}, 10}, 1_F, 3, {
             { ClickCb(), "1" }, { ClickCb(), "2" }, { ClickCb(), "3" },
             { ClickCb(), "4" }, { ClickCb(), "5" }, { ClickCb(), "6" },
             { ClickCb(), "7" }, { ClickCb(), "8" }, { ClickCb(), "9" },
                                 { ClickCb(), "0" }
         }, true);
-//    auto screen = panelGrid({}, 3, 3, label({}, "X", 1_F));
+    auto screen = widgetGrid({{},{}, 20}, 1,
+        pushButtonGrid(Layout().border(5), 1_F, 3, {
+            { ClickCb(), "1" }, { ClickCb(), "2" }, { ClickCb(), "3" }
+        }),
+        pushButtonGrid(Layout().border(5), 1_F, 3, {
+            { ClickCb(), "4" }, { ClickCb(), "5" }, { ClickCb(), "6" }
+        }),
+        pushButtonGrid(Layout().border(5), 1_F, 3, {
+            { ClickCb(), "7" }, { ClickCb(), "8" }, { ClickCb(), "9" }
+        }),
+        pushButtonGrid(Layout().border(5), 1_F, 1, {
+                                { ClickCb(), "0" }
+        }));
+#endif
+    auto screen = panelGrid({}, 3, 3, label({}, "X", 1_F));
 
     //*********************************************************************
     // END SCREEN DEFINITION

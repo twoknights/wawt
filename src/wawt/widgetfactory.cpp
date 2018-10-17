@@ -115,8 +115,9 @@ Widget::LayoutMethod genSpacedLayout(const DimensionPtr&   bounds,
             }
             auto borderRatio = widget->layoutData().d_layout
                                                    .d_percentBorder/200.0;
-            data.d_borders   = Dimensions{std::round(bounds->d_x*borderRatio),
-                                          std::round(bounds->d_y*borderRatio)};
+            data.d_borders
+                = Dimensions{float(std::round(bounds->d_x*borderRatio)),
+                             float(std::round(bounds->d_y*borderRatio))};
 
             if (borderRatio > 0) {
                 if (data.d_borders.d_x == 0) {
@@ -325,8 +326,9 @@ Widget panelGrid(Widget       **indirect,
                  int            columns,
                  const Widget&  clonable)
 {
+    auto border    = layout.d_percentBorder > 0 ? layout.d_percentBorder : 0.0;
     auto grid      = panel(indirect, std::move(layout).border(0.0));
-    auto layoutFn  = gridLayoutSequencer(columns, rows*columns);
+    auto layoutFn  = gridLayoutSequencer(border, columns, rows*columns);
 
     for (auto i = 0; i < rows*columns; ++i) {
         auto child = clonable.clone();
@@ -429,22 +431,27 @@ Widget pushButton(Widget              **indirect,
                       string, TextAlign::eCENTER, group);             // RETURN
 }
 
-Widget pushButtonGrid(Widget                **indirect,
-                      Layout&&                layout,
-                      CharSizeGroup           group,
-                      int                     columns,
-                      ClickLabelList          buttonDefs,
-                      bool                    fitted,
-                      TextAlign               alignment)
+template<typename ListType>
+Widget pushButtonGridImp(Widget                **indirect,
+                         Layout&&                layout,
+                         CharSizeGroup           group,
+                         int                     columns,
+                         ListType                buttonDefs,
+                         bool                    fitted,
+                         TextAlign               alignment)
 {
-    auto thickness   = layout.d_percentBorder;
+    auto border      = layout.d_percentBorder > 0 ? layout.d_percentBorder
+                                                  : 0.0;
     auto gridPanel   = panel(indirect, std::move(layout).border(0.0));
     auto rows        = std::size_t{};
-    auto childLayout = gridLayoutSequencer(columns, buttonDefs.size(), &rows);
+    auto childLayout = gridLayoutSequencer(border,
+                                           columns,
+                                           buttonDefs.size(),
+                                           &rows);
     auto bounds      = std::make_shared<Dimensions>();
 
     for (auto& [click, label] : buttonDefs) {
-        gridPanel.addChild(pushButton(childLayout().border(thickness),
+        gridPanel.addChild(pushButton(childLayout(),
                                       click,
                                       label,
                                       alignment,
@@ -461,6 +468,18 @@ Widget pushButtonGrid(Widget                **indirect,
     return gridPanel;                                                 // RETURN
 }
 
+Widget pushButtonGrid(Widget                **indirect,
+                      Layout&&                layout,
+                      CharSizeGroup           group,
+                      int                     columns,
+                      ClickLabelList          buttonDefs,
+                      bool                    fitted,
+                      TextAlign               alignment)
+{
+    return pushButtonGridImp(indirect, std::move(layout), group, columns,
+                             buttonDefs, fitted, alignment);          // RETURN
+}
+
 Widget pushButtonGrid(Layout&&                layout,
                       CharSizeGroup           group,
                       int                     columns,
@@ -468,8 +487,8 @@ Widget pushButtonGrid(Layout&&                layout,
                       bool                    fitted,
                       TextAlign               alignment)
 {
-    return pushButtonGrid(nullptr, std::move(layout), group, columns,
-                          buttonDefs, fitted, alignment);             // RETURN
+    return pushButtonGridImp(nullptr, std::move(layout), group, columns,
+                             buttonDefs, fitted, alignment);          // RETURN
 }
 
 Widget pushButtonGrid(Widget                **indirect,
@@ -480,28 +499,8 @@ Widget pushButtonGrid(Widget                **indirect,
                       bool                    fitted,
                       TextAlign               alignment)
 {
-    auto thickness   = layout.d_percentBorder;
-    auto gridPanel   = panel(indirect, std::move(layout).border(0.0));
-    auto rows        = std::size_t{};
-    auto childLayout = gridLayoutSequencer(columns, buttonDefs.size(), &rows);
-    auto bounds      = std::make_shared<Dimensions>();
-
-    for (auto& [click, label] : buttonDefs) {
-        gridPanel.addChild(pushButton(childLayout().border(thickness),
-                                      click,
-                                      label,
-                                      alignment,
-                                      group));
-        if (fitted) {
-            gridPanel.children()
-                     .back()
-                     .setMethod(genSpacedLayout(bounds,
-                                                rows,
-                                                columns,
-                                                alignment));
-        }
-    }
-    return gridPanel;                                                 // RETURN
+    return pushButtonGridImp(indirect, std::move(layout), group, columns,
+                             buttonDefs, fitted, alignment);          // RETURN
 }
 
 Widget pushButtonGrid(Layout&&                layout,
@@ -511,8 +510,8 @@ Widget pushButtonGrid(Layout&&                layout,
                       bool                    fitted,
                       TextAlign               alignment)
 {
-    return pushButtonGrid(nullptr, std::move(layout), group, columns,
-                          buttonDefs, fitted, alignment);             // RETURN
+    return pushButtonGridImp(nullptr, std::move(layout), group, columns,
+                             buttonDefs, fitted, alignment);          // RETURN
 }
 
 }  // namespace Wawt
