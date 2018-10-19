@@ -81,7 +81,14 @@ ViewScreen::createScreenPanel()
                                 { ClickCb(), "0" }
         }));
 #endif
-    auto screen = panelGrid({}, 3, 3, label({}, "X", 1_F));
+   // auto screen = panelGrid({}, 3, 3, label({}, "X", 1_F));
+    const char *s = "a123456789b123456789c123456789d123456789";
+    auto screen = bulletButtonGrid(Layout().border(10),
+                                   true,
+                                   GridFocusCb(),
+                                   1_F,
+                                   {s, s, s },
+                                   TextAlign::eRIGHT);
 
     //*********************************************************************
     // END SCREEN DEFINITION

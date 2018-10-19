@@ -113,7 +113,7 @@ struct Layout {
                      double           percent   = -1.0)             noexcept
         : d_upperLeft(upperLeft)
         , d_lowerRight(lowerRight)
-        , d_percentBorder(percent < 100.0 ? float(percent) : 100.f) { }
+        , d_percentBorder(percent < 100.0 ? float(percent) : 99.9f) { }
 
     constexpr Layout(const Position&   upperLeft,
                      const Position&   lowerRight,
@@ -122,7 +122,7 @@ struct Layout {
         : d_upperLeft(upperLeft)
         , d_lowerRight(lowerRight)
         , d_pin(pin)
-        , d_percentBorder(percent < 100.0 ? float(percent) : 100.f) { }
+        , d_percentBorder(percent < 100.0 ? float(percent) : 99.9f) { }
 
     // PUBLIC MANIPULATORS (rvalues)
     constexpr Layout&& pin(Vertex vertex) &&                        noexcept {
@@ -139,12 +139,12 @@ struct Layout {
     }
 
     Layout&& border(double percent)  &&                             noexcept {
-        d_percentBorder = percent < 100.0 ? float(percent) : 100.f;
+        d_percentBorder = percent < 100.0 ? float(percent) : 99.9f;
         return std::move(*this);
     }
 };
 
-std::function<Layout()> gridLayoutSequencer(double       percentBorder,
+std::function<Layout()> gridLayoutGenerator(double       percentBorder,
                                             std::size_t  columns,
                                             std::size_t  widgetCount= 0,
                                             std::size_t *rows       = nullptr);

@@ -58,9 +58,9 @@ void drawBox(sf::RenderWindow  *window,
              float              yborder) {
     sf::RectangleShape rectangle({width, height});
 
-    if (lineColor.a > 0 && (xborder == 1 || yborder == 1)) {
+    if (lineColor.a > 0 && (xborder > 0 || yborder > 0)) {
         rectangle.setOutlineColor(lineColor);
-        rectangle.setOutlineThickness(-1);
+        rectangle.setOutlineThickness(1);
     }
     rectangle.setFillColor(fillColor);
     rectangle.setPosition(x, y);
@@ -85,6 +85,24 @@ void drawBox(sf::RenderWindow  *window,
             window->draw(rectangle);
         }
     }
+}
+
+void drawArrow(sf::RenderWindow  *window,
+               float              centerx,
+               float              centery,
+               float              radius,
+               sf::Color          fillColor,
+               bool               up) {
+    sf::CircleShape triangle(radius, 3);
+    triangle.setOrigin(radius, radius);
+
+    triangle.setFillColor(fillColor);
+    triangle.setPosition(centerx, centery);
+
+    if (up) {
+        triangle.setRotation(180.f);
+    }
+    window->draw(triangle);
 }
 
 void drawCircle(sf::RenderWindow  *window,
@@ -122,18 +140,6 @@ sf::String toString(const Wawt::String_t& str) {
     else {
         assert(!"Unsupported string type");
     }
-}
-
-inline
-void setArrows(wchar_t& up, wchar_t& down) {
-    down = L'\u25BC';
-    up   = L'\u25B2';
-}
-
-inline
-void setArrows(char32_t& up, char32_t& down) {
-    down = U'\u25BC';
-    up   = U'\u25B2';
 }
 
 } // end unnamed namespace
@@ -196,11 +202,6 @@ SfmlDrawAdapter::SfmlDrawAdapter(sf::RenderWindow&   window,
             d_defaultOk = d_defaultFont.loadFromFile(otherFontPath.c_str());
         }
     }
-
-    if (!noArrow) {
-        Wawt::WawtEnv::kDownArrow  = C('\u25BC');
-        Wawt::WawtEnv::kUpArrow    = C('\u25B2');
-    }
 }
 
 // PUBLIC Wawt::Adapter INTERFACE
@@ -252,6 +253,8 @@ SfmlDrawAdapter::draw(const Wawt::DrawData& drawData) noexcept
             textColor.a = options.d_greyedEffect;
         }
     }
+    using namespace Wawt;
+
     auto& box = drawData.d_rectangle;
     drawBox(&d_window,
             float(box.d_ux),
@@ -260,7 +263,7 @@ SfmlDrawAdapter::draw(const Wawt::DrawData& drawData) noexcept
             float(box.d_height),
             lineColor,
             (drawData.d_selected
-          && drawData.d_labelMark==Wawt::DrawData::BulletMark::eNONE)
+          && drawData.d_labelMark==DrawData::BulletMark::eNONE)
                 ? selectColor : fillColor,
             drawData.d_borders.d_x,
             drawData.d_borders.d_y);
@@ -278,34 +281,60 @@ SfmlDrawAdapter::draw(const Wawt::DrawData& drawData) noexcept
         }
         auto centery = box.d_uy + box.d_height/2.0;
         auto bounds  = label.getLocalBounds();
+        auto offset  = 0;
 
+        if (drawData.d_labelMark != DrawData::BulletMark::eNONE
+         && drawData.d_leftMark) {
+            offset = drawData.d_charSize;
+        }
         label.setOrigin(bounds.left, bounds.top + bounds.height/2.0f);
-        label.setPosition(drawData.d_labelBounds.d_ux, centery);
+        label.setPosition(drawData.d_labelBounds.d_ux + offset, centery);
         d_window.draw(label);
 
-        if (drawData.d_labelMark == Wawt::DrawData::BulletMark::eROUND) {
-            auto lineSpacing = font.getLineSpacing(drawData.d_charSize);
-            auto size        = float(drawData.d_charSize); // Bullet size
-            auto height      = float(box.d_height) - (lineSpacing - size);
-            auto radius      = size/4.0;
+        auto size       = float(drawData.d_charSize); // Bullet size
+        auto border     = std::ceil(0.05*size);
+        auto xcenter    = drawData.d_labelBounds.d_ux + size/2.;
+        auto ycenter    = drawData.d_labelBounds.d_uy + size/2.;
+        auto radius     = size/5.0;
 
+        ycenter        += bounds.top/2.;
+
+        if (!drawData.d_leftMark) {
+            xcenter += bounds.left + bounds.width;
+        }
+
+        if (radius-border < 3.0) {
+            border = 1;
+        }
+
+        if (drawData.d_labelMark == DrawData::BulletMark::eROUND) {
             drawCircle(&d_window,
-                       float(box.d_ux + size/2. - 1.),
-                       float(box.d_uy + height/2.),
+                       xcenter,
+                       ycenter,
                        radius,
                        textColor, // line color
                        drawData.d_selected ? textColor : fillColor,
-                       2);
+                       border);
         }
-        else if (drawData.d_labelMark == Wawt::DrawData::BulletMark::eSQUARE){
-            auto lineSpacing= font.getLineSpacing(drawData.d_charSize);
-            auto size       = float(drawData.d_charSize);
-            auto height     = float(box.d_height) - (lineSpacing - size);
-            auto xcenter    = float(drawData.d_borders.d_x + size/2.0);
-            auto ycenter    = float(height/2.0);
-            auto radius     = 0.2*size;
-            auto ul_x       = float(box.d_ux + xcenter - radius);
-            auto ul_y       = float(box.d_uy + ycenter - radius);
+        else if (drawData.d_labelMark == DrawData::BulletMark::eDOWNARROW) {
+            drawArrow(&d_window,
+                      xcenter,
+                      ycenter,
+                      radius,
+                      textColor,
+                      false);
+        }
+        else if (drawData.d_labelMark == DrawData::BulletMark::eUPARROW) {
+            drawArrow(&d_window,
+                      xcenter,
+                      ycenter,
+                      radius,
+                      textColor,
+                      true);
+        }
+        else if (drawData.d_labelMark == DrawData::BulletMark::eSQUARE){
+            auto ul_x  = xcenter - radius;
+            auto ul_y  = ycenter - radius;
 
             drawBox(&d_window,
                     ul_x,
@@ -314,8 +343,8 @@ SfmlDrawAdapter::draw(const Wawt::DrawData& drawData) noexcept
                     2*radius,
                     textColor,
                     drawData.d_selected ? textColor : fillColor,
-                    20,
-                    20);
+                    border,
+                    border);
         }
 
     }

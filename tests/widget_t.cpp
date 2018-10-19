@@ -248,7 +248,7 @@ TEST(Widget, Methods)
                                   const Widget&, bool, DrawProtocol*) {
                             layout = true;
                         })
-            .addMethod( [&down](float,float,Widget*) {
+            .addMethod( [&down](float,float,Widget*,Widget*) {
                             down = true;
                             return EventUpCb();
                         })

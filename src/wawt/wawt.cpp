@@ -273,6 +273,15 @@ void outputXMLString(std::ostream& os, const std::wstring_view& text) {
     }
 }
 
+Widget::DownEventMethod eatDownEvents() {
+    return
+        [] (auto, auto, auto, auto) -> EventUpCb {
+            return  [](float, float, bool) -> FocusCb {
+                return FocusCb();
+            };
+        };                                                            // RETURN
+}
+
 bool findWidget(const Widget              **widget,
                 const Widget&               parent,
                 uint16_t                    id) {
@@ -325,73 +334,6 @@ Corner findCorner(const Layout::Position& position,
     auto y = yorigin + position.d_sY*yradius;
 
     return Corner(x,y);                                               // RETURN
-}
-
-void labelLayout(DrawData                  *data,
-                 bool                       firstPass,
-                 const Widget::LayoutData&  layoutData,
-                 DrawProtocol              *adapter) {
-    auto charSizeMap      = layoutData.d_charSizeMap.get();
-    auto charSizeLimit    = data->d_rectangle.d_height;
-    auto borderAdjustment = Dimensions{2*(data->d_borders.d_x+1),
-                                       2*(data->d_borders.d_y+1)};
-
-    if (charSizeLimit <= borderAdjustment.d_y) {
-        return;                                                       // RETURN
-    }
-    charSizeLimit -= borderAdjustment.d_y;
-
-    if (layoutData.d_charSizeGroup) {
-        if (auto it  = charSizeMap->find(*layoutData.d_charSizeGroup);
-                 it != charSizeMap->end()) {
-            if (charSizeLimit > it->second + 1) {
-                charSizeLimit = it->second + 1;
-            }
-        }
-    }
-
-    if (firstPass || data->d_charSize + 1 != charSizeLimit) {
-        auto textBounds = Dimensions{
-            data->d_rectangle.d_width  - borderAdjustment.d_x,
-            data->d_rectangle.d_height - borderAdjustment.d_y };
-
-        if (adapter->getTextMetrics(&textBounds,
-                                    &data->d_charSize,
-                                    *data,
-                                    charSizeLimit)) {
-        }
-        else {
-            assert(!"Failed to get text metrics.");
-            data->d_charSize    = charSizeLimit - 1;
-        }
-
-        if (layoutData.d_charSizeGroup) {
-            charSizeMap->emplace(*layoutData.d_charSizeGroup,
-                                 data->d_charSize);
-        }
-        data->d_labelBounds.d_width   = textBounds.d_x;
-        data->d_labelBounds.d_height  = textBounds.d_y;
-    }
-    data->d_labelBounds.d_ux= data->d_rectangle.d_ux + data->d_borders.d_x + 1;
-    data->d_labelBounds.d_uy= data->d_rectangle.d_uy + data->d_borders.d_y + 1;
-
-    if (layoutData.d_textAlign != TextAlign::eLEFT) {
-        auto space = data->d_rectangle.d_width
-                   - data->d_labelBounds.d_width
-                   - borderAdjustment.d_x;
-
-        if (layoutData.d_textAlign == TextAlign::eCENTER) {
-            space /= 2.0f;
-        }
-        data->d_labelBounds.d_ux += space;
-    }
-    auto space = data->d_rectangle.d_height
-               - data->d_labelBounds.d_height
-               - borderAdjustment.d_y;
-
-    space /= 2.0f;
-    data->d_labelBounds.d_uy += space;
-    return;                                                           // RETURN
 }
 
 Rectangle makeRectangle(const Layout&         layout,
@@ -466,7 +408,7 @@ Char_t   WawtEnv::kUpArrow   = C('^');
 Char_t   WawtEnv::kCursor    = C('|');
 Char_t   WawtEnv::kFocusChg  = C('\0');
 
-std::function<Layout()> gridLayoutSequencer(double       percentBorder,
+std::function<Layout()> gridLayoutGenerator(double       percentBorder,
                                             std::size_t  columns,
                                             std::size_t  widgetCount,
                                             std::size_t *rowsOut)
@@ -770,6 +712,73 @@ Widget::defaultSerialize(std::ostream&      os,
     return;                                                           // RETURN
 }
 
+void
+Widget::labelLayout(DrawData                  *data,
+                    bool                       firstPass,
+                    const Widget::LayoutData&  layoutData,
+                    DrawProtocol              *adapter) noexcept
+{
+    auto charSizeMap      = layoutData.d_charSizeMap.get();
+    auto charSizeLimit    = data->d_rectangle.d_height;
+    auto borderAdjustment = Dimensions{2*(data->d_borders.d_x+1),
+                                       2*(data->d_borders.d_y+1)};
+
+    if (charSizeLimit <= borderAdjustment.d_y) {
+        return;                                                       // RETURN
+    }
+    charSizeLimit -= borderAdjustment.d_y;
+
+    if (layoutData.d_charSizeGroup) {
+        if (auto it  = charSizeMap->find(*layoutData.d_charSizeGroup);
+                 it != charSizeMap->end()) {
+            if (charSizeLimit > it->second + 1) {
+                charSizeLimit = it->second + 1;
+            }
+        }
+    }
+
+    if (firstPass || data->d_charSize + 1 != charSizeLimit) {
+        auto textBounds = Dimensions{
+            data->d_rectangle.d_width  - borderAdjustment.d_x,
+            data->d_rectangle.d_height - borderAdjustment.d_y };
+
+        if (!adapter->getTextMetrics(&textBounds,
+                                    &data->d_charSize,
+                                    *data,
+                                    charSizeLimit)) {
+            assert(!"Failed to get text metrics.");
+            data->d_charSize    = charSizeLimit - 1;
+        }
+
+        if (layoutData.d_charSizeGroup) {
+            charSizeMap->emplace(*layoutData.d_charSizeGroup,
+                                 data->d_charSize);
+        }
+        data->d_labelBounds.d_width   = textBounds.d_x;
+        data->d_labelBounds.d_height  = textBounds.d_y;
+    }
+    data->d_labelBounds.d_ux= data->d_rectangle.d_ux + data->d_borders.d_x + 1;
+    data->d_labelBounds.d_uy= data->d_rectangle.d_uy + data->d_borders.d_y + 1;
+
+    if (layoutData.d_textAlign != TextAlign::eLEFT) {
+        auto space = data->d_rectangle.d_width
+                   - data->d_labelBounds.d_width
+                   - borderAdjustment.d_x;
+
+        if (layoutData.d_textAlign == TextAlign::eCENTER) {
+            space /= 2.0f;
+        }
+        data->d_labelBounds.d_ux += space;
+    }
+    auto space = data->d_rectangle.d_height
+               - data->d_labelBounds.d_height
+               - borderAdjustment.d_y;
+
+    space /= 2.0f;
+    data->d_labelBounds.d_uy += space;
+    return;                                                           // RETURN
+}
+
 // PUBLIC R-Value MANIPULATORS
 
 Widget
@@ -910,11 +919,14 @@ Widget::assignWidgetIds(uint16_t        next,
         next = 1;
         root = this;
         map = std::make_shared<CharSizeMap>();
+        d_layoutData.d_layout.d_upperLeft = {-1.0, -1.0};
+        d_layoutData.d_layout.d_lowerRight= { 1.0,  1.0};
     }
 
     if (d_layoutData.d_layout.d_percentBorder == -1.0) {
-        d_layoutData.d_layout.d_percentBorder =
-            WawtEnv::defaultBorderThickness(d_drawData.d_className);
+        auto percent = WawtEnv::defaultBorderThickness(d_drawData.d_className);
+        d_layoutData.d_layout.d_percentBorder = percent<100.f ? float(percent)
+                                                              : 99.9f;
     }
 
     if (!d_drawData.d_options.has_value()) {
@@ -964,7 +976,6 @@ Widget::clone() const
 {
     auto copy = Widget{d_drawData.d_className, {}};
 
-    copy.d_widgetLabel   = nullptr;
     copy.d_root          = d_root;
     copy.d_textHit       = d_textHit;
     copy.d_downMethod    = d_downMethod;
@@ -984,21 +995,23 @@ Widget::clone() const
 }
 
 EventUpCb
-Widget::downEvent(double x, double y)
+Widget::downEvent(double x, double y, Widget *parent)
 {
     auto upCb = EventUpCb();
 
     if (!isDisabled() && inside(x, y)) {
-        if (d_downMethod) {
-            upCb = d_downMethod(x, y, this);
-        }
+        if (hasChildren()) {
+            auto& widgets = children();
 
-        if (!upCb && hasChildren()) {
-            for (auto& child : children()) {
-                if (upCb = child.downEvent(x, y)) {
+            for (auto rit = widgets.rbegin(); rit != widgets.rend(); ++rit) {
+                if (upCb = rit->downEvent(x, y, this)) {
                     break;                                             // BREAK
                 }
             }
+        }
+
+        if (!upCb && d_downMethod) {
+            upCb = d_downMethod(x, y, this, parent);
         }
     }
     return upCb;                                                      // RETURN
@@ -1080,20 +1093,26 @@ Widget::pushDialog(Widget&& child, DrawProtocol *adapter)
                 auto relativeId
                         = hasChildren() ? children().back().relativeId() + 1
                                         : 0;
-                // Dialog's get their own char size map providing a
-                // seperate "name space" for char size group IDs.
-                auto& dialog = children().emplace_back(std::move(child));
+                // First push a transparent panel to soak up stray down
+                // events:
+                auto  panel  = Widget(WawtEnv::sPanel, Layout()) // full screen
+                                .addMethod(eatDownEvents());
+                auto& screen = children().emplace_back(std::move(panel));
                 
                 if (d_methods && d_methods->d_newChildMethod) {
-                    d_methods->d_newChildMethod(this, &dialog);
+                    d_methods->d_newChildMethod(this, &screen);
                 }
+                // Below that panel, put the dialog.
+                screen.children().emplace_back(std::move(child));
+                // Dialog's get their own char size map providing a
+                // seperate "name space" for char size group IDs.
                 d_drawData.d_widgetId
-                    = dialog.assignWidgetIds(id,
+                    = screen.assignWidgetIds(id,
                                              relativeId,
                                              std::make_shared<CharSizeMap>(),
                                              d_root);
-                dialog.layout(adapter, true,  *d_root);
-                dialog.layout(adapter, false, *d_root);
+                screen.layout(adapter, true,  *d_root);
+                screen.layout(adapter, false, *d_root);
                 childId = WidgetId(id, false);
             }
         }
@@ -1117,19 +1136,27 @@ void
 Widget::resizeScreen(double width, double height, DrawProtocol *adapter)
 {
     if (d_root && adapter) {
-        assert(d_layoutData.d_charSizeMap);
-        d_layoutData.d_charSizeMap->clear();
-        d_root->d_drawData.d_rectangle.d_width  = width;
-        d_root->d_drawData.d_rectangle.d_height = height;
+        if (d_root == this) {
+            auto scale = d_layoutData.d_layout.d_percentBorder/200.0;
+            assert(d_layoutData.d_charSizeMap);
+            d_layoutData.d_charSizeMap->clear();
+            d_root->d_drawData.d_rectangle.d_width  = width;
+            d_root->d_drawData.d_rectangle.d_height = height;
+            d_root->d_drawData.d_borders.d_x        = width  * scale;
+            d_root->d_drawData.d_borders.d_y        = height * scale;
 
-        if (hasChildren()) {
-            for (auto& child : children()) {
-                child.layout(adapter, true, *this);
-            }
+            if (hasChildren()) {
+                for (auto& child : children()) {
+                    child.layout(adapter, true, *this);
+                }
 
-            for (auto& child : children()) {
-                child.layout(adapter, false, *this);
+                for (auto& child : children()) {
+                    child.layout(adapter, false, *this);
+                }
             }
+        }
+        else {
+            d_root->resizeScreen(width, height, adapter);
         }
     }
     return;                                                           // RETURN

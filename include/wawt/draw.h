@@ -37,7 +37,13 @@ namespace Wawt {
 
 struct DrawData {
     using CharSize          = uint16_t;
-    enum BulletMark { eNONE = 0, eSQUARE = 1, eROUND = 2 };
+    enum BulletMark {
+        eNONE
+      , eSQUARE
+      , eROUND
+      , eUPARROW
+      , eDOWNARROW
+    };
 
     uint16_t            d_widgetId          = 0;
     uint16_t            d_leftMark:1,

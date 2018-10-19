@@ -222,14 +222,18 @@ class Screen {
      *
      * @param newWidth  The new width value (optionally the current width).
      * @param newHeight The new height value (optionally the current height).
+     * @param adapter Optional adapter to use when "laying" out the screen.
      *
-     * This method should also be called if the mapping of 'TextId' values
+     * This method should also be called if the mapping of string ID values
      * to strings change (e.g. a language change). The 'activate' method
      * must be called before this method can be used.
      */
-    void resize(double newWidth = 0, double newHeight = 0) {
+    void resize(double        newWidth  = 0,
+                double        newHeight = 0,
+                DrawProtocol *adapter   = WawtEnv::drawAdapter()) {
         d_screen.resizeScreen(newWidth  ? newWidth  : width(),
-                              newHeight ? newHeight : height());
+                              newHeight ? newHeight : height(),
+                              adapter);
     }
                 
     /**

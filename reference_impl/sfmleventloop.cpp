@@ -64,11 +64,13 @@ SfmlEventLoop::run(sf::RenderWindow&                 window,
                    int                               minWidth,
                    int                               minHeight)
 {
-    Wawt::FocusCb     onKey;
-    Wawt::EventUpCb   mouseUp;
+    auto onKey   = Wawt::FocusCb{};
+    auto mouseUp = Wawt::EventUpCb{};
 
     while (window.isOpen()) {
-        sf::Event event;
+        auto width  = float{};
+        auto height = float{};
+        auto event  = sf::Event{};
 
         try {
             if (window.pollEvent(event)) {
@@ -83,24 +85,28 @@ SfmlEventLoop::run(sf::RenderWindow&                 window,
                     }
                 }
                 else if (event.type == sf::Event::Resized) {
-                    float width  = static_cast<float>(event.size.width); 
-                    float height = static_cast<float>(event.size.height); 
+                    float w  = static_cast<float>(event.size.width); 
+                    float h = static_cast<float>(event.size.height); 
 
-                    if (width < minWidth) {
-                        width = float(minWidth);
+                    if (w < minWidth) {
+                        w = float(minWidth);
                     }
 
-                    if (height < minHeight) {
-                        height = float(minHeight);
+                    if (h < minHeight) {
+                        h = float(minHeight);
                     }
 
-                    sf::View view(sf::FloatRect(0, 0, width, height));
-                    router.resize(width, height);
+                    if (w != width || h != height) {
+                        width  = w;
+                        height = h;
+                        sf::View view(sf::FloatRect(0, 0, width, height));
+                        router.resize(width, height);
 
-                    window.clear();
-                    window.setView(view);
-                    router.draw();
-                    window.display();
+                        window.clear();
+                        window.setView(view);
+                        router.draw();
+                        window.display();
+                    }
                 }
                 else if (event.type == sf::Event::MouseButtonPressed) {
                     if (event.mouseButton.button == sf::Mouse::Button::Left) {

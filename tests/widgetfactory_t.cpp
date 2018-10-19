@@ -31,12 +31,12 @@ TEST(Factory, PushButton)
     auto screen
         = panel(&pp, {})
             .addChild(pushButton(&p1, {{-1.0, -1.0},{-0.9,-0.9}},
-                                 [](auto) {},
+                                 [](auto) {return FocusCb();},
                                  S("b1"), TextAlign::eLEFT, 1_F))
             .addChild(pushButton(&p2, {{-0.9, -0.9},{-0.8,-0.8}},
-                                 [](auto) {}, S("b2"), 1_F))
+                                 [](auto) {return FocusCb();}, S("b2"), 1_F))
             .addChild(pushButton({{-0.8, -0.8},{-0.7,-0.7}},
-                                 [](auto) {}, S("b3"), 1_F));
+                                 [](auto) {return FocusCb();}, S("b3"), 1_F));
     screen.assignWidgetIds();
     screen.resizeScreen(1000, 1000);
 
@@ -125,14 +125,16 @@ TEST(Factory, PushButtonGrid)
     auto k4         = int{};
 
     auto screen
-        = panel({}).addChild(pushButtonGrid({{-0.5,-0.5},{0.5,0.5},2},
-                                            1_F,
-                                            1,
-                                            {
-                                                {[&k1](auto){k1++;}, S("k1")}
-                                            },
-                                            false,
-                                            TextAlign::eCENTER));
+        = panel()
+            .addChild(pushButtonGrid({{-0.5,-0.5},{0.5,0.5},2},
+                                     1_F,
+                                     1,
+                                     {
+                                         {focusWrap([&k1](auto){k1++;}),
+                                          S("k1")}
+                                     },
+                                     false,
+                                     TextAlign::eCENTER));
     screen.assignWidgetIds();
     screen.resizeScreen(1000, 1000);
     EXPECT_EQ(0, k1);
@@ -163,15 +165,18 @@ TEST(Factory, PushButtonGrid)
     os1.str("");
 
     screen
-        = panel({}).addChild(pushButtonGrid({{-0.5,-0.5},{0.5,0.5},2},
-                                            1_F,
-                                            1,
-                                            {
-                                                {[&k1](auto){k1++;}, S("k1")},
-                                                {[&k2](auto){k2++;}, S("k2")}
-                                            },
-                                            false,
-                                            TextAlign::eCENTER));
+        = panel()
+            .addChild(pushButtonGrid({{-0.5,-0.5},{0.5,0.5},2},
+                                     1_F,
+                                     1,
+                                     {
+                                         {focusWrap([&k1](auto){k1++;}),
+                                          S("k1")},
+                                         {focusWrap([&k2](auto){k2++;}),
+                                          S("k2")},
+                                     },
+                                     false,
+                                     TextAlign::eCENTER));
     screen.assignWidgetIds();
     screen.resizeScreen(1000, 1000);
     upCb = screen.downEvent(500,500);
@@ -212,17 +217,22 @@ TEST(Factory, PushButtonGrid)
 
     k1 = k2 = k3 = k4 = 0;
     screen
-        = panel({}).addChild(pushButtonGrid({{-0.5,-0.5},{0.5,0.5},2},
-                                            1_F,
-                                            2,
-                                            {
-                                                {[&k1](auto){k1++;}, S("k1")},
-                                                {[&k2](auto){k2++;}, S("k2")},
-                                                {[&k3](auto){k3++;}, S("k3")},
-                                                {[&k4](auto){k4++;}, S("k4")}
-                                            },
-                                            false,
-                                            TextAlign::eCENTER));
+        = panel()
+            .addChild(pushButtonGrid({{-0.5,-0.5},{0.5,0.5},2},
+                                     1_F,
+                                     2,
+                                     {
+                                         {focusWrap([&k1](auto){k1++;}),
+                                          S("k1")},
+                                         {focusWrap([&k2](auto){k2++;}),
+                                          S("k2")},
+                                         {focusWrap([&k3](auto){k3++;}),
+                                          S("k3")},
+                                         {focusWrap([&k4](auto){k4++;}),
+                                          S("k4")},
+                                     },
+                                     false,
+                                     TextAlign::eCENTER));
     screen.assignWidgetIds();
     screen.resizeScreen(1000, 1000);
     upCb = screen.downEvent(500,500);
@@ -288,7 +298,8 @@ TEST(Factory, SpacedPushButtonGrid)
                                             1_F,
                                             1,
                                             {
-                                                {[&k1](auto){k1++;}, S("*k1")}
+                                             {focusWrap([&k1](auto){k1++;}),
+                                              S("*k1")},
                                             },
                                             true,
                                             TextAlign::eCENTER));
@@ -326,8 +337,10 @@ TEST(Factory, SpacedPushButtonGrid)
                                             1_F,
                                             2,
                                             {
-                                                {[&k1](auto){k1++;}, S("*k1")},
-                                                {[&k2](auto){k2++;}, S("*k2")}
+                                             {focusWrap([&k1](auto){k1++;}),
+                                              S("*k1")},
+                                             {focusWrap([&k2](auto){k2++;}),
+                                              S("*k2")},
                                             },
                                             true,
                                             TextAlign::eCENTER));
@@ -377,9 +390,12 @@ TEST(Factory, SpacedPushButtonGrid)
                                             1_F,
                                             2,
                                             {
-                                              {[&k1](auto){k1++;}, S("k1abc")},
-                                              {[&k2](auto){k2++;}, S("k2abc")},
-                                              {[&k3](auto){k3++;}, S("k3abc")},
+                                             {focusWrap([&k1](auto){k1++;}),
+                                              S("k1abc")},
+                                             {focusWrap([&k2](auto){k2++;}),
+                                              S("k2abc")},
+                                             {focusWrap([&k3](auto){k3++;}),
+                                              S("k3abc")},
                                             },
                                             true,
                                             TextAlign::eCENTER));
@@ -443,7 +459,7 @@ TEST(Factory, TicTacToe)
     Widget *grid;
     int     screenOpt = 7;
 
-    auto click = [](auto *w) { w->resetLabel("X"); };
+    auto click = [](auto *w) { w->resetLabel("X"); return FocusCb(); };
 
     auto  screen = panelGrid({}, 1, 3, panel({}));
     auto& middle = screen.children()[1];

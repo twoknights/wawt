@@ -49,6 +49,8 @@ inline constexpr CharSizeGroup operator ""_F(unsigned long long int n) {
     return CharSizeGroup{n};
 }
 
+constexpr CharSizeGroup kNOGROUP();
+
 class  Widget final {
   public:
     using Children          = std::deque<Widget>;
@@ -72,7 +74,8 @@ class  Widget final {
     using DownEventMethod
         = std::function<EventUpCb(double    x,
                                   double    y,
-                                  Widget   *widget)>;
+                                  Widget   *widget,
+                                  Widget   *parent)>;
 
     using DrawMethod
         = std::function<void(Widget *widget, DrawProtocol *adapter)>;
@@ -107,6 +110,10 @@ class  Widget final {
                                      const Widget&      widget,
                                      unsigned int       indent);
 
+    static void      labelLayout(DrawData          *data,
+                                 bool               firstPass,
+                                 const LayoutData&  layoutData,
+                                 DrawProtocol      *adapter);
 
     // PUBLIC CONSTRUCTORS
     Widget()                                = delete;
@@ -198,7 +205,7 @@ class  Widget final {
         }
     }
 
-    EventUpCb downEvent(double x, double y);
+    EventUpCb downEvent(double x, double y, Widget *parent = nullptr);
 
     void      draw(DrawProtocol *adapter = WawtEnv::drawAdapter())   noexcept;
 

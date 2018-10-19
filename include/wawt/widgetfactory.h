@@ -27,182 +27,151 @@
 
 namespace Wawt {
 
-using ClickCb           = std::function<void(Widget *)>;
-using ClickLabel        = std::pair<ClickCb, StringView_t>;
-using ClickLabelList    = std::initializer_list<ClickLabel>;
-
 using FocusChgCb        = std::function<FocusCb(Widget *)>;
 using FocusChgLabel     = std::pair<FocusChgCb, StringView_t>;
 using FocusChgLabelList = std::initializer_list<FocusChgLabel>;
 
-using SelectCb          = std::function<void(Widget *,uint16_t relativeId)>;
-using SelectFocusCb     = std::function<FocusCb(Widget *,uint16_t relativeId)>;
+using GridFocusCb       = std::function<FocusCb(Widget *,uint16_t relativeId)>;
 
 using LabelList         = std::initializer_list<StringView_t>;
 
-Widget bulletButtonGrid(Widget                **indirect,
-                        Layout&&                layout,
-                        bool                    radioButtons,
-                        SelectCb&&              selectCb,
-                        CharSizeGroup           group,
-                        LabelList               labels,
-                        TextAlign               alignment = TextAlign::eLEFT,
-                        int                     columns   = 1);
+inline
+FocusChgCb focusWrap(std::function<void(Widget *w)>&& vcb) {
+    return
+        [cb=std::move(vcb)](Widget *w) -> FocusCb {
+            cb(w);
+            return FocusCb();
+        };                                                            // RETURN
+}
 
-Widget bulletButtonGrid(Layout&&                layout,
-                        bool                    radioButtons,
-                        SelectCb&&              selectCb,
-                        CharSizeGroup           group,
-                        LabelList               labels,
-                        TextAlign               alignment = TextAlign::eLEFT,
-                        int                     columns   = 1);
+inline
+GridFocusCb focusWrap(std::function<void(Widget *w, uint16_t id)>&& vcb) {
+    return
+        [cb = std::move(vcb)](Widget *w, uint16_t id) -> FocusCb {
+            cb(w, id);
+            return FocusCb();
+        };                                                            // RETURN
+}
 
-Widget bulletButtonGrid(Widget                **indirect,
-                        Layout&&                layout,
-                        bool                    radioButtons,
-                        SelectFocusCb&&         selectCb,
-                        CharSizeGroup           group,
-                        LabelList               labels,
-                        TextAlign               alignment = TextAlign::eLEFT,
-                        int                     columns   = 1);
+Widget bulletButtonGrid(Widget               **indirect,
+                        Layout&&               layout,
+                        bool                   radioButtons,
+                        GridFocusCb&&          gridCb,
+                        CharSizeGroup          group,
+                        LabelList              labels,
+                        TextAlign              alignment = TextAlign::eLEFT,
+                        int                    columns   = 1);
 
-Widget bulletButtonGrid(Layout&&                layout,
-                        bool                    radioButtons,
-                        SelectFocusCb&&         selectCb,
-                        CharSizeGroup           group,
-                        LabelList               labels,
-                        TextAlign               alignment = TextAlign::eLEFT,
-                        int                     columns   = 1);
+Widget bulletButtonGrid(Layout&&               layout,
+                        bool                   radioButtons,
+                        GridFocusCb&&          gridCb,
+                        CharSizeGroup          group,
+                        LabelList              labels,
+                        TextAlign              alignment = TextAlign::eLEFT,
+                        int                    columns   = 1);
 
-Widget checkBox(Widget              **indirect,
-                Layout&&              layout,
-                StringView_t          string,
-                CharSizeGroup         group     = CharSizeGroup(),
-                TextAlign             alignment = TextAlign::eLEFT);
+Widget checkBox(Widget                       **indirect,
+                Layout&&                       layout,
+                StringView_t                   string,
+                CharSizeGroup                  group     = CharSizeGroup(),
+                TextAlign                      alignment = TextAlign::eLEFT);
 
-Widget checkBox(Layout&&              layout,
-                StringView_t          string,
-                CharSizeGroup         group     = CharSizeGroup(),
-                TextAlign            alignment  = TextAlign::eLEFT);
+Widget checkBox(Layout&&                       layout,
+                StringView_t                   string,
+                CharSizeGroup                  group      = CharSizeGroup(),
+                TextAlign                      alignment  = TextAlign::eLEFT);
 
-Widget label(Widget               **indirect,
-             Layout&&               layout,
-             StringView_t           string,
-             TextAlign              alignment = TextAlign::eCENTER,
-             CharSizeGroup          group     = CharSizeGroup());
+Widget dropDownList(Widget                   **indirect,
+                    Layout&&                   layout,
+                    GridFocusCb&&              selectCb,
+                    CharSizeGroup              group,
+                    LabelList                  labels);
 
-Widget label(Layout&&               layout,
-             StringView_t           string,
-             TextAlign              alignment = TextAlign::eCENTER,
-             CharSizeGroup          group     = CharSizeGroup());
+Widget dropDownList(Layout&&                   layout,
+                    GridFocusCb&&              selectCb,
+                    CharSizeGroup              group,
+                    LabelList                  labels);
 
-Widget label(Widget               **indirect,
-             Layout&&               layout,
-             StringView_t           string,
-             CharSizeGroup          group);
+Widget label(Widget                          **indirect,
+             Layout&&                          layout,
+             StringView_t                      string,
+             TextAlign                         alignment = TextAlign::eCENTER,
+             CharSizeGroup                     group     = CharSizeGroup());
 
-Widget label(Layout&&               layout,
-             StringView_t           string,
-             CharSizeGroup          group);
+Widget label(Layout&&                          layout,
+             StringView_t                      string,
+             TextAlign                         alignment = TextAlign::eCENTER,
+             CharSizeGroup                     group     = CharSizeGroup());
 
-Widget panel(Widget **indirect, Layout&& layout);
+Widget label(Widget                          **indirect,
+             Layout&&                          layout,
+             StringView_t                      string,
+             CharSizeGroup                     group);
 
-Widget panel(Layout&& layout = Layout());
+Widget label(Layout&&                          layout,
+             StringView_t                      string,
+             CharSizeGroup                     group);
 
-Widget panelGrid(Widget               **indirect,
-                 Layout&&               layout,
-                 int                    rows,
-                 int                    columns,
-                 const Widget&          clonable);
+Widget panel(Widget                          **indirect,
+             Layout&&                          layout = Layout());
 
-Widget panelGrid(Layout&&               layout,
-                 int                    rows,
-                 int                    columns,
-                 const Widget&          clonable);
+Widget panel(Layout&&                          layout = Layout());
 
-Widget pushButton(Widget              **indirect,
-                  Layout&&              layout,
-                  ClickCb               clicked,
-                  StringView_t          string,
-                  TextAlign             alignment = TextAlign::eCENTER,
-                  CharSizeGroup         group     = CharSizeGroup());
+Widget panelGrid(Widget                      **indirect,
+                 Layout&&                      layout,
+                 int                           rows,
+                 int                           columns,
+                 const Widget&                 clonable);
 
-Widget pushButton(Layout&&              layout,
-                  ClickCb               clicked,
-                  StringView_t          string,
-                  TextAlign             alignment = TextAlign::eCENTER,
-                  CharSizeGroup         group     = CharSizeGroup());
+Widget panelGrid(Layout&&                      layout,
+                 int                           rows,
+                 int                           columns,
+                 const Widget&                 clonable);
 
-Widget pushButton(Widget              **indirect,
-                  Layout&&              layout,
-                  ClickCb               clicked,
-                  StringView_t          string,
-                  CharSizeGroup         group);
+Widget pushButton(Widget                     **indirect,
+                  Layout&&                     layout,
+                  FocusChgCb                   clicked,
+                  StringView_t                 string,
+                  TextAlign                    alignment = TextAlign::eCENTER,
+                  CharSizeGroup                group     = CharSizeGroup());
 
-Widget pushButton(Layout&&              layout,
-                  ClickCb               clicked,
-                  StringView_t          string,
-                  CharSizeGroup         group);
+Widget pushButton(Layout&&                     layout,
+                  FocusChgCb                   clicked,
+                  StringView_t                 string,
+                  TextAlign                    alignment = TextAlign::eCENTER,
+                  CharSizeGroup                group     = CharSizeGroup());
 
-Widget pushButton(Widget              **indirect,
-                  Layout&&              layout,
-                  FocusChgCb            clicked,
-                  StringView_t          string,
-                  TextAlign             alignment = TextAlign::eCENTER,
-                  CharSizeGroup         group     = CharSizeGroup());
+Widget pushButton(Widget                     **indirect,
+                  Layout&&                     layout,
+                  FocusChgCb                   clicked,
+                  StringView_t                 string,
+                  CharSizeGroup                group);
 
-Widget pushButton(Layout&&              layout,
-                  FocusChgCb            clicked,
-                  StringView_t          string,
-                  TextAlign             alignment = TextAlign::eCENTER,
-                  CharSizeGroup         group     = CharSizeGroup());
+Widget pushButton(Layout&&                     layout,
+                  FocusChgCb                   clicked,
+                  StringView_t                 string,
+                  CharSizeGroup                group);
 
-Widget pushButton(Widget              **indirect,
-                  Layout&&              layout,
-                  FocusChgCb            clicked,
-                  StringView_t          string,
-                  CharSizeGroup         group);
+Widget pushButtonGrid(Widget                 **indirect,
+                      Layout&&                 layout,
+                      CharSizeGroup            group,
+                      int                      columns,
+                      FocusChgLabelList        buttonDefs,
+                      bool                     fitted    = false,
+                      TextAlign                alignment = TextAlign::eCENTER);
 
-Widget pushButton(Layout&&              layout,
-                  FocusChgCb            clicked,
-                  StringView_t          string,
-                  CharSizeGroup         group);
-
-Widget pushButtonGrid(Widget                **indirect,
-                      Layout&&                layout,
-                      CharSizeGroup           group,
-                      int                     columns,
-                      ClickLabelList          buttonDefs,
-                      bool                    fitted    = false,
-                      TextAlign               alignment = TextAlign::eCENTER);
-
-Widget pushButtonGrid(Layout&&                layout,
-                      CharSizeGroup           group,
-                      int                     columns,
-                      ClickLabelList          buttonDefs,
-                      bool                    fitted    = false,
-                      TextAlign               alignment = TextAlign::eCENTER);
-
-Widget pushButtonGrid(Widget                **indirect,
-                      Layout&&                layout,
-                      CharSizeGroup           group,
-                      int                     columns,
-                      FocusChgLabelList       buttonDefs,
-                      bool                    fitted    = false,
-                      TextAlign               alignment = TextAlign::eCENTER);
-
-Widget pushButtonGrid(Layout&&                layout,
-                      CharSizeGroup           group,
-                      int                     columns,
-                      FocusChgLabelList       buttonDefs,
-                      bool                    fitted    = false,
-                      TextAlign               alignment = TextAlign::eCENTER);
+Widget pushButtonGrid(Layout&&                 layout,
+                      CharSizeGroup            group,
+                      int                      columns,
+                      FocusChgLabelList        buttonDefs,
+                      bool                     fitted    = false,
+                      TextAlign                alignment = TextAlign::eCENTER);
 
 template<typename... WIDGET>
-Widget widgetGrid(Widget               **indirect,
-                  Layout&&               layout,
-                  int                    columns,
-                  WIDGET&&...            widgets)
+Widget widgetGrid(Widget                     **indirect,
+                  Layout&&                     layout,
+                  int                          columns,
+                  WIDGET&&...                  widgets)
 {
     auto layoutFn  = gridLayoutSequencer(layout.d_percentBorder,
                                          columns, sizeof...(widgets));
@@ -212,9 +181,9 @@ Widget widgetGrid(Widget               **indirect,
 }
 
 template<typename... WIDGET>
-Widget widgetGrid(Layout&&               layout,
-                  int                    columns,
-                  WIDGET&&...            widgets)
+Widget widgetGrid(Layout&&                     layout,
+                  int                          columns,
+                  WIDGET&&...                  widgets)
 {
     return widgetGrid(nullptr, std::move(layout), columns,
                      std::forward<WIDGET>(widgets)...);               // RETURN
