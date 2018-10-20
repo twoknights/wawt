@@ -23,7 +23,6 @@
 #include "wawt/draw.h"
 
 #include <any>
-#include <array>
 #include <atomic>
 #include <cstdlib>
 #include <map>
@@ -32,6 +31,7 @@
 #include <type_traits>
 #include <utility>
 #include <unordered_set>
+#include <vector>
 
 namespace Wawt {
 
@@ -47,8 +47,8 @@ class WawtEnv {
     template <typename Options>
     using OptionTuple = std::tuple<std::string, float, Options>;
 
-    template <typename Options, std::size_t NumClasses>
-    using DefaultArray  = std::array<OptionTuple<Options>,NumClasses>;
+    template <typename Options>
+    using DefaultOptions  = std::vector<OptionTuple<Options>>;
 
     // PUBLIC CLASS MEMBERS
     static float         defaultBorderThickness(const std::string& className) {
@@ -74,17 +74,18 @@ class WawtEnv {
     }
 
     // PUBLIC CLASS DATA
-    static Char_t   kDownArrow;
-    static Char_t   kUpArrow;
     static Char_t   kCursor;
     static Char_t   kFocusChg;
 
-    static constexpr char    sScreen[]  = "screen";
-    static constexpr char    sDialog[]  = "dialog";
-    static constexpr char    sPanel[]   = "panel";
-    static constexpr char    sLabel[]   = "label";
-    static constexpr char    sPush[]    = "pushButton";
-    static constexpr char    sBullet[]  = "bulletMark";
+    static char    sScreen[];
+    static char    sDialog[];
+    static char    sPanel[];
+    static char    sLabel[];
+    static char    sPush[];
+    static char    sBullet[];
+    static char    sDropDown[];
+    static char    sItem[];
+    static char    sList[];
 
     // PUBLIC CONSTRUCTOR
     WawtEnv()
@@ -113,9 +114,9 @@ class WawtEnv {
         d_atomicFlag.clear();
     }
 
-    template <typename Options, std::size_t NumClasses>
-    WawtEnv(const DefaultArray<Options, NumClasses>&  classDefaults,
-            DrawProtocol                             *adapter = nullptr)
+    template <typename Options>
+    WawtEnv(const DefaultOptions<Options>&  classDefaults,
+            DrawProtocol                   *adapter = nullptr)
     : d_classDefaults{}
     , d_strings{}
     , d_drawAdapter(adapter)

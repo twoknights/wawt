@@ -147,7 +147,8 @@ struct Layout {
 std::function<Layout()> gridLayoutGenerator(double       percentBorder,
                                             std::size_t  columns,
                                             std::size_t  widgetCount= 0,
-                                            std::size_t *rows       = nullptr);
+                                            std::size_t *rows       = nullptr)
+                                                                      noexcept;
 
 } // end Wawt namespace
 

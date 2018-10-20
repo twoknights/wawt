@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 //
-// Tic-Tac-DOH!
+// ViewScreen
 //
 // Copyright 2018 Bruce Szablak
 //
@@ -18,17 +18,24 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "stringid.h"
-#include "controller.h"
+#include <wawt/eventrouter.h>
+#include <wawt/wawtenv.h>
 
+#include <drawoptions.h>
 #include <sfmldrawadapter.h>
 #include <sfmleventloop.h>
-#include <sfmlipcadapter.h>
 
 #include <fontconfig/fontconfig.h>
 
 #include <iostream>
 #include <chrono>
+
+#undef  S
+#undef  C
+#define S(str) Wawt::String_t(u8"" str)      // UTF8 strings  (std::string)
+#define C(c) (u8 ## c)
+
+#include "panel.h"
 
 using namespace std::chrono_literals;
 
@@ -55,13 +62,12 @@ std::string fontPath(const char *name)
     return path;
 }
 
-constexpr int WIDTH  = 1280;
-constexpr int HEIGHT = 720;
+constexpr double WIDTH  = 1280.;
+constexpr double HEIGHT = 720.;
 
 int main()
 {
-    bool arial = false;
-    std::string path = fontPath("Verdana");
+    auto path = fontPath("Verdana");
 
     if (path.empty()) {
         path  = fontPath("Arial");
@@ -70,29 +76,27 @@ int main()
             std::cerr << "Failed to find Verdana or Arial fonts." << std::endl;
             return 0;                                                 // RETURN
         }
-        arial = true;
     }
-    sf::RenderWindow window(sf::VideoMode(float(WIDTH), float(HEIGHT)),
-                            "Tic-Tac-DOH!",
-                            sf::Style::Default,
-                            sf::ContextSettings());
+    auto window = sf::RenderWindow(sf::VideoMode(float(WIDTH), float(HEIGHT)),
+                                   "ViewScreen",
+                                   sf::Style::Default,
+                                   sf::ContextSettings());
 
-    StringIdLookup   idMapper;
-    SfmlDrawAdapter  drawAdapter(window, path, arial);
-    SfmlIpcAdapter   ipcAdapter;
+    auto drawAdapter = SfmlDrawAdapter(window, path);
+    auto wawtEnv     = Wawt::WawtEnv(DrawOptions::classDefaults(),
+                                     &drawAdapter);
 
-    WawtEventRouter  router(&drawAdapter, idMapper, DrawOptions::defaults());
+    auto router  = Wawt::EventRouter();
+    auto panels  = router.create<Panels>("Panel Samples");
 
-    Controller       controller(router, idMapper, &ipcAdapter);
-    auto shutdown = [&controller]() {
-                        return controller.shutdown();
-                    };
+    router.activate<Panels>(panels);
+
+    auto shutdown = []() { return true; };
 
     try {
-        controller.startup();
         SfmlEventLoop::run(window, router, shutdown, 5ms, WIDTH/4, HEIGHT/4);
     }
-    catch (Wawt::Exception& e) {
+    catch (Wawt::WawtException& e) {
         std::cout << e.what() << std::endl;
 
         return 1;                                                     // RETURN

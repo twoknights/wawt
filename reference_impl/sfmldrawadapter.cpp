@@ -182,7 +182,6 @@ SfmlDrawAdapter::toAnsiString(const std::string& string)
 // PUBLIC CONSTRUCTORS
 SfmlDrawAdapter::SfmlDrawAdapter(sf::RenderWindow&   window,
                                  const std::string&  defaultFontPath,
-                                 bool                noArrow,
                                  const std::string&  otherFontPath)
 : d_window(window)
 , d_defaultFont()

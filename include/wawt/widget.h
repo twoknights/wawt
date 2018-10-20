@@ -113,7 +113,7 @@ class  Widget final {
     static void      labelLayout(DrawData          *data,
                                  bool               firstPass,
                                  const LayoutData&  layoutData,
-                                 DrawProtocol      *adapter);
+                                 DrawProtocol      *adapter)         noexcept;
 
     // PUBLIC CONSTRUCTORS
     Widget()                                = delete;

@@ -121,7 +121,7 @@ TEST(Wawt, WawtEnv)
     EXPECT_EQ(nullptr, WawtEnv::instance());
     struct X { int y = -1; };
     using Tuple = WawtEnv::OptionTuple<X>;
-    auto defaults = std::array{
+    auto defaults = std::vector {
         Tuple{ WawtEnv::sScreen, 0.0, X{5} },
         Tuple{ WawtEnv::sDialog, 1.0, X{4} },
         Tuple{ WawtEnv::sPanel,  2.0, X{3} },

@@ -80,7 +80,6 @@ ViewScreen::createScreenPanel()
         pushButtonGrid(Layout().border(5), 1_F, 1, {
                                 { ClickCb(), "0" }
         }));
-#endif
    // auto screen = panelGrid({}, 3, 3, label({}, "X", 1_F));
     const char *s = "a123456789b123456789c123456789d123456789";
     auto screen = bulletButtonGrid(Layout().border(10),
@@ -89,6 +88,12 @@ ViewScreen::createScreenPanel()
                                    1_F,
                                    {s, s, s },
                                    TextAlign::eRIGHT);
+#endif
+    auto screen = panel().addChild(fixedSizeList(Layout::centered(0.25,0.33),
+                                   false,
+                                   [](auto,auto) { return FocusCb(); },
+                                   1_F,
+                                   { "foo", "bar", "baz", "gak" }));
 
     //*********************************************************************
     // END SCREEN DEFINITION
@@ -124,7 +129,6 @@ constexpr double HEIGHT = 720.;
 
 int main()
 {
-    bool arial = false;
     std::string path = fontPath("Verdana");
 
     if (path.empty()) {
@@ -134,14 +138,13 @@ int main()
             std::cerr << "Failed to find Verdana or Arial fonts." << std::endl;
             return 0;                                                 // RETURN
         }
-        arial = true;
     }
     sf::RenderWindow window(sf::VideoMode(float(WIDTH), float(HEIGHT)),
                             "ViewScreen",
                             sf::Style::Default,
                             sf::ContextSettings());
 
-    SfmlDrawAdapter drawAdapter(window, path, arial);
+    SfmlDrawAdapter drawAdapter(window, path);
     Wawt::WawtEnv   wawtEnv(DrawOptions::classDefaults(), &drawAdapter);
 
     ViewScreen screen;

@@ -403,15 +403,23 @@ std::atomic_flag    WawtEnv::d_atomicFlag   = ATOMIC_FLAG_INIT;
 WawtEnv            *WawtEnv::d_instance     = nullptr;
 
 // The following defaults should be found in all fonts.
-Char_t   WawtEnv::kDownArrow = C('v');
-Char_t   WawtEnv::kUpArrow   = C('^');
-Char_t   WawtEnv::kCursor    = C('|');
-Char_t   WawtEnv::kFocusChg  = C('\0');
+Char_t   WawtEnv::kCursor     = C('|');
+Char_t   WawtEnv::kFocusChg   = C('\0');
+
+char     WawtEnv::sScreen[]   = "screen";
+char     WawtEnv::sDialog[]   = "dialog";
+char     WawtEnv::sPanel[]    = "panel";
+char     WawtEnv::sLabel[]    = "label";
+char     WawtEnv::sPush[]     = "pushButton";
+char     WawtEnv::sBullet[]   = "bulletMark";
+char     WawtEnv::sDropDown[] = "dropDown";
+char     WawtEnv::sItem[]     = "item";
+char     WawtEnv::sList[]     = "list";
 
 std::function<Layout()> gridLayoutGenerator(double       percentBorder,
                                             std::size_t  columns,
                                             std::size_t  widgetCount,
-                                            std::size_t *rowsOut)
+                                            std::size_t *rowsOut)      noexcept
 {
     if (columns == 0 || percentBorder > 100.0) {
         return std::function<Layout()>();                             // RETURN

@@ -132,7 +132,7 @@ TEST(Widget, AddChild)
 TEST(Widget, Text)
 {
     using Tuple = WawtEnv::OptionTuple<int>;
-    auto defaults = std::array{
+    auto defaults = std::vector{
         Tuple{ WawtEnv::sScreen, 0.0, 0 },
         Tuple{ WawtEnv::sLabel,  3.0, 0 }
     };
@@ -169,7 +169,7 @@ TEST(Widget, Text)
 TEST(Widget, Dialog)
 {
     using Tuple = WawtEnv::OptionTuple<int>;
-    auto defaults = std::array{
+    auto defaults = std::vector{
         Tuple{ WawtEnv::sScreen, 0.0, 0 },
         Tuple{ WawtEnv::sLabel,  3.0, 0 }
     };

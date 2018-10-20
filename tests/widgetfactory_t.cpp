@@ -445,7 +445,7 @@ TEST(Factory, SpacedPushButtonGrid)
 TEST(Factory, TicTacToe)
 {
     using Tuple = WawtEnv::OptionTuple<int>;
-    auto defaults = std::array {
+    auto defaults = std::vector {
         Tuple{ WawtEnv::sScreen, 1.0, 6 },
         Tuple{ WawtEnv::sDialog, 2.0, 5 },
         Tuple{ WawtEnv::sPanel,  3.0, 4 },

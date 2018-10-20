@@ -50,8 +50,8 @@ struct DrawData {
                         d_selected:1,
                         d_disableEffect:1,
                         d_hidden:1,
-                        d_labelMark:2,
-                        d_relativeId:10;
+                        d_labelMark:3,
+                        d_relativeId:9;
     Rectangle           d_rectangle{};
     Dimensions          d_borders{};
     Rectangle           d_labelBounds{};

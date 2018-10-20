@@ -129,7 +129,7 @@ class EventRouter {
 
   public:
     // PUBLIC CONSTRUCTORS
-    EventRouter(DrawProtocol *adapter);
+    EventRouter();
 
     // PUBLIC DESTRUCTORS
     ~EventRouter();
@@ -160,7 +160,7 @@ class EventRouter {
 
     void resize(double width, double height);
 
-    void showAlert(Widget&&         panel,
+    void showAlert(const Widget&    panel,
                    double           width           = 0.33,
                    double           height          = 0.33,
                    double           borderThickness = 2.0);
@@ -197,7 +197,7 @@ EventRouter::create(std::string_view name, Args&&... args)
                   "'Screen' must be derived from ScreenImpl");
     auto ptr  = std::make_unique<Scrn>(std::forward<Args>(args)...);
     auto hash = typeid(*ptr).hash_code();
-    ptr->wawtScreenSetup(name, d_setTimedEvent, d_adapter);
+    ptr->wawtScreenSetup(name, d_setTimedEvent);
     ptr->setup();
 
     return install(static_cast<Screen*>(ptr.release()), hash);

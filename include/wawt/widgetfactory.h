@@ -56,7 +56,7 @@ GridFocusCb focusWrap(std::function<void(Widget *w, uint16_t id)>&& vcb) {
 Widget bulletButtonGrid(Widget               **indirect,
                         Layout&&               layout,
                         bool                   radioButtons,
-                        GridFocusCb&&          gridCb,
+                        const GridFocusCb&     gridCb,
                         CharSizeGroup          group,
                         LabelList              labels,
                         TextAlign              alignment = TextAlign::eLEFT,
@@ -64,7 +64,7 @@ Widget bulletButtonGrid(Widget               **indirect,
 
 Widget bulletButtonGrid(Layout&&               layout,
                         bool                   radioButtons,
-                        GridFocusCb&&          gridCb,
+                        const GridFocusCb&     gridCb,
                         CharSizeGroup          group,
                         LabelList              labels,
                         TextAlign              alignment = TextAlign::eLEFT,
@@ -91,6 +91,19 @@ Widget dropDownList(Layout&&                   layout,
                     GridFocusCb&&              selectCb,
                     CharSizeGroup              group,
                     LabelList                  labels);
+
+Widget fixedSizeList(Widget                  **indirect,
+                     Layout&&                  layout,
+                     bool                      singleSelect,
+                     const GridFocusCb&        selectCb,
+                     CharSizeGroup             group,
+                     LabelList                 labels);
+
+Widget fixedSizeList(Layout&&                  layout,
+                     bool                      singleSelect,
+                     const GridFocusCb&        selectCb,
+                     CharSizeGroup             group,
+                     LabelList                 labels);
 
 Widget label(Widget                          **indirect,
              Layout&&                          layout,
@@ -173,7 +186,7 @@ Widget widgetGrid(Widget                     **indirect,
                   int                          columns,
                   WIDGET&&...                  widgets)
 {
-    auto layoutFn  = gridLayoutSequencer(layout.d_percentBorder,
+    auto layoutFn  = gridLayoutGenerator(layout.d_percentBorder,
                                          columns, sizeof...(widgets));
     auto grid = panel(indirect, std::move(layout));
     (grid.addChild(std::move(widgets).layout(layoutFn())),...);

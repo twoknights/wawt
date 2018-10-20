@@ -43,7 +43,6 @@ class SfmlDrawAdapter : public Wawt::DrawProtocol {
     // PUBLIC CREATORS
     SfmlDrawAdapter(sf::RenderWindow&   window,
                     const std::string&  defaultFontPath,
-                    bool                noArrow,
                     const std::string&  otherFontPath = "");
 
     // PUBLIC Wawt::DrawAdapter INTERFACE
