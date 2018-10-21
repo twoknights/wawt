@@ -40,6 +40,16 @@
 #include <iostream>
 #include <chrono>
 
+#ifdef WAWT_WIDECHAR
+#define S(str) String_t(L"" str)  // wide char strings (std::wstring)
+#define C(c) (L ## c)
+#else
+#undef  S
+#undef  C
+#define S(str) String_t(u8"" str)      // UTF8 strings  (std::string)
+#define C(c) (U ## c)
+#endif
+
 using namespace std::chrono_literals;
 
 class ViewScreen : public Wawt::ScreenImpl<ViewScreen, DrawOptions> {
@@ -89,11 +99,20 @@ ViewScreen::createScreenPanel()
                                    {s, s, s },
                                    TextAlign::eRIGHT);
 #endif
-    auto screen = panel().addChild(fixedSizeList(Layout::centered(0.25,0.33),
-                                   false,
-                                   [](auto,auto) { return FocusCb(); },
-                                   1_F,
-                                   { "foo", "bar", "baz", "gak" }));
+    auto screen =
+        panel().addChild(
+                label({{-1.0,-1.0},{1.0,-.9},0.1}, S("Labels"))
+                 .options(defaultOptions(WawtEnv::sLabel)
+                            .fillColor(DrawOptions::Color(235,235,255))))
+               .addChild(widgetGrid({{-1.0,1.0,0_wr},{1.0,1.0}}, 1,
+label({}, S("The default label has no border,")),
+label({}, S("no fill color,")),
+label({}, S("centered; with font size selected so the label fits.")),
+label({}, S("Labels can be 'left' aligned,"), TextAlign::eLEFT, 1_F),
+label({}, S("or 'right' aligned,"), TextAlign::eRIGHT, 1_F),
+label({}, S("and assigned to a font size group so they have matching sizes."),
+    1_F),
+label({}, S("С полной поддержкой utf-8 и широким характером."))));
 
     //*********************************************************************
     // END SCREEN DEFINITION

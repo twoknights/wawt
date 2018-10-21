@@ -30,11 +30,17 @@
 #include <iostream>
 #include <chrono>
 
+#ifdef WAWT_WIDECHAR
+#define S(str) String_t(L"" str)  // wide char strings (std::wstring)
+#define C(c) (L ## c)
+#else
 #undef  S
 #undef  C
-#define S(str) Wawt::String_t(u8"" str)      // UTF8 strings  (std::string)
-#define C(c) (u8 ## c)
+#define S(str) String_t(u8"" str)      // UTF8 strings  (std::string)
+#define C(c) (U ## c)
+#endif
 
+#include "label.h"
 #include "panel.h"
 
 using namespace std::chrono_literals;
@@ -86,10 +92,24 @@ int main()
     auto wawtEnv     = Wawt::WawtEnv(DrawOptions::classDefaults(),
                                      &drawAdapter);
 
+    Wawt::EventRouter::Handle panels, labels;
     auto router  = Wawt::EventRouter();
-    auto panels  = router.create<Panels>("Panel Samples");
 
-    router.activate<Panels>(panels);
+    labels  = router.create<Labels>("Label Samples",
+                                    [&router,&panels](auto) {
+                                       router.activate<Panels>(panels);
+                                       return Wawt::FocusCb();
+                                    });
+    panels  = router.create<Panels>("Panel Samples",
+                                    [&router,&labels](auto) {
+                                       router.activate<Labels>(labels);
+                                       return Wawt::FocusCb();
+                                    },
+                                    [](auto) {
+                                       return Wawt::FocusCb();
+                                    });
+
+    router.activate<Labels>(labels);
 
     auto shutdown = []() { return true; };
 

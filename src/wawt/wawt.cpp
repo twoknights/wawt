@@ -24,7 +24,7 @@
 #include <cmath>
 #include <iomanip>
 #include <ios>
-#include <iostream>
+#include <iostream> // For Draw() default constructor
 #include <ostream>
 #include <sstream>
 #include <string>
@@ -399,8 +399,9 @@ Rectangle makeRectangle(const Layout&         layout,
 
 } // end unnamed namespace
 
-std::atomic_flag    WawtEnv::d_atomicFlag   = ATOMIC_FLAG_INIT;
-WawtEnv            *WawtEnv::d_instance     = nullptr;
+std::atomic_flag    WawtEnv::_atomicFlag   = ATOMIC_FLAG_INIT;
+WawtEnv            *WawtEnv::_instance     = nullptr;
+std::any            WawtEnv::_any;
 
 // The following defaults should be found in all fonts.
 Char_t   WawtEnv::kCursor     = C('|');
@@ -416,10 +417,10 @@ char     WawtEnv::sDropDown[] = "dropDown";
 char     WawtEnv::sItem[]     = "item";
 char     WawtEnv::sList[]     = "list";
 
-std::function<Layout()> gridLayoutGenerator(double       percentBorder,
-                                            std::size_t  columns,
-                                            std::size_t  widgetCount,
-                                            std::size_t *rowsOut)      noexcept
+LayoutGenerator gridLayoutGenerator(double       percentBorder,
+                                    std::size_t  columns,
+                                    std::size_t  widgetCount,
+                                    std::size_t *rowsOut)              noexcept
 {
     if (columns == 0 || percentBorder > 100.0) {
         return std::function<Layout()>();                             // RETURN
@@ -433,12 +434,14 @@ std::function<Layout()> gridLayoutGenerator(double       percentBorder,
     if (rowsOut) {
         *rowsOut = rows;
     }
-    auto yinc = 2.0/(double(rows) - (rows-1)*percentBorder/200.0);
-    auto xinc = 2.0/(double(columns) - (columns-1)*percentBorder/200.0);
+    auto border = percentBorder >= 0.0 ? percentBorder : 0.0;
+    auto yinc = 2.0/(double(rows) - (rows-1)*border/200.0);
+    auto xinc = 2.0/(double(columns) - (columns-1)*border/200.0);
     return
-        [columns, xinc, yinc, percentBorder, c = 0u, r = 0u] () mutable {
-            auto bx = c == 0 ? 0.0 : c*xinc*percentBorder/200.0;
-            auto by = r == 0 ? 0.0 : r*yinc*percentBorder/200.0;
+        [columns, xinc, yinc, percentBorder, border, c = 0u, r = 0u]() mutable
+        {
+            auto bx = c == 0 ? 0.0 : c*xinc*border/200.0;
+            auto by = r == 0 ? 0.0 : r*yinc*border/200.0;
             auto layout = Layout({-1.0+  c  *xinc - bx, -1.0+  r  *yinc - by},
                                  {-1.0+(c+1)*xinc - bx, -1.0+(r+1)*yinc - by},
                                  percentBorder);
@@ -506,6 +509,27 @@ Layout::WidgetRef::getWidgetId() const noexcept
     return ret;                                                       // RETURN
 }
 
+                            //--------------
+                            // class  Layout
+                            //--------------
+
+Layout&
+Layout::scale(double sx, double sy)
+{
+    if (d_upperLeft.d_widgetRef != d_lowerRight.d_widgetRef) {
+        // No common coordinate system, so:
+        throw WawtException("Incompatible widget references in scaling.");
+    }
+    auto dx  = d_lowerRight.d_sX - d_upperLeft.d_sX;
+    auto dy  = d_lowerRight.d_sY - d_upperLeft.d_sY;
+    auto sdx = sx * (d_lowerRight.d_sX - d_upperLeft.d_sX);
+    auto sdy = sy * (d_lowerRight.d_sY - d_upperLeft.d_sY);
+    d_upperLeft.d_sX  -= (sdx - dx)/2.0;
+    d_upperLeft.d_sY  -= (sdy - dy)/2.0;
+    d_lowerRight.d_sX += (sdx - dx)/2.0;
+    d_lowerRight.d_sY += (sdy - dy)/2.0;
+    return *this;
+}
                                 //-------------
                                 // class Widget
                                 //-------------
@@ -744,6 +768,7 @@ Widget::labelLayout(DrawData                  *data,
             }
         }
     }
+    data->d_labelBounds.d_ux= data->d_rectangle.d_ux + data->d_borders.d_x + 1;
 
     if (firstPass || data->d_charSize + 1 != charSizeLimit) {
         auto textBounds = Dimensions{
@@ -759,13 +784,11 @@ Widget::labelLayout(DrawData                  *data,
         }
 
         if (layoutData.d_charSizeGroup) {
-            charSizeMap->emplace(*layoutData.d_charSizeGroup,
-                                 data->d_charSize);
+            (*charSizeMap)[*layoutData.d_charSizeGroup] = data->d_charSize;
         }
         data->d_labelBounds.d_width   = textBounds.d_x;
         data->d_labelBounds.d_height  = textBounds.d_y;
     }
-    data->d_labelBounds.d_ux= data->d_rectangle.d_ux + data->d_borders.d_x + 1;
     data->d_labelBounds.d_uy= data->d_rectangle.d_uy + data->d_borders.d_y + 1;
 
     if (layoutData.d_textAlign != TextAlign::eLEFT) {
@@ -932,14 +955,13 @@ Widget::assignWidgetIds(uint16_t        next,
     }
 
     if (d_layoutData.d_layout.d_percentBorder == -1.0) {
-        auto percent = WawtEnv::defaultBorderThickness(d_drawData.d_className);
+        auto percent = WawtEnv::defaultBorderThickness(className());
         d_layoutData.d_layout.d_percentBorder = percent<100.f ? float(percent)
                                                               : 99.9f;
     }
 
-    if (!d_drawData.d_options.has_value()) {
-        d_drawData.d_options =
-            WawtEnv::defaultOptions(d_drawData.d_className);
+    if (!options().has_value()) {
+        options(WawtEnv::defaultOptions(d_drawData.d_className));
     }
     d_drawData.d_relativeId = relativeId;
     relativeId  = 0;

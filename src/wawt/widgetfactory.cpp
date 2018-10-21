@@ -259,13 +259,29 @@ Widget::LayoutMethod genSpacedLayout(const DimensionPtr&   bounds,
                 }
                 return;
             }
-            auto borderRatio = widget->layoutData().d_layout
-                                                   .d_percentBorder/200.0;
-            data.d_borders
-                = Dimensions{float(std::round(bounds->d_x*borderRatio)),
-                             float(std::round(bounds->d_y*borderRatio))};
+            // bounds gives the text box dimensions. Figure out the border:
+            auto ratio = widget->layoutData().d_layout.d_percentBorder/200.0;
+            auto width = (bounds->d_x+2) / (1.0 - ratio);
+            auto height= (bounds->d_y+2) / (1.0 - ratio) - 2;
 
-            if (borderRatio > 0) {
+            auto panelWidth   = parent.drawData().d_rectangle.d_width;
+            auto panelHeight  = parent.drawData().d_rectangle.d_height;
+            auto panelBorders = parent.drawData().d_borders;
+
+            if (panelWidth-2*panelBorders.d_x <= width) {
+                assert(!"width bad");
+                width = panelWidth-2*panelBorders.d_x;
+            }
+
+            if (panelHeight-2*panelBorders.d_y <= height) {
+                assert(!"height bad");
+                height = panelHeight-2*panelBorders.d_y;
+            }
+
+            data.d_borders= Dimensions{float(bounds->d_x * ratio),
+                                       float(bounds->d_y * ratio)};
+
+            if (ratio > 0) { // always have a border
                 if (data.d_borders.d_x == 0) {
                     data.d_borders.d_x = 1;
                 }
@@ -273,12 +289,8 @@ Widget::LayoutMethod genSpacedLayout(const DimensionPtr&   bounds,
                     data.d_borders.d_y = 1;
                 }
             }
-            auto offset      = Dimensions{2*(data.d_borders.d_x+1),
-                                          2*(data.d_borders.d_y+1)};
-            auto panelWidth  = parent.drawData().d_rectangle.d_width;
-            auto panelHeight = parent.drawData().d_rectangle.d_height;
-            auto width       = bounds->d_x + offset.d_x;
-            auto height      = bounds->d_y + offset.d_y;
+            auto offset      = Dimensions{2*(data.d_borders.d_x+2),
+                                          2*(data.d_borders.d_y+2)};
             // Calculate seperator spacing between buttons:
             auto spacex = columns == 1
                 ? 0
@@ -519,14 +531,16 @@ Widget label(Layout&& layout, StringView_t string, CharSizeGroup         group)
             .text(string, group);                                     // RETURN
 }
 
-Widget panel(Widget **indirect, Layout&& layout)
+Widget panel(Widget **indirect, Layout&& layout, std::any options)
 {
-    return Widget(WawtEnv::sPanel, indirect, std::move(layout));      // RETURN
+    return Widget(WawtEnv::sPanel, indirect, std::move(layout))
+            .options(std::move(options));                             // RETURN
 }
 
-Widget panel(Layout&& layout)
+Widget panel(Layout&& layout, std::any options)
 {
-    return Widget(WawtEnv::sPanel, std::move(layout));                // RETURN
+    return Widget(WawtEnv::sPanel, std::move(layout))
+            .options(std::move(options));                             // RETURN
 }
 
 Widget panelGrid(Widget       **indirect,
@@ -607,8 +621,7 @@ Widget pushButtonGrid(Widget                **indirect,
                       bool                    fitted,
                       TextAlign               alignment)
 {
-    auto border      = layout.d_percentBorder > 0 ? layout.d_percentBorder
-                                                  : 0.0;
+    auto border      = layout.d_percentBorder;
     auto gridPanel   = panel(indirect, std::move(layout).border(0.0));
     auto rows        = std::size_t{};
     auto childLayout = gridLayoutGenerator(border,

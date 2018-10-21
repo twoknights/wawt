@@ -66,6 +66,19 @@ struct Layout {
         bool        isRelative()                                const noexcept{
             return d_widgetId.isSet() && d_widgetId.isRelative();
         }
+
+        bool operator==(const WidgetRef& rhs) const {
+            if (d_widgetId.isSet()) {
+                return rhs.d_widgetId.isSet()
+                    && d_widgetId.isRelative() == rhs.d_widgetId.isRelative()
+                    && d_widgetId.value()      == rhs.d_widgetId.value();
+            }
+            return d_widget != nullptr && d_widget == rhs.d_widget;
+        }
+
+        bool operator!=(const WidgetRef& rhs) const {
+            return !(*this == rhs);
+        }
     };
 
     class Position {
@@ -124,31 +137,46 @@ struct Layout {
         , d_pin(pin)
         , d_percentBorder(percent < 100.0 ? float(percent) : 99.9f) { }
 
-    // PUBLIC MANIPULATORS (rvalues)
+    // PUBLIC Ref-Qualified MANIPULATORS
+    constexpr Layout&& border(double percent) &&                    noexcept {
+        this->border(percent);
+        return std::move(*this);
+    }
+
+    constexpr Layout& border(double percent)  &                     noexcept {
+        d_percentBorder = percent < 100.0 ? float(percent) : 99.9f;
+        return *this;
+    }
+
     constexpr Layout&& pin(Vertex vertex) &&                        noexcept {
         d_pin = vertex;
         return std::move(*this);
     }
 
     constexpr Layout&& translate(double x, double y) &&             noexcept {
+        this->translate(x, y);
+        return std::move(*this);
+    }
+
+    constexpr Layout& translate(double x, double y) &               noexcept {
         d_upperLeft.d_sX  += float(x);
         d_upperLeft.d_sY  += float(y);
         d_lowerRight.d_sX += float(x);
         d_lowerRight.d_sY += float(y);
-        return std::move(*this);
+        return *this;
     }
 
-    Layout&& border(double percent)  &&                             noexcept {
-        d_percentBorder = percent < 100.0 ? float(percent) : 99.9f;
-        return std::move(*this);
-    }
+    // PUBLIC MANIPULATORS
+    // Following only works if both Positions refer the same widget
+    Layout& scale(double sx, double sy);
 };
 
-std::function<Layout()> gridLayoutGenerator(double       percentBorder,
-                                            std::size_t  columns,
-                                            std::size_t  widgetCount= 0,
-                                            std::size_t *rows       = nullptr)
-                                                                      noexcept;
+using LayoutGenerator = std::function<Layout()>;
+
+LayoutGenerator gridLayoutGenerator(double       percentBorder,
+                                    std::size_t  columns,
+                                    std::size_t  widgetCount= 0,
+                                    std::size_t *rows       = nullptr)noexcept;
 
 } // end Wawt namespace
 

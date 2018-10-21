@@ -49,7 +49,7 @@ inline constexpr CharSizeGroup operator ""_F(unsigned long long int n) {
     return CharSizeGroup{n};
 }
 
-constexpr CharSizeGroup kNOGROUP();
+constexpr CharSizeGroup kNOGROUP{};
 
 class  Widget final {
   public:
@@ -142,9 +142,10 @@ class  Widget final {
     // PUBLIC DESTRUCTOR
     ~Widget() noexcept;
 
-    // PUBLIC R-Value MANIPULATORS
+    // PUBLIC Ref-Qualified MANIPULATORS
 
-    Widget addChild(Widget&& child) &&;
+    Widget  addChild(Widget&& child) &&;
+    Widget& addChild(Widget&& child) &;
 
     Widget addMethod(DownEventMethod&& method) &&                    noexcept;
     Widget addMethod(DrawMethod&&      method) &&                    noexcept;
@@ -152,24 +153,44 @@ class  Widget final {
     Widget addMethod(NewChildMethod&&  method) &&                    noexcept;
     Widget addMethod(SerializeMethod&& method) &&                    noexcept;
 
+    Widget border(double percentBorder) &&                           noexcept {
+        d_layoutData.d_layout.border(percentBorder);
+        return std::move(*this);
+    }
+
     Widget className(char const * const className) &&                noexcept {
         d_drawData.d_className = className;
         return std::move(*this);
     }
 
-    Widget labelSelect(bool setting) &&                              noexcept {
+    Widget  labelSelect(bool setting) &&                             noexcept {
         d_textHit = setting;
         return std::move(*this);
     }
 
-    Widget layout(Layout&& newLayout) &&                             noexcept {
+    Widget& labelSelect(bool setting) &                              noexcept {
+        d_textHit = setting;
+        return *this;
+    }
+
+    Widget  layout(Layout&& newLayout) &&                            noexcept {
         d_layoutData.d_layout = std::move(newLayout);
         return std::move(*this);
     }
 
-    Widget options(std::any options) &&                              noexcept {
+    Widget& layout(Layout&& newLayout) &                             noexcept {
+        d_layoutData.d_layout = std::move(newLayout);
+        return *this;
+    }
+
+    Widget  options(std::any options) &&                             noexcept {
         d_drawData.d_options = std::move(options);
         return std::move(*this);
+    }
+
+    Widget& options(std::any options) &                              noexcept {
+        d_drawData.d_options = std::move(options);
+        return *this;
     }
 
     Widget text(StringView_t   string,
@@ -188,8 +209,6 @@ class  Widget final {
     }
 
     // PUBLIC MANIPULATORS
-
-    Widget&   addChild(Widget&& child) &;
 
     uint16_t  assignWidgetIds(uint16_t         next       = 1,
                               uint16_t         relativeId = 0,
@@ -211,6 +230,10 @@ class  Widget final {
 
     DrawData& drawData()                                             noexcept {
         return d_drawData;
+    }
+
+    Layout&   layout()                                               noexcept {
+        return d_layoutData.d_layout;
     }
 
     LayoutData& layoutData()                                         noexcept {
@@ -247,16 +270,6 @@ class  Widget final {
     Widget&   setMethod(LayoutMethod&&    method) &                  noexcept;
     Widget&   setMethod(NewChildMethod&&  method) &                  noexcept;
     Widget&   setMethod(SerializeMethod&& method) &                  noexcept;
-
-    Widget&   setLabelSelect(bool setting)        &                  noexcept {
-        d_textHit = setting;
-        return *this;
-    }
-
-    Widget&   setOptions(std::any options)        &                  noexcept {
-        d_drawData.d_options = std::move(options);
-        return *this;
-    }
 
     // PUBLIC ACCESSORS
 
@@ -301,6 +314,10 @@ class  Widget final {
     }
 
     const Widget   *lookup(WidgetId id)                        const noexcept;
+
+    const std::any& options()                                  const noexcept {
+        return d_drawData.d_options;
+    }
 
     uint16_t        relativeId()                               const noexcept {
         return d_drawData.d_relativeId;

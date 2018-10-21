@@ -1,5 +1,5 @@
-/** @file panel.h
- *  @brief Panel Samples
+/** @file label.h
+ *  @brief Label Samples
  *
  * Copyright 2018 Bruce Szablak
  *
@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef FACTORYSAMPLES_PANELS_H
-#define FACTORYSAMPLES_PANELS_H
+#ifndef FACTORYSAMPLES_LABELS_H
+#define FACTORYSAMPLES_LABELS_H
 
 #include <drawoptions.h>
 #include <wawt/layout.h>
@@ -28,16 +28,15 @@
 #include <iostream>
 
                                 //=============
-                                // class Panels
+                                // class Labels
                                 //=============
 
-class Panels : public Wawt::ScreenImpl<Panels,DrawOptions> {
+class Labels : public Wawt::ScreenImpl<Labels,DrawOptions> {
   public:
     // PUBLIC TYPES
 
     // PUBLIC CONSTRUCTORS
-    Panels(Wawt::FocusChgCb&& prev, Wawt::FocusChgCb&& next)
-        : d_next(std::move(next)), d_prev(std::move(prev)) { }
+    Labels(Wawt::FocusChgCb&& next) : d_next(std::move(next)) { }
 
     // PUBLIC MANIPULATORS
     // Called by 'WawtScreenImpl::setup()':
@@ -49,39 +48,34 @@ class Panels : public Wawt::ScreenImpl<Panels,DrawOptions> {
 private:
     // PRIVATE DATA MEMBERS
     Wawt::FocusChgCb d_next;
-    Wawt::FocusChgCb d_prev;
 };
 
 inline Wawt::Widget
-Panels::createScreenPanel()
+Labels::createScreenPanel()
 {
     using namespace Wawt;
-    auto panelFill   = defaultOptions(WawtEnv::sPanel)
-                          .fillColor(DrawOptions::Color(192u, 192u, 255u));
-    auto lineColor   = defaultOptions(WawtEnv::sPanel)
-                          .lineColor(defaultOptions(WawtEnv::sScreen)
-                                          .d_fillColor);
-    auto layoutGrid  = gridLayoutGenerator(0.0, 2, 4);
-    auto layoutFn    =
-        [layoutGrid, n = 0]() mutable -> Layout {
-            return layoutGrid().scale(0.8, 0.8).border(n++ % 2 ? 5.0 : -1.0);
-        };
+    auto lineColor = defaultOptions(WawtEnv::sPanel)
+                        .lineColor(defaultOptions(WawtEnv::sScreen)
+                                        .d_fillColor);
     auto screen =
         panel().addChild(
-                    label({{-1.0,-1.0},{1.0,-.9},0.1}, S("Panels"))
+                    label({{-1.0,-1.0},{1.0,-.9},0.1}, S("Labels"))
                     .options(defaultOptions(WawtEnv::sLabel)
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(
-                    pushButtonGrid({{-1.0,0.9},{1.0,1.0},0.1}, 2_F, 2,
-                                   {{d_prev, S("Prev")},
-                                    {d_next, S("Next")}}, true)
+                    pushButtonGrid({{-1.0,0.9},{1.0,1.0},0.1}, kNOGROUP, 1,
+                                   {{d_next, S("Next")}}, true)
                                     .border(10).options(lineColor))
                .addChild(
-                    widgetLayout({{-1.0,1.0,0_wr},{1.0,-1.0,1_wr}}, layoutFn,
-panel({}).text(S("Default Panel"), 1_F), // Default panels have black text
-panel({}).text(S("+ 5% Border"), 1_F),
-panel({}, panelFill).text(S("+ Fill Option"), 1_F),
-panel({}, panelFill).text(S("+ 5% & Fill Option"), 1_F)));
+                    widgetGrid({{-1.0,1.0,0_wr},{1.0,-1.0,1_wr}}, 1,
+label({}, S("The default label has no border,")),
+label({}, S("no fill color,")),
+label({}, S("centered; with font size selected so the label fits.")),
+label({}, S("Labels can be 'left' aligned,"), TextAlign::eLEFT, 1_F),
+label({}, S("or 'right' aligned,"), TextAlign::eRIGHT, 1_F),
+label({}, S("and assigned to a font size group where all share the same size."),
+    1_F),
+label({}, S("С поддержкой UTF-8 или широким символом."))));
     return screen;                                                    // RETURN
 }
 

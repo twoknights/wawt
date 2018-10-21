@@ -126,9 +126,11 @@ Widget label(Layout&&                          layout,
              CharSizeGroup                     group);
 
 Widget panel(Widget                          **indirect,
-             Layout&&                          layout = Layout());
+             Layout&&                          layout  = Layout(),
+             std::any                          options = std::any());
 
-Widget panel(Layout&&                          layout = Layout());
+Widget panel(Layout&&                          layout = Layout(),
+             std::any                          options = std::any());
 
 Widget panelGrid(Widget                      **indirect,
                  Layout&&                      layout,
@@ -181,6 +183,26 @@ Widget pushButtonGrid(Layout&&                 layout,
                       TextAlign                alignment = TextAlign::eCENTER);
 
 template<typename... WIDGET>
+Widget widgetLayout(Widget                     **indirect,
+                    Layout&&                     layout,
+                    const LayoutGenerator&       generator,
+                    WIDGET&&...                  widgets)
+{
+    auto container = panel(indirect, std::move(layout));
+    (container.addChild(std::move(widgets).layout(generator())),...);
+    return container;                                                 // RETURN
+}
+
+template<typename... WIDGET>
+Widget widgetLayout(Layout&&                     layout,
+                    const LayoutGenerator&       generator,
+                    WIDGET&&...                  widgets)
+{
+    return widgetLayout(nullptr, std::move(layout), generator,
+                        std::forward<WIDGET>(widgets)...);            // RETURN
+}
+
+template<typename... WIDGET>
 Widget widgetGrid(Widget                     **indirect,
                   Layout&&                     layout,
                   int                          columns,
@@ -188,7 +210,7 @@ Widget widgetGrid(Widget                     **indirect,
 {
     auto layoutFn  = gridLayoutGenerator(layout.d_percentBorder,
                                          columns, sizeof...(widgets));
-    auto grid = panel(indirect, std::move(layout));
+    auto grid = panel(indirect, std::move(layout).border(-1.0));
     (grid.addChild(std::move(widgets).layout(layoutFn())),...);
     return grid;                                                      // RETURN
 }

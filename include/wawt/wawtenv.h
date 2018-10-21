@@ -52,25 +52,25 @@ class WawtEnv {
 
     // PUBLIC CLASS MEMBERS
     static float         defaultBorderThickness(const std::string& className) {
-        return d_instance ? d_instance->_defaultBorderThickness(className)
-                          : 0.0;
+        return _instance ? _instance->_defaultBorderThickness(className)
+                         : 0.0;
     }
 
-    static std::any      defaultOptions(const std::string& className)  {
-        return d_instance ? d_instance->_defaultOptions(className)
-                          : std::any();
+    static const std::any& defaultOptions(const std::string& className)  {
+        return _instance ? _instance->_defaultOptions(className)
+                         : _any;
     }
 
     static DrawProtocol *drawAdapter() {
-        return d_instance ? d_instance->d_drawAdapter : nullptr;
+        return _instance ? _instance->d_drawAdapter : nullptr;
     }
 
     static WawtEnv      *instance() {
-        return d_instance;
+        return _instance;
     }
 
     static StringView_t  translate(const StringView_t& phrase) {
-        return d_instance->_translate(phrase);
+        return _instance->_translate(phrase);
     }
 
     // PUBLIC CLASS DATA
@@ -93,12 +93,12 @@ class WawtEnv {
     , d_strings{}
     , d_drawAdapter(nullptr)
     {
-        while (d_atomicFlag.test_and_set()) {};
+        while (_atomicFlag.test_and_set()) {};
         
-        if (d_instance == nullptr) {
-            d_instance = this;
+        if (_instance == nullptr) {
+            _instance = this;
         }
-        d_atomicFlag.clear();
+        _atomicFlag.clear();
     }
 
     WawtEnv(DrawProtocol *adapter)
@@ -106,12 +106,12 @@ class WawtEnv {
     , d_strings{}
     , d_drawAdapter(adapter)
     {
-        while (d_atomicFlag.test_and_set()) {};
+        while (_atomicFlag.test_and_set()) {};
         
-        if (d_instance == nullptr) {
-            d_instance = this;
+        if (_instance == nullptr) {
+            _instance = this;
         }
-        d_atomicFlag.clear();
+        _atomicFlag.clear();
     }
 
     template <typename Options>
@@ -125,27 +125,28 @@ class WawtEnv {
             d_classDefaults.try_emplace(className, border, options);
         }
 
-        while (d_atomicFlag.test_and_set()) {};
+        while (_atomicFlag.test_and_set()) {};
         
-        if (d_instance == nullptr) {
-            d_instance     = this;
+        if (_instance == nullptr) {
+            _instance     = this;
         }
-        d_atomicFlag.clear();
+        _atomicFlag.clear();
     }
 
     // PUBLIC DESTRUCTOR
     ~WawtEnv() {
-        while (d_atomicFlag.test_and_set()) {};
-        if (d_instance == this) {
-            d_instance = nullptr;
+        while (_atomicFlag.test_and_set()) {};
+        if (_instance == this) {
+            _instance = nullptr;
         }
-        d_atomicFlag.clear();
+        _atomicFlag.clear();
     }
 
   private:
     // PRIVATE CLASS MEMBERS
-    static std::atomic_flag     d_atomicFlag;
-    static WawtEnv             *d_instance;
+    static std::atomic_flag     _atomicFlag;
+    static WawtEnv             *_instance;
+    static std::any             _any;
 
     // PRIVATE MANIPULATORS
     StringView_t      _translate(const StringView_t& phrase) {
@@ -153,16 +154,16 @@ class WawtEnv {
     }
 
     // PRIVATE ACCESSORS
-    float       _defaultBorderThickness(const std::string& className) const
+    float          _defaultBorderThickness(const std::string& className) const
                                                                      noexcept {
         auto it = d_classDefaults.find(className);
         return d_classDefaults.end() != it ? it->second.first : 0.0;
     }
 
-    std::any    _defaultOptions(const std::string& className) const
+    const std::any& _defaultOptions(const std::string& className) const
                                                                      noexcept {
         auto it = d_classDefaults.find(className);
-        return d_classDefaults.end() != it ? it->second.second : std::any();
+        return d_classDefaults.end() != it ? it->second.second : _any;
     }
 
     // PRIVATE DATA MEMBERS
