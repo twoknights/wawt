@@ -99,20 +99,19 @@ ViewScreen::createScreenPanel()
                                    {s, s, s },
                                    TextAlign::eRIGHT);
 #endif
+    auto lineColor   = defaultOptions(WawtEnv::sPanel)
+                          .lineColor(defaultOptions(WawtEnv::sScreen)
+                                          .d_fillColor);
+    auto layoutGrid  = gridLayoutGenerator(-1.0, 1, 1);
+    auto layoutFn    =
+        [layoutGrid]() mutable -> Layout {
+            return layoutGrid().scale(0.2, 0.3);
+        };
     auto screen =
         panel().addChild(
-                label({{-1.0,-1.0},{1.0,-.9},0.1}, S("Labels"))
-                 .options(defaultOptions(WawtEnv::sLabel)
-                            .fillColor(DrawOptions::Color(235,235,255))))
-               .addChild(widgetGrid({{-1.0,1.0,0_wr},{1.0,1.0}}, 1,
-label({}, S("The default label has no border,")),
-label({}, S("no fill color,")),
-label({}, S("centered; with font size selected so the label fits.")),
-label({}, S("Labels can be 'left' aligned,"), TextAlign::eLEFT, 1_F),
-label({}, S("or 'right' aligned,"), TextAlign::eRIGHT, 1_F),
-label({}, S("and assigned to a font size group so they have matching sizes."),
-    1_F),
-label({}, S("С полной поддержкой utf-8 и широким характером."))));
+                    layoutPanel(Layout(), layoutFn,
+dropDownList({}, GridFocusCb(), 1_F,
+              {S("First"), S("Second"), S("Third"), S("Fourth")})));
 
     //*********************************************************************
     // END SCREEN DEFINITION
@@ -169,6 +168,9 @@ int main()
     ViewScreen screen;
     screen.setup();
     screen.activate(WIDTH, HEIGHT);
+    auto upCb = screen.downEvent(512, 252);
+    assert(upCb);
+    upCb(512,252,true);
 
     std::cout << "Minimum widget size: " << sizeof(Wawt::panel()) << std::endl;
     std::cout << "\nSerialized screen definition:\n";

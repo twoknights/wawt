@@ -53,17 +53,15 @@ GridFocusCb focusWrap(std::function<void(Widget *w, uint16_t id)>&& vcb) {
         };                                                            // RETURN
 }
 
-Widget bulletButtonGrid(Widget               **indirect,
+Widget radioButtonPanel(Widget               **indirect,
                         Layout&&               layout,
-                        bool                   radioButtons,
                         const GridFocusCb&     gridCb,
                         CharSizeGroup          group,
                         LabelList              labels,
                         TextAlign              alignment = TextAlign::eLEFT,
                         int                    columns   = 1);
 
-Widget bulletButtonGrid(Layout&&               layout,
-                        bool                   radioButtons,
+Widget radioButtonPanel(Layout&&               layout,
                         const GridFocusCb&     gridCb,
                         CharSizeGroup          group,
                         LabelList              labels,
@@ -132,16 +130,50 @@ Widget panel(Widget                          **indirect,
 Widget panel(Layout&&                          layout = Layout(),
              std::any                          options = std::any());
 
-Widget panelGrid(Widget                      **indirect,
-                 Layout&&                      layout,
-                 int                           rows,
-                 int                           columns,
-                 const Widget&                 clonable);
+template<typename... WIDGET>
+Widget layoutPanel(Widget                    **indirect,
+                   Layout&&                    panelLayout,
+                   const LayoutGenerator&      generator,
+                   WIDGET&&...                 widgets)
+{
+    auto container = panel(indirect, std::move(panelLayout));
+    (container.addChild(std::move(widgets).layout(generator())),...);
+    return container;                                                 // RETURN
+}
 
-Widget panelGrid(Layout&&                      layout,
-                 int                           rows,
-                 int                           columns,
-                 const Widget&                 clonable);
+template<typename... WIDGET>
+Widget layoutPanel(Layout&&                    panelLayout,
+                   const LayoutGenerator&      generator,
+                   WIDGET&&...                 widgets)
+{
+    return layoutPanel(nullptr, std::move(panelLayout), generator,
+                       std::forward<WIDGET>(widgets)...);             // RETURN
+}
+
+template<typename... WIDGET>
+Widget layoutPanel(Widget                     **indirect,
+                   Layout&&                     panelLayout,
+                   double                       widgetBorder,
+                   int                          columns,
+                   WIDGET&&...                  widgets)
+{
+    auto layoutFn  = gridLayoutGenerator(widgetBorder,
+                                         columns,
+                                         sizeof...(widgets));
+    auto grid = panel(indirect, std::move(panelLayout));
+    (grid.addChild(std::move(widgets).layout(layoutFn())),...);
+    return grid;                                                      // RETURN
+}
+
+template<typename... WIDGET>
+Widget layoutPanel(Layout&&                     panelLayout,
+                   double                       widgetBorder,
+                   int                          columns,
+                   WIDGET&&...                  widgets)
+{
+    return layoutPanel(nullptr, std::move(panelLayout), widgetBorder, columns,
+                      std::forward<WIDGET>(widgets)...);               // RETURN
+}
 
 Widget pushButton(Widget                     **indirect,
                   Layout&&                     layout,
@@ -181,48 +213,6 @@ Widget pushButtonGrid(Layout&&                 layout,
                       FocusChgLabelList        buttonDefs,
                       bool                     fitted    = false,
                       TextAlign                alignment = TextAlign::eCENTER);
-
-template<typename... WIDGET>
-Widget widgetLayout(Widget                     **indirect,
-                    Layout&&                     layout,
-                    const LayoutGenerator&       generator,
-                    WIDGET&&...                  widgets)
-{
-    auto container = panel(indirect, std::move(layout));
-    (container.addChild(std::move(widgets).layout(generator())),...);
-    return container;                                                 // RETURN
-}
-
-template<typename... WIDGET>
-Widget widgetLayout(Layout&&                     layout,
-                    const LayoutGenerator&       generator,
-                    WIDGET&&...                  widgets)
-{
-    return widgetLayout(nullptr, std::move(layout), generator,
-                        std::forward<WIDGET>(widgets)...);            // RETURN
-}
-
-template<typename... WIDGET>
-Widget widgetGrid(Widget                     **indirect,
-                  Layout&&                     layout,
-                  int                          columns,
-                  WIDGET&&...                  widgets)
-{
-    auto layoutFn  = gridLayoutGenerator(layout.d_percentBorder,
-                                         columns, sizeof...(widgets));
-    auto grid = panel(indirect, std::move(layout).border(-1.0));
-    (grid.addChild(std::move(widgets).layout(layoutFn())),...);
-    return grid;                                                      // RETURN
-}
-
-template<typename... WIDGET>
-Widget widgetGrid(Layout&&                     layout,
-                  int                          columns,
-                  WIDGET&&...                  widgets)
-{
-    return widgetGrid(nullptr, std::move(layout), columns,
-                     std::forward<WIDGET>(widgets)...);               // RETURN
-}
 
 } // end Wawt namespace
 

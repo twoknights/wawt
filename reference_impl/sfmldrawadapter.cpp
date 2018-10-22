@@ -99,7 +99,7 @@ void drawArrow(sf::RenderWindow  *window,
     triangle.setFillColor(fillColor);
     triangle.setPosition(centerx, centery);
 
-    if (up) {
+    if (!up) {
         triangle.setRotation(180.f);
     }
     window->draw(triangle);
@@ -267,6 +267,8 @@ SfmlDrawAdapter::draw(const Wawt::DrawData& drawData) noexcept
             drawData.d_borders.d_x,
             drawData.d_borders.d_y);
 
+    auto bounds = sf::FloatRect{};
+
     if (!drawData.d_label.empty()) {
         sf::Font&  font = getFont(options.d_fontIndex);
         sf::Text   label{toString(drawData.d_label.data()),
@@ -278,9 +280,9 @@ SfmlDrawAdapter::draw(const Wawt::DrawData& drawData) noexcept
         if (options.d_boldEffect) {
             label.setStyle(sf::Text::Bold);
         }
-        auto centery = box.d_uy + box.d_height/2.0;
-        auto bounds  = label.getLocalBounds();
         auto offset  = 0;
+        auto centery = box.d_uy + box.d_height/2.0;
+        bounds  = label.getLocalBounds();
 
         if (drawData.d_labelMark != DrawData::BulletMark::eNONE
          && drawData.d_leftMark) {
@@ -289,14 +291,16 @@ SfmlDrawAdapter::draw(const Wawt::DrawData& drawData) noexcept
         label.setOrigin(bounds.left, bounds.top + bounds.height/2.0f);
         label.setPosition(drawData.d_labelBounds.d_ux + offset, centery);
         d_window.draw(label);
+    }
 
+    if (drawData.d_labelMark!=DrawData::BulletMark::eNONE) {
         auto size       = float(drawData.d_charSize); // Bullet size
         auto border     = std::ceil(0.05*size);
         auto xcenter    = drawData.d_labelBounds.d_ux + size/2.;
         auto ycenter    = drawData.d_labelBounds.d_uy + size/2.;
         auto radius     = size/5.0;
 
-        ycenter        += bounds.top/2.;
+        ycenter        += bounds.top/4.;
 
         if (!drawData.d_leftMark) {
             xcenter += bounds.left + bounds.width;
@@ -408,8 +412,12 @@ SfmlDrawAdapter::getTextMetrics(Wawt::Dimensions          *textBounds,
         }
         *charHeight = lowerLimit;
     }
-    textBounds->d_x  = bounds.width;
+    textBounds->d_x = bounds.width;
     textBounds->d_y = bounds.height;
+
+    if (drawData.d_labelMark != Wawt::DrawData::BulletMark::eNONE) {
+        textBounds->d_x += *charHeight;
+    }
     return true;                                                      // RETURN
 }
 

@@ -22,6 +22,8 @@
 #include <memory>
 #include <utility>
 
+#include <iostream>
+
 #ifdef WAWT_WIDECHAR
 #define S(str) String_t(L"" str)  // wide char strings (std::wstring)
 #define C(c) (L ## c)
@@ -36,7 +38,7 @@ namespace Wawt {
 
 namespace {
 
-void addDropDown(Widget *dropDown, const GridFocusCb& selectCb)
+void addDropDown(Widget *dropDown, Widget *select, const GridFocusCb& selectCb)
 {
     auto root = dropDown->screen();
     auto id   = root->widgetIdValue();
@@ -45,7 +47,7 @@ void addDropDown(Widget *dropDown, const GridFocusCb& selectCb)
                                     : 0;
     // First push a transparent panel which, when clicked on, discards
     // the drop-down widget.
-    auto panel= Widget(WawtEnv::sPanel, Layout(root->layoutData().d_layout))
+    auto soak = panel(Layout(root->layout()))
                  .addMethod( [root, id](auto, auto, auto, auto) {
                                  return
                                      [root, id](float, float, bool up) {
@@ -56,95 +58,64 @@ void addDropDown(Widget *dropDown, const GridFocusCb& selectCb)
                                          return FocusCb();
                                      };
                              });
-    // There is no adapter to perform a "layout", but since layout has already
-    // been done on 'dropDown', it can be used to create both layout data AND
-    // draw data. First the panel that will cover the screen:
     auto screenBox                  = root->drawData().d_rectangle;
     auto screenBorders              = root->drawData().d_borders;
-    panel.drawData().d_rectangle    = screenBox;
-    panel.drawData().d_borders      = screenBorders;
-    auto& screen = root->children().emplace_back(std::move(panel));
+    soak.drawData().d_rectangle     = screenBox;
+    soak.drawData().d_borders       = screenBorders;
+    auto& screen = root->children().emplace_back(std::move(soak));
     auto  newChildMethod = root->getInstalled<Widget::NewChildMethod>();
     
     if (newChildMethod) {
         newChildMethod(root, &screen);
     }
-    // Create the drop-down as a child of the panel. Generate the draw data
-    // first, then calculate the layout data (needed if resize is done while
-    // drop-down is still being shown).
-    auto percent    = dropDown->layoutData().d_layout.d_percentBorder;
-    auto width      = screenBox.d_width  - 2*screenBorders.d_x;
-    auto height     = screenBox.d_height - 2*screenBorders.d_y;
-    auto itemX      = dropDown->drawData().d_rectangle.d_ux;
-    auto itemWidth  = dropDown->drawData().d_rectangle.d_width;
-    auto itemY      = dropDown->drawData().d_rectangle.d_uy;
-    auto itemHeight = dropDown->drawData().d_rectangle.d_height;
-    auto borderY    = dropDown->drawData().d_borders.d_y;
-    auto numItems   = dropDown->children().size()+1;
-    auto listHeight = float(numItems*(itemHeight - 2*borderY)
-                                                      / (1.0 - percent/100.0));
+    // 'dropDown' contains the fixed sized list that will be the drop down.
+    // It's layout data is not usable in the copy to be made, but its draw
+    // data is corret, and can be used to generate the layout.
+    auto& list = screen.children()
+                       .emplace_back(dropDown->children()[1].clone());
+    list.hidden(false).disabled(false);
+    
+    auto ux    = list.drawData().d_rectangle.d_ux;
+    auto uy    = list.drawData().d_rectangle.d_uy;
+    auto lx    = ux + list.drawData().d_rectangle.d_width;
+    auto ly    = uy + list.drawData().d_rectangle.d_height;
 
-    auto list       = Widget(WawtEnv::sDropDown,
-                             {{-1.0+2.0*itemX/width,-1.0+2.0*itemY/height},
-                              {-1.0+2.0*(itemX+itemWidth)/width,
-                               -1.0+2.0*(itemY+listHeight)/height},
-                               percent})
-                        .options(dropDown->drawData().d_options);
-    list.drawData().d_rectangle = { itemX, itemY, itemWidth, listHeight };
-    list.drawData().d_borders   = { float(itemWidth *percent/100.0),
-                                    float(listHeight*percent/100.0) };
+    auto width = screenBox.d_width  - 2*screenBorders.d_x;
+    auto height= screenBox.d_height - 2*screenBorders.d_y;
 
-    auto yincL     = 2.0/numItems;
-    auto yincD     = itemHeight - 2*list.drawData().d_borders.d_y;
-    auto layout    = Layout({-1.0, -1.0}, {1.0, -1.0 + yincL}, 0.0);
-    auto rectangle = Rectangle{itemX + list.drawData().d_borders.d_x,
-                               itemY + list.drawData().d_borders.d_y,
-                               itemWidth - 2*list.drawData().d_borders.d_x,
-                               yincD};
+    list.layout().d_upperLeft.d_sX         = -1.0 + 2.0 * ux / width;
+    list.layout().d_upperLeft.d_sY         = -1.0 + 2.0 * uy / height;
+    list.layout().d_upperLeft.d_widgetRef  = WidgetId::kPARENT;
+    list.layout().d_lowerRight.d_sX        = -1.0 + 2.0 * lx / width;
+    list.layout().d_lowerRight.d_sY        = -1.0 + 2.0 * ly / height;
+    list.layout().d_lowerRight.d_widgetRef = WidgetId::kPARENT;
 
+    for (auto& item : list.children()) {
+        // item layout is relative to list so all is good there.
+        item.setMethod( // on click copy label to drop-down etc. and clean up.
+            [cb=selectCb,select,id,root](auto, auto, Widget *widget, auto)
+            {
+                widget->drawData().d_selected = true;
+                return
+                    [cb,select,widget,id,root](float x, float y, bool up)
+                    {
+                        if (up) {
+                            widget->drawData().d_selected = false;
 
-    auto item = Widget(WawtEnv::sItem, Layout(layout));
-    item.layoutData().d_charSizeGroup = dropDown->layoutData().d_charSizeGroup;
-    item.layoutData().d_refreshBounds = true; // compute label bounds on draw
+                            if (widget->inside(x, y)) {
+                                select->resetLabel(widget->drawData().d_label);
+                                root->children().pop_back();
+                                root->drawData().d_widgetId = id;
 
-    item.drawData()             = dropDown->drawData();
-    item.drawData().d_rectangle = rectangle;
-    item.drawData().d_borders   = {};
-    item.drawData().d_labelMark = DrawData::BulletMark::eNONE;
-    item.setMethod( // on click copy label to drop-down etc. and clean up.
-        [cb=selectCb,dropDown,id,root](auto, auto, Widget *widget, auto) {
-            widget->drawData().d_selected = true;
-            return
-                [cb,dropDown,widget,id,root](float x, float y, bool up) {
-                    if (up) {
-                        widget->drawData().d_selected = false;
-
-                        if (widget->inside(x, y)) {
-                            dropDown->resetLabel(widget->drawData().d_label);
-                            root->children().pop_back();
-                            root->drawData().d_widgetId = id;
-
-                            if (cb) {
-                                return cb(dropDown,
-                                          widget->drawData().d_relativeId);
+                                if (cb) {
+                                    return cb(select,
+                                              widget->drawData().d_relativeId);
+                                }
                             }
                         }
-                    }
-                    return FocusCb();
-                };
-        });
-    screen.children().emplace_back(item.clone());
-
-    for (auto& child : dropDown->children()) {
-        item.layoutData().d_layout.d_upperLeft.d_sY  += yincL;
-        item.layoutData().d_layout.d_lowerRight.d_sY += yincL;
-        rectangle.d_uy += yincD;
-
-        item.drawData()             = child.drawData();
-        item.drawData().d_rectangle = rectangle;
-        item.drawData().d_borders   = {};
-
-        screen.children().emplace_back(item.clone());
+                        return FocusCb();
+                    };
+            });
     }
 
     root->drawData().d_widgetId
@@ -158,13 +129,13 @@ void addDropDown(Widget *dropDown, const GridFocusCb& selectCb)
 Widget::DownEventMethod createDropDown(GridFocusCb&& selectCb)
 {
     return
-        [cb=std::move(selectCb)] (auto, auto, auto *widget, auto) -> EventUpCb{
+        [cb=std::move(selectCb)] (auto, auto, auto *widget, auto *parent) {
             widget->drawData().d_selected = true;
-            return  [cb, widget](float x, float y, bool up) -> FocusCb {
+            return  [cb, widget, parent](float x, float y, bool up) {
                 if (up) {
                     widget->drawData().d_selected = false;
                     if (widget->inside(x, y)) {
-                        addDropDown(widget, cb);
+                        addDropDown(parent, widget, cb);
                     }
                 }
                 return FocusCb();
@@ -336,69 +307,7 @@ Widget::LayoutMethod genSpacedLayout(const DimensionPtr&   bounds,
         };                                                            // RETURN
 }
 
-void constrainCharSize(Widget                  *widget,
-                       const Widget&            parent,
-                       const Widget&,
-                       bool                     firstPass,
-                       DrawProtocol            *adapter) noexcept
-{
-    if (firstPass) { // only first pass is needed to constrain char size
-        widget->drawData().d_rectangle = parent.drawData().d_rectangle;
-        widget->drawData().d_borders   = parent.drawData().d_borders;
-        Widget::labelLayout(&widget->drawData(),
-                            true,
-                            widget->layoutData(),
-                            adapter);
-    }
-}
-
 } // unnamed namespace
-
-Widget bulletButtonGrid(Widget                **indirect,
-                        Layout&&                layout,
-                        bool                    radioButtons,
-                        const GridFocusCb&      gridCb,
-                        CharSizeGroup           group,
-                        LabelList               labels,
-                        TextAlign               alignment,
-                        int                     columns)
-{
-    auto rows        = std::size_t{};
-    auto childLayout = gridLayoutGenerator(layout.d_percentBorder,
-                                           columns,
-                                           labels.size(),
-                                           &rows);
-    auto gridPanel   = Widget(WawtEnv::sList,
-                              indirect,
-                              std::move(layout).border(0.0));
-
-    for (auto& label : labels) {
-        gridPanel.addChild(
-            Widget(WawtEnv::sItem, indirect, childLayout())
-                .addMethod(radioButtons
-                    ? makeRadioButtonDownMethod(gridCb)
-                    : makeToggleButtonDownMethod(gridCb))
-                .labelSelect(true)
-                .text(label, group, alignment)
-                .textMark(radioButtons ? DrawData::BulletMark::eROUND
-                                       : DrawData::BulletMark::eSQUARE,
-                          alignment != TextAlign::eRIGHT));
-
-    }
-    return gridPanel;                                                 // RETURN
-}
-
-Widget bulletButtonGrid(Layout&&                layout,
-                        bool                    radioButtons,
-                        const GridFocusCb&      gridCb,
-                        CharSizeGroup           group,
-                        LabelList               labels,
-                        TextAlign               alignment,
-                        int                     columns)
-{
-    return bulletButtonGrid(nullptr, std::move(layout), radioButtons,
-                            gridCb, group, labels, alignment, columns);
-}
 
 Widget checkBox(Widget                **indirect,
                 Layout&&                layout,
@@ -428,7 +337,7 @@ Widget checkBox(Layout&&                layout,
 }
 
 Widget dropDownList(Widget                   **indirect,
-                    Layout&&                   layout, // of LABEL
+                    Layout&&                   layout,
                     GridFocusCb&&              selectCb,
                     CharSizeGroup              group,
                     LabelList                  labels)
@@ -440,20 +349,21 @@ Widget dropDownList(Widget                   **indirect,
     // and prevents down click events from being propagated to any other widget
     // if it isn't on the drop-down list proper (instead the drop-down
     // [and its parent] are removed).
-    auto childLayout = gridLayoutGenerator(0.0, 1, labels.size()+1);
-    auto list = Widget(WawtEnv::sDropDown, indirect, std::move(layout))
-                 .text(S(""), group, TextAlign::eLEFT)
-                 .textMark(DrawData::BulletMark::eDOWNARROW)
-                 .addMethod(createDropDown(std::move(selectCb)));
-
-    for (auto& label : labels) {
-        list.addChild(
-            Widget(WawtEnv::sItem, indirect, childLayout())
-                .addMethod(&constrainCharSize)
-                .text(label, group, TextAlign::eCENTER))
-            .setHidden(true);
-    }
-    return list;                                                      // RETURN
+    auto selectLayout = gridLayoutGenerator(layout.d_percentBorder,
+                                            1,
+                                            labels.size()+1);
+    auto parent
+        = panel(indirect, std::move(layout).border(0.0))
+            .addChild(Widget(WawtEnv::sPush, selectLayout())
+                        .addMethod(createDropDown(std::move(selectCb)))
+                        .text(S(""), group, TextAlign::eLEFT)
+                        .textMark(DrawData::BulletMark::eDOWNARROW))
+            .addChild(fixedSizeList({{-1.0,1.0,0_wr},{1.0,1.0}},
+                                    true,
+                                    GridFocusCb(),
+                                    group,
+                                    labels).disabled(true).hidden(true));
+    return parent;                                                    // RETURN
 }
 
 Widget dropDownList(Layout&&                   layout,
@@ -543,35 +453,6 @@ Widget panel(Layout&& layout, std::any options)
             .options(std::move(options));                             // RETURN
 }
 
-Widget panelGrid(Widget       **indirect,
-                 Layout&&       layout,
-                 int            rows,
-                 int            columns,
-                 const Widget&  clonable)
-{
-    auto border    = layout.d_percentBorder > 0 ? layout.d_percentBorder : 0.0;
-    auto grid      = panel(indirect, std::move(layout).border(0.0));
-    auto layoutFn  = gridLayoutGenerator(border, columns, rows*columns);
-
-    for (auto i = 0; i < rows*columns; ++i) {
-        auto child = clonable.clone();
-        child.layoutData().d_layout = layoutFn();
-        grid.addChild(std::move(child));
-    }
-    return grid;                                                      // RETURN
-}
-
-Widget panelGrid(Layout&&       layout,
-                 int            rows,
-                 int            columns,
-                 const Widget&  cloneable)
-{
-    return panelGrid(nullptr,
-                     std::move(layout),
-                     rows, columns,
-                     std::move(cloneable));                           // RETURN
-}
-
 Widget pushButton(Widget              **indirect,
                   Layout&&              layout,
                   FocusChgCb            clicked,
@@ -657,6 +538,41 @@ Widget pushButtonGrid(Layout&&                layout,
 {
     return pushButtonGrid(nullptr, std::move(layout), group, columns,
                           buttonDefs, fitted, alignment);             // RETURN
+}
+
+Widget radioButtonPanel(Widget                **indirect,
+                        Layout&&                layout,
+                        const GridFocusCb&      gridCb,
+                        CharSizeGroup           group,
+                        LabelList               labels,
+                        TextAlign               alignment,
+                        int                     columns)
+{
+    auto childLayout = gridLayoutGenerator(0.0, columns, labels.size());
+    auto gridPanel   = Widget(WawtEnv::sPanel, indirect, std::move(layout));
+
+    for (auto& label : labels) {
+        gridPanel.addChild(
+            Widget(WawtEnv::sItem, indirect, childLayout())
+                .addMethod(makeRadioButtonDownMethod(gridCb))
+                .labelSelect(true)
+                .text(label, group, alignment)
+                .textMark(DrawData::BulletMark::eROUND,
+                          alignment != TextAlign::eRIGHT));
+
+    }
+    return gridPanel;                                                 // RETURN
+}
+
+Widget radioButtonPanel(Layout&&                layout,
+                        const GridFocusCb&      gridCb,
+                        CharSizeGroup           group,
+                        LabelList               labels,
+                        TextAlign               alignment,
+                        int                     columns)
+{
+    return radioButtonPanel(nullptr, std::move(layout),
+                            gridCb, group, labels, alignment, columns);
 }
 
 }  // namespace Wawt

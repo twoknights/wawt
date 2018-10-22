@@ -153,14 +153,34 @@ class  Widget final {
     Widget addMethod(NewChildMethod&&  method) &&                    noexcept;
     Widget addMethod(SerializeMethod&& method) &&                    noexcept;
 
-    Widget border(double percentBorder) &&                           noexcept {
+    Widget  border(double percentBorder) &&                          noexcept {
         d_layoutData.d_layout.border(percentBorder);
         return std::move(*this);
     }
 
-    Widget className(char const * const className) &&                noexcept {
+    Widget  className(char const * const className) &&               noexcept {
         d_drawData.d_className = className;
         return std::move(*this);
+    }
+
+    Widget  disabled(bool setting) &&                                noexcept {
+        d_drawData.d_disableEffect = setting;
+        return std::move(*this);
+    }
+
+    Widget& disabled(bool setting) &                                 noexcept {
+        d_drawData.d_disableEffect = setting;
+        return *this;
+    }
+
+    Widget  hidden(bool setting) &&                                  noexcept {
+        d_drawData.d_hidden = setting;
+        return std::move(*this);
+    }
+
+    Widget& hidden(bool setting) &                                   noexcept {
+        d_drawData.d_hidden = setting;
+        return *this;
     }
 
     Widget  labelSelect(bool setting) &&                             noexcept {
@@ -253,16 +273,6 @@ class  Widget final {
 
     Widget   *screen()                                               noexcept {
         return d_root;                    
-    }
-
-    Widget&   setDisabled(bool setting) &                            noexcept {
-        d_drawData.d_disableEffect = setting;
-        return *this;
-    }
-
-    Widget&   setHidden(bool setting)   &                            noexcept {
-        d_drawData.d_hidden = setting;
-        return *this;
     }
 
     Widget&   setMethod(DownEventMethod&& method) &                  noexcept;

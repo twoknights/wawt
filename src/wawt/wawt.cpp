@@ -635,7 +635,8 @@ Widget::defaultLayout(Widget                  *widget,
         }
     }
 
-    if (!data.d_label.empty()) {
+    if (!data.d_label.empty()
+     || data.d_labelMark != DrawData::BulletMark::eNONE) {
         labelLayout(&data, firstPass, layoutData, adapter);
     }
     return;                                                           // RETURN
@@ -769,16 +770,20 @@ Widget::labelLayout(DrawData                  *data,
         }
     }
     data->d_labelBounds.d_ux= data->d_rectangle.d_ux + data->d_borders.d_x + 1;
+    data->d_labelBounds.d_uy= data->d_rectangle.d_uy + data->d_borders.d_y + 1;
 
     if (firstPass || data->d_charSize + 1 != charSizeLimit) {
         auto textBounds = Dimensions{
             data->d_rectangle.d_width  - borderAdjustment.d_x,
             data->d_rectangle.d_height - borderAdjustment.d_y };
 
-        if (!adapter->getTextMetrics(&textBounds,
-                                    &data->d_charSize,
-                                    *data,
-                                    charSizeLimit)) {
+        if (data->d_label.empty()) {
+            data->d_charSize = charSizeLimit-1;
+        }
+        else if (!adapter->getTextMetrics(&textBounds,
+                                        &data->d_charSize,
+                                        *data,
+                                        charSizeLimit)) {
             assert(!"Failed to get text metrics.");
             data->d_charSize    = charSizeLimit - 1;
         }
@@ -789,7 +794,6 @@ Widget::labelLayout(DrawData                  *data,
         data->d_labelBounds.d_width   = textBounds.d_x;
         data->d_labelBounds.d_height  = textBounds.d_y;
     }
-    data->d_labelBounds.d_uy= data->d_rectangle.d_uy + data->d_borders.d_y + 1;
 
     if (layoutData.d_textAlign != TextAlign::eLEFT) {
         auto space = data->d_rectangle.d_width
@@ -1029,20 +1033,18 @@ Widget::downEvent(double x, double y, Widget *parent)
 {
     auto upCb = EventUpCb();
 
-    if (!isDisabled() && inside(x, y)) {
-        if (hasChildren()) {
-            auto& widgets = children();
+    if (hasChildren()) {
+        auto& widgets = children();
 
-            for (auto rit = widgets.rbegin(); rit != widgets.rend(); ++rit) {
-                if (upCb = rit->downEvent(x, y, this)) {
-                    break;                                             // BREAK
-                }
+        for (auto rit = widgets.rbegin(); rit != widgets.rend(); ++rit) {
+            if (upCb = rit->downEvent(x, y, this)) {
+                break;                                             // BREAK
             }
         }
+    }
 
-        if (!upCb && d_downMethod) {
-            upCb = d_downMethod(x, y, this, parent);
-        }
+    if (!upCb && !isDisabled() && inside(x, y) && d_downMethod) {
+        upCb = d_downMethod(x, y, this, parent);
     }
     return upCb;                                                      // RETURN
 }

@@ -1,5 +1,5 @@
-/** @file panel.h
- *  @brief Panel Samples
+/** @file list.h
+ *  @brief Fixed size list samples
  *
  * Copyright 2018 Bruce Szablak
  *
@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef FACTORYSAMPLES_PANELS_H
-#define FACTORYSAMPLES_PANELS_H
+#ifndef FACTORYSAMPLES_LIST_H
+#define FACTORYSAMPLES_LIST_H
 
 #include <drawoptions.h>
 #include <wawt/layout.h>
@@ -27,16 +27,16 @@
 
 #include <iostream>
 
-                                //=============
-                                // class Panels
-                                //=============
+                                //============
+                                // class Lists
+                                //============
 
-class Panels : public Wawt::ScreenImpl<Panels,DrawOptions> {
+class Lists : public Wawt::ScreenImpl<Lists,DrawOptions> {
   public:
     // PUBLIC TYPES
 
     // PUBLIC CONSTRUCTORS
-    Panels(Wawt::FocusChgCb&& prev, Wawt::FocusChgCb&& next)
+    Lists(Wawt::FocusChgCb&& prev, Wawt::FocusChgCb&& next)
         : d_next(std::move(next)), d_prev(std::move(prev)) { }
 
     // PUBLIC MANIPULATORS
@@ -44,31 +44,39 @@ class Panels : public Wawt::ScreenImpl<Panels,DrawOptions> {
     Wawt::Widget createScreenPanel();
 
     // Called by 'WawtScreenImpl::activate()':
-    void resetWidgets() { }
+    void resetWidgets() {
+        using namespace Wawt;
+        // NOTE: single/multi-select lists retain last selection on prev+next.
+        if (d_dropDown) {
+            d_dropDown->children()[0].resetLabel(S("")); // but not drop-list
+        }
+    }
 
 private:
     // PRIVATE DATA MEMBERS
     Wawt::FocusChgCb d_next;
     Wawt::FocusChgCb d_prev;
+    Wawt::Widget    *d_singleSelect = nullptr;
+    Wawt::Widget    *d_multiSelect  = nullptr;
+    Wawt::Widget    *d_dropDown     = nullptr;
 };
 
 inline Wawt::Widget
-Panels::createScreenPanel()
+Lists::createScreenPanel()
 {
     using namespace Wawt;
-    auto panelFill   = defaultOptions(WawtEnv::sPanel)
-                          .fillColor(DrawOptions::Color(192u, 192u, 255u));
     auto lineColor   = defaultOptions(WawtEnv::sPanel)
                           .lineColor(defaultOptions(WawtEnv::sScreen)
                                           .d_fillColor);
-    auto layoutGrid  = gridLayoutGenerator(0.0, 2, 4);
+    auto layoutGrid  = gridLayoutGenerator(-1.0, 3, 3);
     auto layoutFn    =
-        [layoutGrid, n = 0]() mutable -> Layout {
-            return layoutGrid().scale(0.8, 0.8).border(n++ % 2 ? 5.0 : -1.0);
+        [layoutGrid]() mutable -> Layout {
+            return layoutGrid().scale(0.8, 0.8);
         };
     auto screen =
         panel().addChild(
-                    label({{-1.0, -1.0}, {1.0, -0.9}, 0.1}, S("Panels"))
+                    label({{-1.0, -1.0}, {1.0, -0.9}, 0.1},
+                          S("Fixed Sized Lists"))
                     .options(defaultOptions(WawtEnv::sLabel)
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(
@@ -81,12 +89,16 @@ Panels::createScreenPanel()
                                 layoutFn,
 
 // Start Samples:
-panel({}).text(S("Default Panel"), 1_F), // Default panels have black text
-panel({}).text(S("+ 5% Border"), 1_F),
-panel({}, panelFill).text(S("+ Fill Option"), 1_F),
-panel({}, panelFill).text(S("+ 5% & Fill Option"), 1_F)));
+fixedSizeList(&d_singleSelect, {}, true, GridFocusCb(), 1_F,
+              {S("Single Select"), S("Second"), S("Third"), S("Fourth")}),
+fixedSizeList(&d_multiSelect, {}, false, GridFocusCb(), 1_F,
+              {S("Multi Select"), S("Second"), S("Third"), S("Fourth")}),
+dropDownList(&d_dropDown, {}, GridFocusCb(), 1_F,
+              {S("First"), S("Second"), S("Third"), S("Fourth")})));
 // End Samples.
 
+    d_singleSelect->children()[2].disabled(true); // 'Third' disabled
+    d_multiSelect ->children()[3].disabled(true); // 'Fourth' disabled
     return screen;                                                    // RETURN
 }
 

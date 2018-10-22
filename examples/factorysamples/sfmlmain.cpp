@@ -42,6 +42,8 @@
 
 #include "label.h"
 #include "panel.h"
+#include "bullet.h"
+#include "list.h"
 
 using namespace std::chrono_literals;
 
@@ -92,7 +94,7 @@ int main()
     auto wawtEnv     = Wawt::WawtEnv(DrawOptions::classDefaults(),
                                      &drawAdapter);
 
-    Wawt::EventRouter::Handle panels, labels;
+    Wawt::EventRouter::Handle panels, labels, bullets, lists;
     auto router  = Wawt::EventRouter();
 
     labels  = router.create<Labels>("Label Samples",
@@ -103,6 +105,24 @@ int main()
     panels  = router.create<Panels>("Panel Samples",
                                     [&router,&labels](auto) {
                                        router.activate<Labels>(labels);
+                                       return Wawt::FocusCb();
+                                    },
+                                    [&router,&bullets](auto) {
+                                       router.activate<Bullets>(bullets);
+                                       return Wawt::FocusCb();
+                                    });
+    bullets = router.create<Bullets>("Bullet Button Samples",
+                                    [&router,&panels](auto) {
+                                       router.activate<Panels>(panels);
+                                       return Wawt::FocusCb();
+                                    },
+                                    [&router,&lists](auto) {
+                                       router.activate<Lists>(lists);
+                                       return Wawt::FocusCb();
+                                    });
+    lists   = router.create<Lists>("Fixed Size Lists",
+                                    [&router,&bullets](auto) {
+                                       router.activate<Bullets>(bullets);
                                        return Wawt::FocusCb();
                                     },
                                     [](auto) {
