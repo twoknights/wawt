@@ -69,50 +69,7 @@ ViewScreen::createScreenPanel()
     //*********************************************************************
     // START SCREEN DEFINITION
     //*********************************************************************
-    //auto screen = panel(); // Replace with screen definition
-#if 0
-    auto screen = pushButtonGrid({{},{}, 10}, 1_F, 3, {
-            { ClickCb(), "1" }, { ClickCb(), "2" }, { ClickCb(), "3" },
-            { ClickCb(), "4" }, { ClickCb(), "5" }, { ClickCb(), "6" },
-            { ClickCb(), "7" }, { ClickCb(), "8" }, { ClickCb(), "9" },
-                                { ClickCb(), "0" }
-        }, true);
-    auto screen = widgetGrid({{},{}, 20}, 1,
-        pushButtonGrid(Layout().border(5), 1_F, 3, {
-            { ClickCb(), "1" }, { ClickCb(), "2" }, { ClickCb(), "3" }
-        }),
-        pushButtonGrid(Layout().border(5), 1_F, 3, {
-            { ClickCb(), "4" }, { ClickCb(), "5" }, { ClickCb(), "6" }
-        }),
-        pushButtonGrid(Layout().border(5), 1_F, 3, {
-            { ClickCb(), "7" }, { ClickCb(), "8" }, { ClickCb(), "9" }
-        }),
-        pushButtonGrid(Layout().border(5), 1_F, 1, {
-                                { ClickCb(), "0" }
-        }));
-   // auto screen = panelGrid({}, 3, 3, label({}, "X", 1_F));
-    const char *s = "a123456789b123456789c123456789d123456789";
-    auto screen = bulletButtonGrid(Layout().border(10),
-                                   true,
-                                   GridFocusCb(),
-                                   1_F,
-                                   {s, s, s },
-                                   TextAlign::eRIGHT);
-#endif
-    auto lineColor   = defaultOptions(WawtEnv::sPanel)
-                          .lineColor(defaultOptions(WawtEnv::sScreen)
-                                          .d_fillColor);
-    auto layoutGrid  = gridLayoutGenerator(-1.0, 1, 1);
-    auto layoutFn    =
-        [layoutGrid]() mutable -> Layout {
-            return layoutGrid().scale(0.2, 0.3);
-        };
     auto screen =
-        panel().addChild(
-                    layoutPanel(Layout(), layoutFn,
-dropDownList({}, GridFocusCb(), 1_F,
-              {S("First"), S("Second"), S("Third"), S("Fourth")})));
-
     //*********************************************************************
     // END SCREEN DEFINITION
     //*********************************************************************
@@ -168,9 +125,6 @@ int main()
     ViewScreen screen;
     screen.setup();
     screen.activate(WIDTH, HEIGHT);
-    auto upCb = screen.downEvent(512, 252);
-    assert(upCb);
-    upCb(512,252,true);
 
     std::cout << "Minimum widget size: " << sizeof(Wawt::panel()) << std::endl;
     std::cout << "\nSerialized screen definition:\n";

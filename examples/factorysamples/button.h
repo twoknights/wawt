@@ -1,5 +1,5 @@
-/** @file bullet.h
- *  @brief Check boxes and radio button groups
+/** @file button.h
+ *  @brief Push buttons and grids.
  *
  * Copyright 2018 Bruce Szablak
  *
@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef FACTORYSAMPLES_BULLET_H
-#define FACTORYSAMPLES_BULLET_H
+#ifndef FACTORYSAMPLES_BUTTON_H
+#define FACTORYSAMPLES_BUTTON_H
 
 #include <drawoptions.h>
 #include <wawt/layout.h>
@@ -28,15 +28,15 @@
 #include <iostream>
 
                                 //==============
-                                // class Bullets
+                                // class Buttons
                                 //==============
 
-class Bullets : public Wawt::ScreenImpl<Bullets,DrawOptions> {
+class Buttons : public Wawt::ScreenImpl<Buttons,DrawOptions> {
   public:
     // PUBLIC TYPES
 
     // PUBLIC CONSTRUCTORS
-    Bullets(Wawt::FocusChgCb&& prev, Wawt::FocusChgCb&& next)
+    Buttons(Wawt::FocusChgCb&& prev, Wawt::FocusChgCb&& next)
         : d_next(std::move(next)), d_prev(std::move(prev)) { }
 
     // PUBLIC MANIPULATORS
@@ -44,7 +44,9 @@ class Bullets : public Wawt::ScreenImpl<Bullets,DrawOptions> {
     Wawt::Widget createScreenPanel();
 
     // Called by 'WawtScreenImpl::activate()':
-    void resetWidgets() { }
+    void resetWidgets() {
+        using namespace Wawt;
+    }
 
 private:
     // PRIVATE DATA MEMBERS
@@ -53,42 +55,47 @@ private:
 };
 
 inline Wawt::Widget
-Bullets::createScreenPanel()
+Buttons::createScreenPanel()
 {
     using namespace Wawt;
     auto lineColor   = defaultOptions(WawtEnv::sPanel)
                           .lineColor(defaultOptions(WawtEnv::sScreen)
                                           .d_fillColor);
-    // 4 examples in panels layed-out in quadrants and then "shrunk" by 20%
-    // so they don't share common borders:
-    auto layoutGrid  = gridLayoutGenerator(0.0, 2, 4);
+    auto layoutGrid  = gridLayoutGenerator(-1.0, 1, 8);
     auto layoutFn    =
         [layoutGrid]() mutable -> Layout {
-            return layoutGrid().scale(0.8, 0.8);
+            return layoutGrid().scale(1.0, 0.8);
         };
-
     auto screen =
         panel().addChild(
                     label({{-1.0, -1.0}, {1.0, -0.9}, 0.1},
-                          S("Check Boxes & Radio Button Groups"))
+                          S("Push Buttons & Grids"))
                     .options(defaultOptions(WawtEnv::sLabel)
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(
                     pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}, 0.1}, 2_F,
-                                   {{d_prev, S("Prev")}, {d_next, S("Next")}})
+                                   {{d_prev, S("Prev")},
+                                    {d_next, S("Next")}})
                                     .border(10).options(lineColor))
                .addChild(
                     panelLayout({{-1.0, 1.0, 0_wr}, {1.0, -1.0, 1_wr}},
                                 layoutFn,
 
 // Start Samples:
-checkBox({}, S("Left alignment."), 1_F),
-checkBox({}, S("Right alignment."), 1_F, TextAlign::eRIGHT),
-radioButtonPanel({}, GridFocusCb(), 1_F, { S("A"), S("B"), S("C") }),
-radioButtonPanel({}, GridFocusCb(), 1_F, TextAlign::eRIGHT,
-                 { S("A"), S("B"), S("C"), S("D") }, 2)));
+pushButton({}, FocusChgCb(), S("Click Me"), 1_F),
+pushButtonGrid({}, 1_F, { {FocusChgCb(),S("Non-fitted Grid Choice 1")},
+                          {FocusChgCb(),S("Non-fitted Grid Choice 2")} }, false),
+pushButtonGrid({}, 1_F, { {FocusChgCb(),S("Fitted Grid Choice 1")},
+                          {FocusChgCb(),S("Fitted Grid Choice 2")} }),
+pushButtonGrid({}, 2, 1_F, { {FocusChgCb(),S("Non-fitted Grid Choice 1")},
+                             {FocusChgCb(),S("Non-fitted Grid Choice 2")},
+                             {FocusChgCb(),S("Choice 3")},
+                             {FocusChgCb(),S("Choice 4")} }, false),
+pushButtonGrid({}, 2, 1_F, { {FocusChgCb(),S("Fitted Grid Choice 1")},
+                             {FocusChgCb(),S("Fitted Grid Choice 2")},
+                             {FocusChgCb(),S("Choice 3")},
+                             {FocusChgCb(),S("Choice 4")} }, true)));
 // End Samples.
-
     return screen;                                                    // RETURN
 }
 

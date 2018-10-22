@@ -814,7 +814,7 @@ Widget::labelLayout(DrawData                  *data,
     return;                                                           // RETURN
 }
 
-// PUBLIC R-Value MANIPULATORS
+// PUBLIC Reference Qualified MANIPULATORS
 
 Widget
 Widget::addChild(Widget&& child) &&
@@ -828,50 +828,97 @@ Widget::addChild(Widget&& child) &&
 }
 
 Widget
-Widget::addMethod(DownEventMethod&& method) && noexcept
+Widget::method(DownEventMethod&& newMethod) && noexcept
 {
-    d_downMethod = std::move(method);
+    d_downMethod = std::move(newMethod);
     return std::move(*this);                                          // RETURN
 }
 
 Widget
-Widget::addMethod(DrawMethod&& method) && noexcept
+Widget::method(DrawMethod&& newMethod) && noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
     }
-    d_methods->d_drawMethod = std::move(method);
+    d_methods->d_drawMethod = std::move(newMethod);
     return std::move(*this);                                          // RETURN
 }
 
 Widget
-Widget::addMethod(LayoutMethod&& method) && noexcept
+Widget::method(LayoutMethod&& newMethod) && noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
     }
-    d_methods->d_layoutMethod = std::move(method);
+    d_methods->d_layoutMethod = std::move(newMethod);
     return std::move(*this);                                          // RETURN
 }
 
 Widget
-Widget::addMethod(NewChildMethod&& method) && noexcept
+Widget::method(NewChildMethod&& newMethod) && noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
     }
-    d_methods->d_newChildMethod = std::move(method);
+    d_methods->d_newChildMethod = std::move(newMethod);
     return std::move(*this);                                          // RETURN
 }
 
 Widget
-Widget::addMethod(SerializeMethod&& method) && noexcept
+Widget::method(SerializeMethod&& newMethod) && noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
     }
-    d_methods->d_serializeMethod = std::move(method);
+    d_methods->d_serializeMethod = std::move(newMethod);
     return std::move(*this);                                          // RETURN
+}
+
+Widget&
+Widget::method(DownEventMethod&& newMethod) & noexcept
+{
+    d_downMethod = std::move(newMethod);
+    return *this;                                                     // RETURN
+}
+
+Widget&
+Widget::method(DrawMethod&& newMethod) & noexcept
+{
+    if (!d_methods) {
+        d_methods = std::make_unique<Methods>();
+    }
+    d_methods->d_drawMethod = std::move(newMethod);
+    return *this;                                                     // RETURN
+}
+
+Widget&
+Widget::method(LayoutMethod&& newMethod) & noexcept
+{
+    if (!d_methods) {
+        d_methods = std::make_unique<Methods>();
+    }
+    d_methods->d_layoutMethod = std::move(newMethod);
+    return *this;                                                     // RETURN
+}
+
+Widget&
+Widget::method(NewChildMethod&& newMethod) & noexcept
+{
+    if (!d_methods) {
+        d_methods = std::make_unique<Methods>();
+    }
+    d_methods->d_newChildMethod = std::move(newMethod);
+    return *this;                                                     // RETURN
+}
+
+Widget&
+Widget::method(SerializeMethod&& newMethod) & noexcept
+{
+    if (!d_methods) {
+        d_methods = std::make_unique<Methods>();
+    }
+    d_methods->d_serializeMethod = std::move(newMethod);
+    return *this;                                                     // RETURN
 }
 
 Widget
@@ -1128,7 +1175,7 @@ Widget::pushDialog(Widget&& child, DrawProtocol *adapter)
                 // First push a transparent panel to soak up stray down
                 // events:
                 auto  panel  = Widget(WawtEnv::sPanel, Layout()) // full screen
-                                .addMethod(eatDownEvents());
+                                .method(eatDownEvents());
                 auto& screen = children().emplace_back(std::move(panel));
                 
                 if (d_methods && d_methods->d_newChildMethod) {
@@ -1214,53 +1261,6 @@ Widget::serialize(std::ostream&     os,
     }
     os << closeTag;
     return;                                                           // RETURN
-}
-
-Widget&
-Widget::setMethod(DownEventMethod&& method) & noexcept
-{
-    d_downMethod = std::move(method);
-    return *this;                                                     // RETURN
-}
-
-Widget&
-Widget::setMethod(DrawMethod&& method) & noexcept
-{
-    if (!d_methods) {
-        d_methods = std::make_unique<Methods>();
-    }
-    d_methods->d_drawMethod = std::move(method);
-    return *this;                                                     // RETURN
-}
-
-Widget&
-Widget::setMethod(LayoutMethod&& method) & noexcept
-{
-    if (!d_methods) {
-        d_methods = std::make_unique<Methods>();
-    }
-    d_methods->d_layoutMethod = std::move(method);
-    return *this;                                                     // RETURN
-}
-
-Widget&
-Widget::setMethod(NewChildMethod&& method) & noexcept
-{
-    if (!d_methods) {
-        d_methods = std::make_unique<Methods>();
-    }
-    d_methods->d_newChildMethod = std::move(method);
-    return *this;                                                     // RETURN
-}
-
-Widget&
-Widget::setMethod(SerializeMethod&& method) & noexcept
-{
-    if (!d_methods) {
-        d_methods = std::make_unique<Methods>();
-    }
-    d_methods->d_serializeMethod = std::move(method);
-    return *this;                                                     // RETURN
 }
 
                                 //-----------

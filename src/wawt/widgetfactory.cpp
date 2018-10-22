@@ -48,16 +48,16 @@ void addDropDown(Widget *dropDown, Widget *select, const GridFocusCb& selectCb)
     // First push a transparent panel which, when clicked on, discards
     // the drop-down widget.
     auto soak = panel(Layout(root->layout()))
-                 .addMethod( [root, id](auto, auto, auto, auto) {
-                                 return
-                                     [root, id](float, float, bool up) {
-                                         if (up) {
-                                             root->children().pop_back();
-                                             root->drawData().d_widgetId = id;
-                                         }
-                                         return FocusCb();
-                                     };
-                             });
+                 .method([root, id](auto, auto, auto, auto) {
+                             return
+                                 [root, id](float, float, bool up) {
+                                     if (up) {
+                                         root->children().pop_back();
+                                         root->drawData().d_widgetId = id;
+                                     }
+                                     return FocusCb();
+                                 };
+                         });
     auto screenBox                  = root->drawData().d_rectangle;
     auto screenBorders              = root->drawData().d_borders;
     soak.drawData().d_rectangle     = screenBox;
@@ -91,8 +91,8 @@ void addDropDown(Widget *dropDown, Widget *select, const GridFocusCb& selectCb)
     list.layout().d_lowerRight.d_widgetRef = WidgetId::kPARENT;
 
     for (auto& item : list.children()) {
-        // item layout is relative to list so all is good there.
-        item.setMethod( // on click copy label to drop-down etc. and clean up.
+        // item layout is relative to list so they require no adjustments.
+        item.method( // on click copy label to drop-down etc. and clean up.
             [cb=selectCb,select,id,root](auto, auto, Widget *widget, auto)
             {
                 widget->drawData().d_selected = true;
@@ -104,12 +104,17 @@ void addDropDown(Widget *dropDown, Widget *select, const GridFocusCb& selectCb)
 
                             if (widget->inside(x, y)) {
                                 select->resetLabel(widget->drawData().d_label);
-                                root->children().pop_back();
+                                auto lclselect = select;
+                                auto lclcb   = std::move(cb);
+                                auto rid     = widget->drawData().d_relativeId;
                                 root->drawData().d_widgetId = id;
+                                // The "pop" destroys the lambda captures, so
+                                // only the local variables can be used
+                                // following it.
+                                root->children().pop_back();
 
-                                if (cb) {
-                                    return cb(select,
-                                              widget->drawData().d_relativeId);
+                                if (lclcb) {
+                                    return lclcb(lclselect, rid);
                                 }
                             }
                         }
@@ -176,7 +181,7 @@ Widget::DownEventMethod makeToggleButtonDownMethod(const GridFocusCb&  cb)
                 }
                 return FocusCb();
             };
-        };                                                        // RETURN
+        };                                                            // RETURN
 }
 
 Widget::DownEventMethod makeRadioButtonDownMethod(const GridFocusCb& cb)
@@ -198,7 +203,7 @@ Widget::DownEventMethod makeRadioButtonDownMethod(const GridFocusCb& cb)
                 }
                 return FocusCb();
             };
-        };                                                        // RETURN
+        };                                                            // RETURN
 }
 
 using DimensionPtr = std::shared_ptr<Dimensions>;
@@ -310,26 +315,26 @@ Widget::LayoutMethod genSpacedLayout(const DimensionPtr&   bounds,
 } // unnamed namespace
 
 Widget checkBox(Widget                **indirect,
-                Layout&&                layout,
+                const Layout&           layout,
                 StringView_t            string,
                 CharSizeGroup           group,
                 TextAlign               alignment)
 {
-    return  Widget(WawtEnv::sBullet, indirect, std::move(layout))
-            .addMethod(makeToggleButtonDownMethod(GridFocusCb()))
+    return  Widget(WawtEnv::sBullet, indirect, layout)
+            .method(makeToggleButtonDownMethod(GridFocusCb()))
             .labelSelect(layout.d_percentBorder <= 0.0)
             .text(string, group, alignment)
             .textMark(DrawData::BulletMark::eSQUARE,
-                      alignment != TextAlign::eRIGHT);        // RETURN
+                      alignment != TextAlign::eRIGHT);                // RETURN
 }
 
-Widget checkBox(Layout&&                layout,
+Widget checkBox(const Layout&           layout,
                 StringView_t            string,
                 CharSizeGroup           group,
                 TextAlign               alignment)
 {
-    return  Widget(WawtEnv::sBullet, std::move(layout))
-            .addMethod(makeToggleButtonDownMethod(GridFocusCb()))
+    return  Widget(WawtEnv::sBullet, layout)
+            .method(makeToggleButtonDownMethod(GridFocusCb()))
             .labelSelect(layout.d_percentBorder <= 0.0)
             .text(string, group, alignment)
             .textMark(DrawData::BulletMark::eSQUARE,
@@ -337,7 +342,7 @@ Widget checkBox(Layout&&                layout,
 }
 
 Widget dropDownList(Widget                   **indirect,
-                    Layout&&                   layout,
+                    Layout                     layout,
                     GridFocusCb&&              selectCb,
                     CharSizeGroup              group,
                     LabelList                  labels)
@@ -353,9 +358,9 @@ Widget dropDownList(Widget                   **indirect,
                                             1,
                                             labels.size()+1);
     auto parent
-        = panel(indirect, std::move(layout).border(0.0))
+        = panel(indirect, layout.border(0.0))
             .addChild(Widget(WawtEnv::sPush, selectLayout())
-                        .addMethod(createDropDown(std::move(selectCb)))
+                        .method(createDropDown(std::move(selectCb)))
                         .text(S(""), group, TextAlign::eLEFT)
                         .textMark(DrawData::BulletMark::eDOWNARROW))
             .addChild(fixedSizeList({{-1.0,1.0,0_wr},{1.0,1.0}},
@@ -366,29 +371,29 @@ Widget dropDownList(Widget                   **indirect,
     return parent;                                                    // RETURN
 }
 
-Widget dropDownList(Layout&&                   layout,
+Widget dropDownList(const Layout&              listLayout,
                     GridFocusCb&&              selectCb,
                     CharSizeGroup              group,
                     LabelList                  labels)
 {
-    return dropDownList(nullptr, std::move(layout), std::move(selectCb),
+    return dropDownList(nullptr, listLayout, std::move(selectCb),
                         group, labels);
 }
 
 Widget fixedSizeList(Widget                **indirect,
-                     Layout&&                layout,
+                     const Layout&           listLayout,
                      bool                    singleSelect,
                      const GridFocusCb&      selectCb,
                      CharSizeGroup           group,
                      LabelList               labels)
 {
     auto childLayout = gridLayoutGenerator(0.0, 1, labels.size());
-    auto list        = Widget(WawtEnv::sList, indirect, std::move(layout));
+    auto list        = Widget(WawtEnv::sList, indirect, listLayout);
 
     for (auto& label : labels) {
         list.addChild(
             Widget(WawtEnv::sItem, indirect, childLayout())
-                .addMethod(singleSelect
+                .method(singleSelect
                     ? makeRadioButtonDownMethod(selectCb)
                     : makeToggleButtonDownMethod(selectCb))
                 .text(label, group, TextAlign::eCENTER));
@@ -397,113 +402,113 @@ Widget fixedSizeList(Widget                **indirect,
     return list;                                                      // RETURN
 }
 
-Widget fixedSizeList(Layout&&                layout,
+Widget fixedSizeList(const Layout&           listLayout,
                      bool                    singleSelect,
                      const GridFocusCb&      selectCb,
                      CharSizeGroup           group,
                      LabelList               labels)
 {
-    return fixedSizeList(nullptr, std::move(layout), singleSelect,
+    return fixedSizeList(nullptr, listLayout, singleSelect,
                          selectCb, group, labels);
 }
 
 Widget label(Widget                   **indirect,
-             Layout&&                   layout,
+             const Layout&              layout,
              StringView_t               string,
-             TextAlign                  alignment,
-             CharSizeGroup              group)
+             CharSizeGroup              group,
+             TextAlign                  alignment)
 {
-    return  Widget(WawtEnv::sLabel, indirect, std::move(layout))
+    return  Widget(WawtEnv::sLabel, indirect, layout)
             .text(string, group, alignment);                          // RETURN
 }
 
-Widget label(Layout&&                   layout,
+Widget label(const Layout&              layout,
              StringView_t               string,
-             TextAlign                  alignment,
-             CharSizeGroup              group)
+             CharSizeGroup              group,
+             TextAlign                  alignment)
 {
-    return  Widget(WawtEnv::sLabel, std::move(layout))
+    return  Widget(WawtEnv::sLabel, layout)
             .text(string, group, alignment);                          // RETURN
 }
 
 Widget label(Widget                   **indirect,
-             Layout&&                   layout,
+             const Layout&              layout,
              StringView_t               string,
-             CharSizeGroup              group)
+             TextAlign                  alignment)
 {
-    return  Widget(WawtEnv::sLabel, indirect, std::move(layout))
-            .text(string, group);                                     // RETURN
+    return  Widget(WawtEnv::sLabel, indirect, layout)
+            .text(string, alignment);                                 // RETURN
 }
 
-Widget label(Layout&& layout, StringView_t string, CharSizeGroup         group)
+Widget label(const Layout& layout, StringView_t string, TextAlign alignment)
 {
-    return  Widget(WawtEnv::sLabel, std::move(layout))
-            .text(string, group);                                     // RETURN
+    return  Widget(WawtEnv::sLabel, layout)
+            .text(string, alignment);                                 // RETURN
 }
 
-Widget panel(Widget **indirect, Layout&& layout, std::any options)
+Widget panel(Widget **indirect, const Layout& layout, std::any options)
 {
-    return Widget(WawtEnv::sPanel, indirect, std::move(layout))
+    return Widget(WawtEnv::sPanel, indirect, layout)
             .options(std::move(options));                             // RETURN
 }
 
-Widget panel(Layout&& layout, std::any options)
+Widget panel(const Layout& layout, std::any options)
 {
-    return Widget(WawtEnv::sPanel, std::move(layout))
+    return Widget(WawtEnv::sPanel, layout)
             .options(std::move(options));                             // RETURN
 }
 
 Widget pushButton(Widget              **indirect,
-                  Layout&&              layout,
+                  const Layout&         layout,
                   FocusChgCb            clicked,
                   StringView_t          string,
-                  TextAlign             alignment,
-                  CharSizeGroup         group)
+                  CharSizeGroup         group,
+                  TextAlign             alignment)
 {
-    return  Widget(WawtEnv::sPush, indirect, std::move(layout))
-            .addMethod(makePushButtonDownMethod(std::move(clicked)))
+    return  Widget(WawtEnv::sPush, indirect, layout)
+            .method(makePushButtonDownMethod(std::move(clicked)))
             .text(string, group, alignment);                          // RETURN
 }
 
-Widget pushButton(Layout&&              layout,
+Widget pushButton(const Layout&         layout,
                   FocusChgCb            clicked,
                   StringView_t          string,
-                  TextAlign             alignment,
-                  CharSizeGroup         group)
+                  CharSizeGroup         group,
+                  TextAlign             alignment)
 {
-    return pushButton(nullptr, std::move(layout),
-                      clicked, string, alignment, group);             // RETURN
+    return pushButton(nullptr, layout,
+                      clicked, string, group, alignment);             // RETURN
 }
 
-Widget pushButton(Layout&&              layout,
+Widget pushButton(const Layout&         layout,
                   FocusChgCb            clicked,
                   StringView_t          string,
-                  CharSizeGroup         group)
+                  TextAlign             alignment)
 {
-    return pushButton(nullptr, std::move(layout), clicked,
-                      string, TextAlign::eCENTER, group);             // RETURN
+    return pushButton(nullptr, layout, clicked,
+                      string, CharSizeGroup(), alignment);            // RETURN
 }
 
 Widget pushButton(Widget              **indirect,
-                  Layout&&              layout,
+                  const Layout&         layout,
                   FocusChgCb            clicked,
                   StringView_t          string,
-                  CharSizeGroup         group)
+                  TextAlign             alignment)
 {
-    return pushButton(indirect, std::move(layout), clicked,
-                      string, TextAlign::eCENTER, group);             // RETURN
+    return pushButton(indirect, layout, clicked,
+                      string, CharSizeGroup(), alignment);            // RETURN
 }
 
 Widget pushButtonGrid(Widget                **indirect,
-                      Layout&&                layout,
-                      CharSizeGroup           group,
+                      Layout                  layout,
                       int                     columns,
+                      CharSizeGroup           group,
+                      TextAlign               alignment,
                       FocusChgLabelList       buttonDefs,
-                      bool                    fitted,
-                      TextAlign               alignment)
+                      bool                    fitted)
 {
     auto border      = layout.d_percentBorder;
-    auto gridPanel   = panel(indirect, std::move(layout).border(0.0));
+    auto gridPanel   = panel(indirect, layout.border(0.0));
     auto rows        = std::size_t{};
     auto childLayout = gridLayoutGenerator(border,
                                            columns,
@@ -515,46 +520,86 @@ Widget pushButtonGrid(Widget                **indirect,
         gridPanel.addChild(pushButton(childLayout(),
                                       click,
                                       label,
-                                      alignment,
-                                      group));
+                                      group,
+                                      alignment));
         if (fitted) {
             gridPanel.children()
                      .back()
-                     .setMethod(genSpacedLayout(bounds,
-                                                rows,
-                                                columns,
-                                                alignment));
+                     .method(genSpacedLayout(bounds,
+                                             rows,
+                                             columns,
+                                             alignment));
         }
     }
     return gridPanel;                                                 // RETURN
 }
 
-Widget pushButtonGrid(Layout&&                layout,
-                      CharSizeGroup           group,
+Widget pushButtonGrid(const Layout&           layout,
                       int                     columns,
+                      CharSizeGroup           group,
+                      TextAlign               alignment,
                       FocusChgLabelList       buttonDefs,
-                      bool                    fitted,
-                      TextAlign               alignment)
+                      bool                    fitted)
 {
-    return pushButtonGrid(nullptr, std::move(layout), group, columns,
-                          buttonDefs, fitted, alignment);             // RETURN
+    return pushButtonGrid(nullptr,  layout, columns, group,
+                          alignment, buttonDefs, fitted);             // RETURN
+}
+
+Widget pushButtonGrid(Widget                **indirect,
+                      const Layout&           layout,
+                      int                     columns,
+                      CharSizeGroup           group,
+                      FocusChgLabelList       buttonDefs,
+                      bool                    fitted)
+{
+    return pushButtonGrid(indirect, layout, columns, group,
+                          TextAlign::eCENTER, buttonDefs, fitted);    // RETURN
+}
+
+Widget pushButtonGrid(const Layout&           layout,
+                      int                     columns,
+                      CharSizeGroup           group,
+                      FocusChgLabelList       buttonDefs,
+                      bool                    fitted)
+{
+    return pushButtonGrid(nullptr,  layout, columns, group,
+                          TextAlign::eCENTER, buttonDefs, fitted);    // RETURN
+}
+
+Widget pushButtonGrid(Widget                **indirect,
+                      const Layout&           layout,
+                      CharSizeGroup           group,
+                      FocusChgLabelList       buttonDefs,
+                      bool                    fitted)
+{
+    return pushButtonGrid(indirect, layout, buttonDefs.size(),group,
+                          TextAlign::eCENTER, buttonDefs, fitted);    // RETURN
+}
+
+Widget pushButtonGrid(const Layout&           layout,
+                      CharSizeGroup           group,
+                      FocusChgLabelList       buttonDefs,
+                      bool                    fitted)
+{
+    return pushButtonGrid(nullptr, layout, buttonDefs.size(), group,
+                          TextAlign::eCENTER, buttonDefs, fitted);    // RETURN
 }
 
 Widget radioButtonPanel(Widget                **indirect,
-                        Layout&&                layout,
+                        const Layout&           layout,
                         const GridFocusCb&      gridCb,
                         CharSizeGroup           group,
-                        LabelList               labels,
                         TextAlign               alignment,
+                        LabelList               labels,
                         int                     columns)
 {
     auto childLayout = gridLayoutGenerator(0.0, columns, labels.size());
-    auto gridPanel   = Widget(WawtEnv::sPanel, indirect, std::move(layout));
+    auto gridPanel   = Widget(WawtEnv::sPanel, indirect, layout);
 
     for (auto& label : labels) {
         gridPanel.addChild(
             Widget(WawtEnv::sItem, indirect, childLayout())
-                .addMethod(makeRadioButtonDownMethod(gridCb))
+                .method(makeRadioButtonDownMethod(gridCb))
                 .labelSelect(true)
                 .text(label, group, alignment)
                 .textMark(DrawData::BulletMark::eROUND,
@@ -564,15 +609,36 @@ Widget radioButtonPanel(Widget                **indirect,
     return gridPanel;                                                 // RETURN
 }
 
-Widget radioButtonPanel(Layout&&                layout,
+Widget radioButtonPanel(const Layout&           layout,
+                        const GridFocusCb&      gridCb,
+                        CharSizeGroup           group,
+                        TextAlign               alignment,
+                        LabelList               labels,
+                        int                     columns)
+{
+    return radioButtonPanel(nullptr, layout,
+                            gridCb, group, alignment, labels, columns);
+}
+
+Widget radioButtonPanel(Widget                **indirect,
+                        const Layout&           layout,
                         const GridFocusCb&      gridCb,
                         CharSizeGroup           group,
                         LabelList               labels,
-                        TextAlign               alignment,
                         int                     columns)
 {
-    return radioButtonPanel(nullptr, std::move(layout),
-                            gridCb, group, labels, alignment, columns);
+    return radioButtonPanel(indirect, layout,
+                            gridCb, group, TextAlign::eLEFT, labels, columns);
+}
+
+Widget radioButtonPanel(const Layout&           layout,
+                        const GridFocusCb&      gridCb,
+                        CharSizeGroup           group,
+                        LabelList               labels,
+                        int                     columns)
+{
+    return radioButtonPanel(nullptr, layout,
+                            gridCb, group, TextAlign::eLEFT, labels, columns);
 }
 
 }  // namespace Wawt

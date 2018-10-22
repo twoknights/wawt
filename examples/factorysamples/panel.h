@@ -72,12 +72,11 @@ Panels::createScreenPanel()
                     .options(defaultOptions(WawtEnv::sLabel)
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(
-                    pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}, 0.1}, 2_F, 2,
-                                   {{d_prev, S("Prev")},
-                                    {d_next, S("Next")}}, true)
+                    pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}, 0.1}, 2_F,
+                                   {{d_prev, S("Prev")}, {d_next, S("Next")}})
                                     .border(10).options(lineColor))
                .addChild(
-                    layoutPanel({{-1.0, 1.0, 0_wr}, {1.0, -1.0, 1_wr}},
+                    panelLayout({{-1.0, 1.0, 0_wr}, {1.0, -1.0, 1_wr}},
                                 layoutFn,
 
 // Start Samples:

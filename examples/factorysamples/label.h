@@ -63,20 +63,21 @@ Labels::createScreenPanel()
                     .options(defaultOptions(WawtEnv::sLabel)
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(
-                    pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}, 0.1}, 2_F, 2,
-                                   {{d_next, S("Next")}}, true)
+                    pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}, 0.1}, 2_F,
+                                   {{d_next, S("Next")}})
                                     .border(10).options(lineColor))
                .addChild(
-                    layoutPanel({{-1.0, 1.0, 0_wr}, {1.0, -1.0, 1_wr}}, 0, 1,
+                    panelLayout({{-1.0, 1.0, 0_wr}, {1.0, -1.0, 1_wr}}, 0, 1,
 
 // Start Samples:
 label({}, S("The default label has no border,")),
 label({}, S("no fill color,")),
 label({}, S("centered; with font size selected so the label fits.")),
-label({}, S("Labels can be 'left' aligned,"), TextAlign::eLEFT, 1_F),
-label({}, S("or 'right' aligned,"), TextAlign::eRIGHT, 1_F),
-label({}, S("and assigned to a font size group where all share the same size."),
-    1_F),
+label({}, S("Labels can be 'left' aligned,"), 1_F, TextAlign::eLEFT),
+label({}, S("or 'right' aligned,"), 1_F, TextAlign::eRIGHT),
+label({},
+      S("and assigned to a font size group where all share the same size."),
+      1_F),
 label({}, S("С поддержкой UTF-8 или широким символом."))));
 // End Samples.
 

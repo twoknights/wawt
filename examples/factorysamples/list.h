@@ -46,9 +46,15 @@ class Lists : public Wawt::ScreenImpl<Lists,DrawOptions> {
     // Called by 'WawtScreenImpl::activate()':
     void resetWidgets() {
         using namespace Wawt;
-        // NOTE: single/multi-select lists retain last selection on prev+next.
+        // NOTE: single-select list retains last selection on prev+next.
         if (d_dropDown) {
             d_dropDown->children()[0].resetLabel(S("")); // but not drop-list
+        }
+
+        if (d_multiSelect) {
+            for (auto& child : d_multiSelect->children()) {
+                child.setSelected(false); // ... and not the mult-select list.
+            }
         }
     }
 
@@ -80,12 +86,11 @@ Lists::createScreenPanel()
                     .options(defaultOptions(WawtEnv::sLabel)
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(
-                    pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}, 0.1}, 2_F, 2,
-                                   {{d_prev, S("Prev")},
-                                    {d_next, S("Next")}}, true)
+                    pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}, 0.1}, 2_F,
+                                   {{d_prev, S("Prev")}, {d_next, S("Next")}})
                                     .border(10).options(lineColor))
                .addChild(
-                    layoutPanel({{-1.0, 1.0, 0_wr}, {1.0, -1.0, 1_wr}},
+                    panelLayout({{-1.0, 1.0, 0_wr}, {1.0, -1.0, 1_wr}},
                                 layoutFn,
 
 // Start Samples:

@@ -44,6 +44,7 @@
 #include "panel.h"
 #include "bullet.h"
 #include "list.h"
+#include "button.h"
 
 using namespace std::chrono_literals;
 
@@ -94,7 +95,7 @@ int main()
     auto wawtEnv     = Wawt::WawtEnv(DrawOptions::classDefaults(),
                                      &drawAdapter);
 
-    Wawt::EventRouter::Handle panels, labels, bullets, lists;
+    Wawt::EventRouter::Handle panels, labels, bullets, lists, buttons;
     auto router  = Wawt::EventRouter();
 
     labels  = router.create<Labels>("Label Samples",
@@ -125,6 +126,15 @@ int main()
                                        router.activate<Bullets>(bullets);
                                        return Wawt::FocusCb();
                                     },
+                                    [&router,&buttons](auto) {
+                                       router.activate<Buttons>(buttons);
+                                       return Wawt::FocusCb();
+                                    });
+    buttons = router.create<Buttons>("Push Buttons & Grids",
+                                    [&router,&lists](auto) {
+                                       router.activate<Lists>(lists);
+                                       return Wawt::FocusCb();
+                                    },
                                     [](auto) {
                                        return Wawt::FocusCb();
                                     });
@@ -134,7 +144,7 @@ int main()
     auto shutdown = []() { return true; };
 
     try {
-        SfmlEventLoop::run(window, router, shutdown, 5ms, WIDTH/4, HEIGHT/4);
+        SfmlEventLoop::run(window, router, shutdown, 5ms, WIDTH/10, HEIGHT/10);
     }
     catch (Wawt::WawtException& e) {
         std::cout << e.what() << std::endl;

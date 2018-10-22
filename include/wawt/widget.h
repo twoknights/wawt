@@ -68,7 +68,7 @@ class  Widget final {
         bool                d_refreshBounds = false;
 
         LayoutData()                        = default;
-        LayoutData(Layout&& layout) noexcept : d_layout(std::move(layout)) { }
+        LayoutData(const Layout& layout) noexcept : d_layout(layout) { }
     };
 
     using DownEventMethod
@@ -128,16 +128,16 @@ class  Widget final {
 
     Widget(char const * const className,
            Widget           **indirect,
-           Layout&&           layout)                                noexcept
+           const Layout&      layout)                                noexcept
         : d_widgetLabel(indirect)
         , d_drawData(className)
-        , d_layoutData(std::move(layout)) {
+        , d_layoutData(layout) {
             if (d_widgetLabel) *d_widgetLabel = this;
         }
 
-    Widget(char const * const className, Layout&& layout)            noexcept
+    Widget(char const * const className, const Layout& layout)       noexcept
         : d_drawData(className)
-        , d_layoutData(std::move(layout)) { }
+        , d_layoutData(layout) { }
 
     // PUBLIC DESTRUCTOR
     ~Widget() noexcept;
@@ -146,12 +146,6 @@ class  Widget final {
 
     Widget  addChild(Widget&& child) &&;
     Widget& addChild(Widget&& child) &;
-
-    Widget addMethod(DownEventMethod&& method) &&                    noexcept;
-    Widget addMethod(DrawMethod&&      method) &&                    noexcept;
-    Widget addMethod(LayoutMethod&&    method) &&                    noexcept;
-    Widget addMethod(NewChildMethod&&  method) &&                    noexcept;
-    Widget addMethod(SerializeMethod&& method) &&                    noexcept;
 
     Widget  border(double percentBorder) &&                          noexcept {
         d_layoutData.d_layout.border(percentBorder);
@@ -193,15 +187,27 @@ class  Widget final {
         return *this;
     }
 
-    Widget  layout(Layout&& newLayout) &&                            noexcept {
-        d_layoutData.d_layout = std::move(newLayout);
+    Widget  layout(const Layout& newLayout) &&                       noexcept {
+        d_layoutData.d_layout = newLayout;
         return std::move(*this);
     }
 
-    Widget& layout(Layout&& newLayout) &                             noexcept {
-        d_layoutData.d_layout = std::move(newLayout);
+    Widget& layout(const Layout& newLayout) &                        noexcept {
+        d_layoutData.d_layout = newLayout;
         return *this;
     }
+
+    Widget  method(DownEventMethod&& newMethod) &&                    noexcept;
+    Widget  method(DrawMethod&&      newMethod) &&                    noexcept;
+    Widget  method(LayoutMethod&&    newMethod) &&                    noexcept;
+    Widget  method(NewChildMethod&&  newMethod) &&                    noexcept;
+    Widget  method(SerializeMethod&& newMethod) &&                    noexcept;
+
+    Widget& method(DownEventMethod&& newMethod) &                     noexcept;
+    Widget& method(DrawMethod&&      newMethod) &                     noexcept;
+    Widget& method(LayoutMethod&&    newMethod) &                     noexcept;
+    Widget& method(NewChildMethod&&  newMethod) &                     noexcept;
+    Widget& method(SerializeMethod&& newMethod) &                     noexcept;
 
     Widget  options(std::any options) &&                             noexcept {
         d_drawData.d_options = std::move(options);
@@ -275,11 +281,9 @@ class  Widget final {
         return d_root;                    
     }
 
-    Widget&   setMethod(DownEventMethod&& method) &                  noexcept;
-    Widget&   setMethod(DrawMethod&&      method) &                  noexcept;
-    Widget&   setMethod(LayoutMethod&&    method) &                  noexcept;
-    Widget&   setMethod(NewChildMethod&&  method) &                  noexcept;
-    Widget&   setMethod(SerializeMethod&& method) &                  noexcept;
+    void      setSelected(bool setting)                              noexcept {
+        d_drawData.d_selected = setting;
+    }
 
     // PUBLIC ACCESSORS
 
@@ -317,6 +321,10 @@ class  Widget final {
 
     bool            isHidden()                                 const noexcept {
         return d_drawData.d_hidden;
+    }
+
+    bool            isSelected()                               const noexcept {
+        return d_drawData.d_selected;
     }
 
     const LayoutData& layoutData()                             const noexcept {
