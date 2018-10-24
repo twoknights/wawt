@@ -54,37 +54,16 @@ void drawBox(sf::RenderWindow  *window,
              float              height,
              sf::Color          lineColor,
              sf::Color          fillColor,
-             float              xborder,
-             float              yborder) {
+             float              border) {
     sf::RectangleShape rectangle({width, height});
 
-    if (lineColor.a > 0 && (xborder > 0 || yborder > 0)) {
+    if (lineColor.a > 0 && border > 0) {
         rectangle.setOutlineColor(lineColor);
-        rectangle.setOutlineThickness(1);
+        rectangle.setOutlineThickness(-border);
     }
     rectangle.setFillColor(fillColor);
     rectangle.setPosition(x, y);
     window->draw(rectangle);
-
-    if (lineColor.a > 0) {
-        rectangle.setFillColor(lineColor);
-
-        if (xborder >= 2) {
-            rectangle.setPosition(x, y);
-            rectangle.setSize({xborder, height});
-            window->draw(rectangle);
-            rectangle.setPosition(x+width-xborder, y);
-            window->draw(rectangle);
-        }
-
-        if (yborder >= 2) {
-            rectangle.setPosition(x, y);
-            rectangle.setSize({width, yborder});
-            window->draw(rectangle);
-            rectangle.setPosition(x, y+height-yborder);
-            window->draw(rectangle);
-        }
-    }
 }
 
 void drawArrow(sf::RenderWindow  *window,
@@ -256,16 +235,15 @@ SfmlDrawAdapter::draw(const Wawt::DrawData& drawData) noexcept
 
     auto& box = drawData.d_rectangle;
     drawBox(&d_window,
-            float(box.d_ux),
-            float(box.d_uy),
-            float(box.d_width),
-            float(box.d_height),
+            float(std::floor(box.d_ux)),
+            float(std::floor(box.d_uy)),
+            float(std::ceil(box.d_width)),
+            float(std::ceil(box.d_height)),
             lineColor,
             (drawData.d_selected
           && drawData.d_labelMark==DrawData::BulletMark::eNONE)
                 ? selectColor : fillColor,
-            drawData.d_borders.d_x,
-            drawData.d_borders.d_y);
+            float(std::ceil(drawData.d_border)));
 
     auto bounds = sf::FloatRect{};
 
@@ -346,7 +324,6 @@ SfmlDrawAdapter::draw(const Wawt::DrawData& drawData) noexcept
                     2*radius,
                     textColor,
                     drawData.d_selected ? textColor : fillColor,
-                    border,
                     border);
         }
 
@@ -375,7 +352,7 @@ SfmlDrawAdapter::getTextMetrics(Wawt::Dimensions          *textBounds,
         }
     }
     sf::Font&     font = getFont(effects.d_fontIndex);
-    sf::Text      label{string, font, charSize};
+    sf::Text      label{string, font, charSize}; // See: upperLimit == 0 below
 
     if (effects.d_boldEffect) {
         label.setStyle(sf::Text::Bold);
@@ -386,7 +363,7 @@ SfmlDrawAdapter::getTextMetrics(Wawt::Dimensions          *textBounds,
     }
     else {
         auto lowerLimit = 1u;
-        charSize        = upperLimit;
+        charSize        = upperLimit-1;
 
         while (upperLimit - lowerLimit > 1) {
             label.setCharacterSize(charSize);

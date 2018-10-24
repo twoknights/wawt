@@ -282,6 +282,12 @@ Widget::DownEventMethod eatDownEvents() {
         };                                                            // RETURN
 }
 
+float borderThickness(const Widget& root, const Layout& layout) {
+    auto min = std::min(root.drawData().d_rectangle.d_width,
+                        root.drawData().d_rectangle.d_height);
+    return float(min * layout.d_thickness / 1000.0);                  // RETURN
+}
+
 bool findWidget(const Widget              **widget,
                 const Widget&               parent,
                 uint16_t                    id) {
@@ -325,9 +331,9 @@ Corner findCorner(const Layout::Position& position,
     auto yradius = lr_y - yorigin;
 
     if (reference == &parent || reference == &root) {
-        auto       thickness  = reference->drawData().d_borders;
-        xradius -= thickness.d_x;
-        yradius -= thickness.d_y;
+        auto       thickness  = std::ceil(reference->drawData().d_border);
+        xradius -= thickness;
+        yradius -= thickness;
     }
 
     auto x = xorigin + position.d_sX*xradius;
@@ -413,38 +419,39 @@ char     WawtEnv::sPanel[]    = "panel";
 char     WawtEnv::sLabel[]    = "label";
 char     WawtEnv::sPush[]     = "pushButton";
 char     WawtEnv::sBullet[]   = "bulletMark";
-char     WawtEnv::sDropDown[] = "dropDown";
 char     WawtEnv::sItem[]     = "item";
 char     WawtEnv::sList[]     = "list";
 
-LayoutGenerator gridLayoutGenerator(double       percentBorder,
-                                    std::size_t  columns,
+LayoutGenerator gridLayoutGenerator(double       borderThickness,
                                     std::size_t  widgetCount,
+                                    std::size_t  columns,
                                     std::size_t *rowsOut)              noexcept
 {
-    if (columns == 0 || percentBorder > 100.0) {
+    if (widgetCount == 0) {
         return std::function<Layout()>();                             // RETURN
+    }
+
+    if (columns == 0) {
+        columns = widgetCount;
     }
     auto rows = widgetCount/columns;
 
-    if (widgetCount % columns > 0 || rows == 0) {
+    if (widgetCount % columns > 0) {
         rows += 1;
     }
 
     if (rowsOut) {
         *rowsOut = rows;
     }
-    auto border = percentBorder >= 0.0 ? percentBorder : 0.0;
-    auto yinc = 2.0/(double(rows) - (rows-1)*border/200.0);
-    auto xinc = 2.0/(double(columns) - (columns-1)*border/200.0);
+
+    auto yinc = 2.0/double(rows);
+    auto xinc = 2.0/double(columns);
     return
-        [columns, xinc, yinc, percentBorder, border, c = 0u, r = 0u]() mutable
+        [columns, xinc, yinc, borderThickness, c = 0u, r = 0u]() mutable
         {
-            auto bx = c == 0 ? 0.0 : c*xinc*border/200.0;
-            auto by = r == 0 ? 0.0 : r*yinc*border/200.0;
-            auto layout = Layout({-1.0+  c  *xinc - bx, -1.0+  r  *yinc - by},
-                                 {-1.0+(c+1)*xinc - bx, -1.0+(r+1)*yinc - by},
-                                 percentBorder);
+            auto layout = Layout({-1.0+  c  *xinc, -1.0+  r  *yinc},
+                                 {-1.0+(c+1)*xinc, -1.0+(r+1)*yinc},
+                                 borderThickness);
             if (++c == columns) {
                 c  = 0;
                 r += 1;
@@ -593,7 +600,11 @@ Widget::layout(DrawProtocol       *adapter,
 
     d_layoutData.d_refreshBounds = false;
 
-    if (hasChildren()) {
+    auto space = std::min(d_drawData.d_rectangle.d_width,
+                          d_drawData.d_rectangle.d_height)
+               - 2*d_drawData.d_border;
+
+    if (space > 8 && hasChildren()) {
         for (auto& child : children()) {
             child.layout(adapter, firstPass, *this);
         }
@@ -618,21 +629,8 @@ Widget::defaultLayout(Widget                  *widget,
     auto const& layoutData = widget->layoutData();
 
     if (firstPass) {
-        data.d_rectangle   = makeRectangle(layoutData.d_layout, parent, root);
-
-        auto borderRatio   = layoutData.d_layout.d_percentBorder/200.0;
-        data.d_borders.d_x = std::round(data.d_rectangle.d_width *borderRatio);
-        data.d_borders.d_y = std::round(data.d_rectangle.d_height*borderRatio);
-
-        if (borderRatio > 0) { // There should always be a border displayed...
-            if (data.d_borders.d_x == 0)  {
-                data.d_borders.d_x = 1;
-            }
-
-            if (data.d_borders.d_y == 0)  {
-                data.d_borders.d_y = 1;
-            }
-        }
+        data.d_rectangle= makeRectangle(layoutData.d_layout, parent, root);
+        data.d_border   = borderThickness(root, layoutData.d_layout);
     }
 
     if (!data.d_label.empty()
@@ -668,8 +666,8 @@ Widget::defaultSerialize(std::ostream&      os,
     spaces += 2;
     os << spaces << "<layout border='";
 
-    if (layout.d_percentBorder >= 0.0) {
-        os << layout.d_percentBorder;
+    if (layout.d_thickness >= 0.0) {
+        os << layout.d_thickness;
     }
 
     if (layout.d_pin != Layout::Vertex::eNONE) {
@@ -753,13 +751,12 @@ Widget::labelLayout(DrawData                  *data,
 {
     auto charSizeMap      = layoutData.d_charSizeMap.get();
     auto charSizeLimit    = data->d_rectangle.d_height;
-    auto borderAdjustment = Dimensions{2*(data->d_borders.d_x+1),
-                                       2*(data->d_borders.d_y+1)};
+    auto borderAdjustment = 2*(data->d_border + 1);
 
-    if (charSizeLimit <= borderAdjustment.d_y) {
+    if (charSizeLimit <= borderAdjustment) {
         return;                                                       // RETURN
     }
-    charSizeLimit -= borderAdjustment.d_y;
+    charSizeLimit -= borderAdjustment;
 
     if (layoutData.d_charSizeGroup) {
         if (auto it  = charSizeMap->find(*layoutData.d_charSizeGroup);
@@ -769,23 +766,26 @@ Widget::labelLayout(DrawData                  *data,
             }
         }
     }
-    data->d_labelBounds.d_ux= data->d_rectangle.d_ux + data->d_borders.d_x + 1;
-    data->d_labelBounds.d_uy= data->d_rectangle.d_uy + data->d_borders.d_y + 1;
+    data->d_labelBounds.d_ux= data->d_rectangle.d_ux + data->d_border + 1;
+    data->d_labelBounds.d_uy= data->d_rectangle.d_uy + data->d_border + 1;
 
     if (firstPass || data->d_charSize + 1 != charSizeLimit) {
         auto textBounds = Dimensions{
-            data->d_rectangle.d_width  - borderAdjustment.d_x,
-            data->d_rectangle.d_height - borderAdjustment.d_y };
+            data->d_rectangle.d_width  - borderAdjustment,
+            data->d_rectangle.d_height - borderAdjustment };
 
         if (data->d_label.empty()) {
             data->d_charSize = charSizeLimit-1;
         }
         else if (!adapter->getTextMetrics(&textBounds,
-                                        &data->d_charSize,
-                                        *data,
-                                        charSizeLimit)) {
+                                          &data->d_charSize,
+                                          *data,
+                                          charSizeLimit)) {
             assert(!"Failed to get text metrics.");
             data->d_charSize    = charSizeLimit - 1;
+        }
+        else {
+            assert(data->d_charSize < charSizeLimit);
         }
 
         if (layoutData.d_charSizeGroup) {
@@ -798,7 +798,7 @@ Widget::labelLayout(DrawData                  *data,
     if (layoutData.d_textAlign != TextAlign::eLEFT) {
         auto space = data->d_rectangle.d_width
                    - data->d_labelBounds.d_width
-                   - borderAdjustment.d_x;
+                   - borderAdjustment;
 
         if (layoutData.d_textAlign == TextAlign::eCENTER) {
             space /= 2.0f;
@@ -807,7 +807,7 @@ Widget::labelLayout(DrawData                  *data,
     }
     auto space = data->d_rectangle.d_height
                - data->d_labelBounds.d_height
-               - borderAdjustment.d_y;
+               - borderAdjustment;
 
     space /= 2.0f;
     data->d_labelBounds.d_uy += space;
@@ -1005,10 +1005,9 @@ Widget::assignWidgetIds(uint16_t        next,
         d_layoutData.d_layout.d_lowerRight= { 1.0,  1.0};
     }
 
-    if (d_layoutData.d_layout.d_percentBorder == -1.0) {
-        auto percent = WawtEnv::defaultBorderThickness(className());
-        d_layoutData.d_layout.d_percentBorder = percent<100.f ? float(percent)
-                                                              : 99.9f;
+    if (d_layoutData.d_layout.d_thickness == -1.0) {
+        auto thickness = WawtEnv::defaultBorderThickness(className());
+        d_layoutData.d_layout.d_thickness = thickness;
     }
 
     if (!options().has_value()) {
@@ -1216,13 +1215,12 @@ Widget::resizeScreen(double width, double height, DrawProtocol *adapter)
 {
     if (d_root && adapter) {
         if (d_root == this) {
-            auto scale = d_layoutData.d_layout.d_percentBorder/200.0;
             assert(d_layoutData.d_charSizeMap);
             d_layoutData.d_charSizeMap->clear();
             d_root->d_drawData.d_rectangle.d_width  = width;
             d_root->d_drawData.d_rectangle.d_height = height;
-            d_root->d_drawData.d_borders.d_x        = width  * scale;
-            d_root->d_drawData.d_borders.d_y        = height * scale;
+            d_root->d_drawData.d_border
+                = float(width * layout().d_thickness/1000.0);
 
             if (hasChildren()) {
                 for (auto& child : children()) {
@@ -1295,12 +1293,11 @@ Draw::draw(const DrawData& drawData)  noexcept
          << "'>\n";
     spaces += 2;
     d_os << spaces
-         << "<rect x='"       << std::round(drawData.d_rectangle.d_ux)
-         <<     "' y='"       << std::round(drawData.d_rectangle.d_uy)
-         <<     "' width='"   << std::round(drawData.d_rectangle.d_width)
-         <<     "' height='"  << std::round(drawData.d_rectangle.d_height)
-         <<     "' xborder='" << drawData.d_borders.d_x
-         <<     "' yborder='" << drawData.d_borders.d_y
+         << "<rect x='"       << std::floor(drawData.d_rectangle.d_ux)
+         <<     "' y='"       << std::floor(drawData.d_rectangle.d_uy)
+         <<     "' width='"   << std::ceil(drawData.d_rectangle.d_width)
+         <<     "' height='"  << std::ceil(drawData.d_rectangle.d_height)
+         <<     "' border='"  << std::ceil(drawData.d_border)
          << "'/>\n";
 
     if (drawData.d_labelBounds.d_width > 0) {
@@ -1338,10 +1335,9 @@ Draw::getTextMetrics(Dimensions          *textBounds,
     if (drawData.d_labelMark != DrawData::BulletMark::eNONE) {
         count += 1;
     }
-    auto  borders   = Dimensions{2*(drawData.d_borders.d_x+1),
-                                 2*(drawData.d_borders.d_y+1)};
-    auto  width     = drawData.d_rectangle.d_width  - borders.d_x;
-    auto  height    = drawData.d_rectangle.d_height - borders.d_y;
+    auto  thickness = std::ceil(drawData.d_border);
+    auto  width     = drawData.d_rectangle.d_width  - 2*thickness - 2;
+    auto  height    = drawData.d_rectangle.d_height - 2*thickness - 2;
     auto  size      = count > 0 ? width/count : height;
 
     *charSize   = size >= upperLimit ? upperLimit - 1 : size;
@@ -1349,5 +1345,5 @@ Draw::getTextMetrics(Dimensions          *textBounds,
     return true;                                                      // RETURN
 }
 
-}  // namespace BDS
+}  // namespace Wawt
 // vim: ts=4:sw=4:et:ai

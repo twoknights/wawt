@@ -83,7 +83,6 @@ class WawtEnv {
     static char    sLabel[];
     static char    sPush[];
     static char    sBullet[];
-    static char    sDropDown[];
     static char    sItem[];
     static char    sList[];
 

@@ -86,19 +86,19 @@ Lists::createScreenPanel()
                     .options(defaultOptions(WawtEnv::sLabel)
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(
-                    pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}, 0.1}, 2_F,
+                    pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}}, -1.0, 2_Sz,
                                    {{d_prev, S("Prev")}, {d_next, S("Next")}})
-                                    .border(10).options(lineColor))
+                                    .border(5).options(lineColor))
                .addChild(
                     panelLayout({{-1.0, 1.0, 0_wr}, {1.0, -1.0, 1_wr}},
                                 layoutFn,
 
 // Start Samples:
-fixedSizeList(&d_singleSelect, {}, true, GridFocusCb(), 1_F,
+fixedSizeList(&d_singleSelect, {}, true, GridFocusCb(), 1_Sz,
               {S("Single Select"), S("Second"), S("Third"), S("Fourth")}),
-fixedSizeList(&d_multiSelect, {}, false, GridFocusCb(), 1_F,
+fixedSizeList(&d_multiSelect, {}, false, GridFocusCb(), 1_Sz,
               {S("Multi Select"), S("Second"), S("Third"), S("Fourth")}),
-dropDownList(&d_dropDown, {}, GridFocusCb(), 1_F,
+dropDownList(&d_dropDown, {}, GridFocusCb(), 1_Sz,
               {S("First"), S("Second"), S("Third"), S("Fourth")})));
 // End Samples.
 

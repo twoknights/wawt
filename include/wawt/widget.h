@@ -45,7 +45,7 @@ namespace Wawt {
 enum class  TextAlign { eINVALID, eLEFT, eCENTER, eRIGHT };
 struct      CharSizeGroup : std::optional<uint16_t> { };
 
-inline constexpr CharSizeGroup operator ""_F(unsigned long long int n) {
+inline constexpr CharSizeGroup operator ""_Sz(unsigned long long int n) {
     return CharSizeGroup{n};
 }
 
@@ -147,9 +147,14 @@ class  Widget final {
     Widget  addChild(Widget&& child) &&;
     Widget& addChild(Widget&& child) &;
 
-    Widget  border(double percentBorder) &&                          noexcept {
-        d_layoutData.d_layout.border(percentBorder);
+    Widget  border(double thickness) &&                              noexcept {
+        d_layoutData.d_layout.border(thickness);
         return std::move(*this);
+    }
+
+    Widget& border(double thickness) &                               noexcept {
+        d_layoutData.d_layout.border(thickness);
+        return *this;
     }
 
     Widget  className(char const * const className) &&               noexcept {

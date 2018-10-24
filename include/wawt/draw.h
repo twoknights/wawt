@@ -53,7 +53,7 @@ struct DrawData {
                         d_labelMark:3,
                         d_relativeId:9;
     Rectangle           d_rectangle{};
-    Dimensions          d_borders{};
+    float               d_border;
     Rectangle           d_labelBounds{};
     StringView_t        d_label{};
     std::any            d_options{};

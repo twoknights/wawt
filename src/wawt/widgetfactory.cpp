@@ -59,10 +59,10 @@ void addDropDown(Widget *dropDown, Widget *select, const GridFocusCb& selectCb)
                                  };
                          });
     auto screenBox                  = root->drawData().d_rectangle;
-    auto screenBorders              = root->drawData().d_borders;
+    auto screenBorder               = root->drawData().d_border;
     soak.drawData().d_rectangle     = screenBox;
-    soak.drawData().d_borders       = screenBorders;
-    auto& screen = root->children().emplace_back(std::move(soak));
+    soak.drawData().d_border        = screenBorder;
+    auto& screen         = root->children().emplace_back(std::move(soak));
     auto  newChildMethod = root->getInstalled<Widget::NewChildMethod>();
     
     if (newChildMethod) {
@@ -80,8 +80,8 @@ void addDropDown(Widget *dropDown, Widget *select, const GridFocusCb& selectCb)
     auto lx    = ux + list.drawData().d_rectangle.d_width;
     auto ly    = uy + list.drawData().d_rectangle.d_height;
 
-    auto width = screenBox.d_width  - 2*screenBorders.d_x;
-    auto height= screenBox.d_height - 2*screenBorders.d_y;
+    auto width = screenBox.d_width  - 2*screenBorder;
+    auto height= screenBox.d_height - 2*screenBorder;
 
     list.layout().d_upperLeft.d_sX         = -1.0 + 2.0 * ux / width;
     list.layout().d_upperLeft.d_sY         = -1.0 + 2.0 * uy / height;
@@ -235,39 +235,28 @@ Widget::LayoutMethod genSpacedLayout(const DimensionPtr&   bounds,
                 }
                 return;
             }
-            // bounds gives the text box dimensions. Figure out the border:
-            auto ratio = widget->layoutData().d_layout.d_percentBorder/200.0;
-            auto width = (bounds->d_x+2) / (1.0 - ratio);
-            auto height= (bounds->d_y+2) / (1.0 - ratio) - 2;
+            // 'bounds' gives the text box dimensions. The border thickness
+            // is unchanged, so:
+            auto width = bounds->d_x + 2*(data.d_border + 1);
+            auto height= bounds->d_y + 2*(data.d_border + 1);
 
+            // Now placing the widget requires the panels dimensions to
+            // calculate the border margin and spacing between buttons.
             auto panelWidth   = parent.drawData().d_rectangle.d_width;
             auto panelHeight  = parent.drawData().d_rectangle.d_height;
-            auto panelBorders = parent.drawData().d_borders;
+            auto panelBorder  = parent.drawData().d_border;
 
-            if (panelWidth-2*panelBorders.d_x <= width) {
+            if (panelWidth-2*panelBorder <= width) {
                 assert(!"width bad");
-                width = panelWidth-2*panelBorders.d_x;
+                width = panelWidth-2*panelBorder;
             }
 
-            if (panelHeight-2*panelBorders.d_y <= height) {
+            if (panelHeight-2*panelBorder <= height) {
                 assert(!"height bad");
-                height = panelHeight-2*panelBorders.d_y;
+                height = panelHeight-2*panelBorder;
             }
 
-            data.d_borders= Dimensions{float(bounds->d_x * ratio),
-                                       float(bounds->d_y * ratio)};
-
-            if (ratio > 0) { // always have a border
-                if (data.d_borders.d_x == 0) {
-                    data.d_borders.d_x = 1;
-                }
-                if (data.d_borders.d_y == 0) {
-                    data.d_borders.d_y = 1;
-                }
-            }
-            auto offset      = Dimensions{2*(data.d_borders.d_x+2),
-                                          2*(data.d_borders.d_y+2)};
-            // Calculate seperator spacing between buttons:
+            // Calculate separator spacing between buttons:
             auto spacex = columns == 1
                 ? 0
                 : (panelWidth - columns*width)/(columns - 1);
@@ -299,10 +288,10 @@ Widget::LayoutMethod genSpacedLayout(const DimensionPtr&   bounds,
                                         + marginy + r * (spacey+height);
             auto& label         = data.d_labelBounds;
             label.d_uy          = rectangle.d_uy + (height-label.d_height)/2.0;
-            label.d_ux          = rectangle.d_ux + offset.d_x/2.0;
+            label.d_ux          = rectangle.d_ux +  data.d_border + 1;
 
             if (alignment != TextAlign::eLEFT) {
-                auto space = width - label.d_width - offset.d_x;
+                auto space = width - label.d_width - 2*(data.d_border+1);
 
                 if (alignment == TextAlign::eCENTER) {
                     space /= 2.0;
@@ -322,7 +311,7 @@ Widget checkBox(Widget                **indirect,
 {
     return  Widget(WawtEnv::sBullet, indirect, layout)
             .method(makeToggleButtonDownMethod(GridFocusCb()))
-            .labelSelect(layout.d_percentBorder <= 0.0)
+            .labelSelect(layout.d_thickness <= 0.0)
             .text(string, group, alignment)
             .textMark(DrawData::BulletMark::eSQUARE,
                       alignment != TextAlign::eRIGHT);                // RETURN
@@ -335,7 +324,7 @@ Widget checkBox(const Layout&           layout,
 {
     return  Widget(WawtEnv::sBullet, layout)
             .method(makeToggleButtonDownMethod(GridFocusCb()))
-            .labelSelect(layout.d_percentBorder <= 0.0)
+            .labelSelect(layout.d_thickness <= 0.0)
             .text(string, group, alignment)
             .textMark(DrawData::BulletMark::eSQUARE,
                       alignment != TextAlign::eRIGHT);                // RETURN
@@ -354,12 +343,10 @@ Widget dropDownList(Widget                   **indirect,
     // and prevents down click events from being propagated to any other widget
     // if it isn't on the drop-down list proper (instead the drop-down
     // [and its parent] are removed).
-    auto selectLayout = gridLayoutGenerator(layout.d_percentBorder,
-                                            1,
-                                            labels.size()+1);
+    auto selectLayout = gridLayoutGenerator(-1.0, labels.size()+1, 1);
     auto parent
         = panel(indirect, layout.border(0.0))
-            .addChild(Widget(WawtEnv::sPush, selectLayout())
+            .addChild(Widget(WawtEnv::sList, selectLayout())
                         .method(createDropDown(std::move(selectCb)))
                         .text(S(""), group, TextAlign::eLEFT)
                         .textMark(DrawData::BulletMark::eDOWNARROW))
@@ -387,7 +374,7 @@ Widget fixedSizeList(Widget                **indirect,
                      CharSizeGroup           group,
                      LabelList               labels)
 {
-    auto childLayout = gridLayoutGenerator(0.0, 1, labels.size());
+    auto childLayout = gridLayoutGenerator(-1.0, labels.size(), 1);
     auto list        = Widget(WawtEnv::sList, indirect, listLayout);
 
     for (auto& label : labels) {
@@ -500,29 +487,49 @@ Widget pushButton(Widget              **indirect,
 }
 
 Widget pushButtonGrid(Widget                **indirect,
-                      Layout                  layout,
+                      Layout                  gridLayout,
                       int                     columns,
+                      double                  borderThickness,
                       CharSizeGroup           group,
                       TextAlign               alignment,
                       FocusChgLabelList       buttonDefs,
-                      bool                    fitted)
+                      bool                    spaced)
 {
-    auto border      = layout.d_percentBorder;
-    auto gridPanel   = panel(indirect, layout.border(0.0));
+    auto gridPanel   = panel(indirect, gridLayout);
     auto rows        = std::size_t{};
-    auto childLayout = gridLayoutGenerator(border,
-                                           columns,
+    auto childLayout = gridLayoutGenerator(borderThickness,
                                            buttonDefs.size(),
+                                           columns,
                                            &rows);
     auto bounds      = std::make_shared<Dimensions>();
 
+    if (spaced) {
+        gridPanel.method(
+            [] (Widget                 *widget,
+                const Widget&           parent,
+                const Widget&           root,
+                bool                    firstPass,
+                DrawProtocol           *adapter) -> void
+            {
+                if (firstPass) {
+                    Widget::defaultLayout(widget, parent, root, true, adapter);
+                }
+                else if (widget->hasChildren()) {
+                    for (auto& child : widget->children()) {
+                        auto fn = child.getInstalled<Widget::LayoutMethod>();
+                        fn(&child, *widget, root, true, adapter);
+                    }
+                }
+            });
+    }
+                    
     for (auto& [click, label] : buttonDefs) {
         gridPanel.addChild(pushButton(childLayout(),
                                       click,
                                       label,
                                       group,
                                       alignment));
-        if (fitted) {
+        if (spaced) {
             gridPanel.children()
                      .back()
                      .method(genSpacedLayout(bounds,
@@ -534,67 +541,76 @@ Widget pushButtonGrid(Widget                **indirect,
     return gridPanel;                                                 // RETURN
 }
 
-Widget pushButtonGrid(const Layout&           layout,
+Widget pushButtonGrid(const Layout&           gridLayout,
                       int                     columns,
+                      double                  borderThickness,
                       CharSizeGroup           group,
                       TextAlign               alignment,
                       FocusChgLabelList       buttonDefs,
-                      bool                    fitted)
+                      bool                    spaced)
 {
-    return pushButtonGrid(nullptr,  layout, columns, group,
-                          alignment, buttonDefs, fitted);             // RETURN
+    return pushButtonGrid(nullptr,  gridLayout, columns, borderThickness,
+                          group, alignment, buttonDefs, spaced);      // RETURN
 }
 
 Widget pushButtonGrid(Widget                **indirect,
-                      const Layout&           layout,
+                      const Layout&           gridLayout,
                       int                     columns,
+                      double                  borderThickness,
                       CharSizeGroup           group,
                       FocusChgLabelList       buttonDefs,
-                      bool                    fitted)
+                      bool                    spaced)
 {
-    return pushButtonGrid(indirect, layout, columns, group,
-                          TextAlign::eCENTER, buttonDefs, fitted);    // RETURN
+    return pushButtonGrid(indirect, gridLayout, columns, borderThickness,
+                          group, TextAlign::eCENTER, buttonDefs,
+                          spaced);                                    // RETURN
 }
 
-Widget pushButtonGrid(const Layout&           layout,
+Widget pushButtonGrid(const Layout&           gridLayout,
                       int                     columns,
+                      double                  borderThickness,
                       CharSizeGroup           group,
                       FocusChgLabelList       buttonDefs,
-                      bool                    fitted)
+                      bool                    spaced)
 {
-    return pushButtonGrid(nullptr,  layout, columns, group,
-                          TextAlign::eCENTER, buttonDefs, fitted);    // RETURN
+    return pushButtonGrid(nullptr, gridLayout, columns, borderThickness,
+                          group, TextAlign::eCENTER, buttonDefs,
+                          spaced);                                    // RETURN
 }
 
 Widget pushButtonGrid(Widget                **indirect,
-                      const Layout&           layout,
+                      const Layout&           gridLayout,
+                      double                  borderThickness,
                       CharSizeGroup           group,
                       FocusChgLabelList       buttonDefs,
-                      bool                    fitted)
+                      bool                    spaced)
 {
-    return pushButtonGrid(indirect, layout, buttonDefs.size(),group,
-                          TextAlign::eCENTER, buttonDefs, fitted);    // RETURN
+    return pushButtonGrid(indirect, gridLayout, buttonDefs.size(),
+                          borderThickness, group, TextAlign::eCENTER,
+                          buttonDefs, spaced);                        // RETURN
 }
 
-Widget pushButtonGrid(const Layout&           layout,
+Widget pushButtonGrid(const Layout&           gridLayout,
+                      double                  borderThickness,
                       CharSizeGroup           group,
                       FocusChgLabelList       buttonDefs,
-                      bool                    fitted)
+                      bool                    spaced)
 {
-    return pushButtonGrid(nullptr, layout, buttonDefs.size(), group,
-                          TextAlign::eCENTER, buttonDefs, fitted);    // RETURN
+    return pushButtonGrid(nullptr, gridLayout, buttonDefs.size(),
+                          borderThickness, group, TextAlign::eCENTER,
+                          buttonDefs, spaced);    // RETURN
 }
 
 Widget radioButtonPanel(Widget                **indirect,
-                        const Layout&           layout,
+                        const Layout&           panelLayout,
                         const GridFocusCb&      gridCb,
                         CharSizeGroup           group,
                         TextAlign               alignment,
                         LabelList               labels,
                         int                     columns)
 {
-    auto childLayout = gridLayoutGenerator(0.0, columns, labels.size());
-    auto gridPanel   = Widget(WawtEnv::sPanel, indirect, layout);
+    auto childLayout = gridLayoutGenerator(0.0, labels.size(), columns);
+    auto gridPanel   = Widget(WawtEnv::sPanel, indirect, panelLayout);
 
     for (auto& label : labels) {
         gridPanel.addChild(
@@ -609,35 +625,35 @@ Widget radioButtonPanel(Widget                **indirect,
     return gridPanel;                                                 // RETURN
 }
 
-Widget radioButtonPanel(const Layout&           layout,
+Widget radioButtonPanel(const Layout&           panelLayout,
                         const GridFocusCb&      gridCb,
                         CharSizeGroup           group,
                         TextAlign               alignment,
                         LabelList               labels,
                         int                     columns)
 {
-    return radioButtonPanel(nullptr, layout,
+    return radioButtonPanel(nullptr, panelLayout,
                             gridCb, group, alignment, labels, columns);
 }
 
 Widget radioButtonPanel(Widget                **indirect,
-                        const Layout&           layout,
+                        const Layout&           panelLayout,
                         const GridFocusCb&      gridCb,
                         CharSizeGroup           group,
                         LabelList               labels,
                         int                     columns)
 {
-    return radioButtonPanel(indirect, layout,
+    return radioButtonPanel(indirect, panelLayout,
                             gridCb, group, TextAlign::eLEFT, labels, columns);
 }
 
-Widget radioButtonPanel(const Layout&           layout,
+Widget radioButtonPanel(const Layout&           panelLayout,
                         const GridFocusCb&      gridCb,
                         CharSizeGroup           group,
                         LabelList               labels,
                         int                     columns)
 {
-    return radioButtonPanel(nullptr, layout,
+    return radioButtonPanel(nullptr, panelLayout,
                             gridCb, group, TextAlign::eLEFT, labels, columns);
 }
 

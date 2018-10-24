@@ -61,7 +61,7 @@ Bullets::createScreenPanel()
                                           .d_fillColor);
     // 4 examples in panels layed-out in quadrants and then "shrunk" by 20%
     // so they don't share common borders:
-    auto layoutGrid  = gridLayoutGenerator(0.0, 2, 4);
+    auto layoutGrid  = gridLayoutGenerator(0.0, 4, 2);
     auto layoutFn    =
         [layoutGrid]() mutable -> Layout {
             return layoutGrid().scale(0.8, 0.8);
@@ -74,18 +74,18 @@ Bullets::createScreenPanel()
                     .options(defaultOptions(WawtEnv::sLabel)
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(
-                    pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}, 0.1}, 2_F,
+                    pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}}, -1.0, 2_Sz,
                                    {{d_prev, S("Prev")}, {d_next, S("Next")}})
-                                    .border(10).options(lineColor))
+                                    .border(5).options(lineColor))
                .addChild(
                     panelLayout({{-1.0, 1.0, 0_wr}, {1.0, -1.0, 1_wr}},
                                 layoutFn,
 
 // Start Samples:
-checkBox({}, S("Left alignment."), 1_F),
-checkBox({}, S("Right alignment."), 1_F, TextAlign::eRIGHT),
-radioButtonPanel({}, GridFocusCb(), 1_F, { S("A"), S("B"), S("C") }),
-radioButtonPanel({}, GridFocusCb(), 1_F, TextAlign::eRIGHT,
+checkBox({}, S("Left alignment."), 1_Sz),
+checkBox({}, S("Right alignment."), 1_Sz, TextAlign::eRIGHT),
+radioButtonPanel({}, GridFocusCb(), 1_Sz, { S("A"), S("B"), S("C") }),
+radioButtonPanel({}, GridFocusCb(), 1_Sz, TextAlign::eRIGHT,
                  { S("A"), S("B"), S("C"), S("D") }, 2)));
 // End Samples.
 

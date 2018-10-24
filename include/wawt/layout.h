@@ -108,43 +108,43 @@ struct Layout {
     }
 
     constexpr static Layout duplicate(WidgetId  id,
-                                      double    percent   = -1.0)   noexcept {
-        return Layout({-1.0, -1.0, id}, {1.0, 1.0, id}, percent);
+                                      double    thickness = -1.0)   noexcept {
+        return Layout({-1.0, -1.0, id}, {1.0, 1.0, id}, thickness);
     }
 
     // PUBLIC DATA MEMBERS
     Position            d_upperLeft{};
     Position            d_lowerRight{1.0,1.0};
     Vertex              d_pin{Vertex::eNONE};
-    float               d_percentBorder = -1.0;
+    float               d_thickness = -1.0;
 
     // PUBLIC CONSTRUCTORS
     constexpr Layout()                  = default;
 
     constexpr Layout(const Position&  upperLeft,
                      const Position&  lowerRight,
-                     double           percent   = -1.0)             noexcept
+                     double           thickness = -1.0)             noexcept
         : d_upperLeft(upperLeft)
         , d_lowerRight(lowerRight)
-        , d_percentBorder(percent < 100.0 ? float(percent) : 99.9f) { }
+        , d_thickness(float(thickness)) { }
 
     constexpr Layout(const Position&   upperLeft,
                      const Position&   lowerRight,
                      Vertex            pin,
-                     double            percent   = -1.0)            noexcept
+                     double            thickness = -1.0)            noexcept
         : d_upperLeft(upperLeft)
         , d_lowerRight(lowerRight)
         , d_pin(pin)
-        , d_percentBorder(percent < 100.0 ? float(percent) : 99.9f) { }
+        , d_thickness(float(thickness)) { }
 
-    // PUBLIC Ref-Qualified MANIPULATORS
-    constexpr Layout&& border(double percent) &&                    noexcept {
-        this->border(percent);
+    // PUBLIC Reference Qualified MANIPULATORS
+    constexpr Layout&& border(double thickness) &&                  noexcept {
+        d_thickness = float(thickness);
         return std::move(*this);
     }
 
-    constexpr Layout& border(double percent)  &                     noexcept {
-        d_percentBorder = percent < 100.0 ? float(percent) : 99.9f;
+    constexpr Layout&  border(double thickness) &                   noexcept {
+        d_thickness = float(thickness);
         return *this;
     }
 
@@ -173,9 +173,9 @@ struct Layout {
 
 using LayoutGenerator = std::function<Layout()>;
 
-LayoutGenerator gridLayoutGenerator(double       percentBorder,
-                                    std::size_t  columns,
-                                    std::size_t  widgetCount= 0,
+LayoutGenerator gridLayoutGenerator(double       borderThickness,
+                                    std::size_t  widgetCount,
+                                    std::size_t  columns    = 0,
                                     std::size_t *rows       = nullptr)noexcept;
 
 } // end Wawt namespace

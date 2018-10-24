@@ -61,7 +61,7 @@ Panels::createScreenPanel()
     auto lineColor   = defaultOptions(WawtEnv::sPanel)
                           .lineColor(defaultOptions(WawtEnv::sScreen)
                                           .d_fillColor);
-    auto layoutGrid  = gridLayoutGenerator(0.0, 2, 4);
+    auto layoutGrid  = gridLayoutGenerator(0.0, 4, 2);
     auto layoutFn    =
         [layoutGrid, n = 0]() mutable -> Layout {
             return layoutGrid().scale(0.8, 0.8).border(n++ % 2 ? 5.0 : -1.0);
@@ -72,18 +72,18 @@ Panels::createScreenPanel()
                     .options(defaultOptions(WawtEnv::sLabel)
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(
-                    pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}, 0.1}, 2_F,
+                    pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}}, -1.0, 2_Sz,
                                    {{d_prev, S("Prev")}, {d_next, S("Next")}})
-                                    .border(10).options(lineColor))
+                                    .border(5).options(lineColor))
                .addChild(
                     panelLayout({{-1.0, 1.0, 0_wr}, {1.0, -1.0, 1_wr}},
                                 layoutFn,
 
 // Start Samples:
-panel({}).text(S("Default Panel"), 1_F), // Default panels have black text
-panel({}).text(S("+ 5% Border"), 1_F),
-panel({}, panelFill).text(S("+ Fill Option"), 1_F),
-panel({}, panelFill).text(S("+ 5% & Fill Option"), 1_F)));
+panel({}).text(S("Default Panel"), 1_Sz), // Default panels have black text
+panel({}).text(S("+ 5% Border"), 1_Sz),
+panel({}, panelFill).text(S("+ Fill Option"), 1_Sz),
+panel({}, panelFill).text(S("+ 5% & Fill Option"), 1_Sz)));
 // End Samples.
 
     return screen;                                                    // RETURN

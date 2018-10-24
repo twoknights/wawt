@@ -143,8 +143,8 @@ Widget panelLayout(Widget                     **indirect,
                    WIDGET&&...                  widgets)
 {
     auto layoutFn  = gridLayoutGenerator(widgetBorder,
-                                         columns,
-                                         sizeof...(widgets));
+                                         sizeof...(widgets),
+                                         columns);
     auto grid = panel(indirect, layoutPanel);
     (grid.addChild(std::move(widgets).layout(layoutFn())),...);
     return grid;                                                      // RETURN
@@ -161,77 +161,83 @@ Widget panelLayout(const Layout&                layoutPanel,
 }
 
 Widget pushButton(Widget                     **indirect,
-                  const Layout&                layout,
+                  const Layout&                buttonLayout,
                   FocusChgCb                   clicked,
                   StringView_t                 string,
                   CharSizeGroup                group     = CharSizeGroup(),
                   TextAlign                    alignment = TextAlign::eCENTER);
 
-Widget pushButton(const Layout&                layout,
+Widget pushButton(const Layout&                buttonLayout,
                   FocusChgCb                   clicked,
                   StringView_t                 string,
                   CharSizeGroup                group     = CharSizeGroup(),
                   TextAlign                    alignment = TextAlign::eCENTER);
 
 Widget pushButton(Widget                     **indirect,
-                  const Layout&                layout,
+                  const Layout&                buttonLayout,
                   FocusChgCb                   clicked,
                   StringView_t                 string,
                   TextAlign                    alignment);
 
-Widget pushButton(const Layout&                layout,
+Widget pushButton(const Layout&                buttonLayout,
                   FocusChgCb                   clicked,
                   StringView_t                 string,
                   TextAlign                    alignment);
 
 Widget pushButtonGrid(Widget                 **indirect,
-                      Layout                   layout,
+                      Layout                   gridLayout,
                       int                      columns,
+                      double                   borderThickness,
                       CharSizeGroup            group,
                       TextAlign                alignment,
                       FocusChgLabelList        buttonDefs,
-                      bool                     fitted    = true);
+                      bool                     spaced    = true);
 
-Widget pushButtonGrid(const Layout&            layout,
+Widget pushButtonGrid(const Layout&            gridLayout,
                       int                      columns,
+                      double                   borderThickness,
                       CharSizeGroup            group,
                       TextAlign                alignment,
                       FocusChgLabelList        buttonDefs,
-                      bool                     fitted    = true);
+                      bool                     spaced    = true);
 
 Widget pushButtonGrid(Widget                 **indirect,
-                      const Layout&            layout,
+                      const Layout&            gridLayout,
                       int                      columns,
+                      double                   borderThickness,
                       CharSizeGroup            group,
                       FocusChgLabelList        buttonDefs,
-                      bool                     fitted    = true);
+                      bool                     spaced    = true);
 
-Widget pushButtonGrid(const Layout&            layout,
+Widget pushButtonGrid(const Layout&            gridLayout,
                       int                      columns,
+                      double                   borderThickness,
                       CharSizeGroup            group,
                       FocusChgLabelList        buttonDefs,
-                      bool                     fitted    = true);
+                      bool                     spaced    = true);
 
 Widget pushButtonGrid(Widget                 **indirect,
-                      const Layout&            layout,
+                      const Layout&            gridLayout,
+                      double                   borderThickness,
                       CharSizeGroup            group,
                       FocusChgLabelList        buttonDefs,
-                      bool                     fitted    = true);
+                      bool                     spaced    = true);
 
-Widget pushButtonGrid(const Layout&            layout,
+Widget pushButtonGrid(const Layout&            gridLayout,
+                      double                   borderThickness,
                       CharSizeGroup            group,
                       FocusChgLabelList        buttonDefs,
-                      bool                     fitted    = true);
+                      bool                     spaced    = true);
 
 Widget radioButtonPanel(Widget               **indirect,
-                        const Layout&          layout,
+                        const Layout&          panelLayout,
                         const GridFocusCb&     gridCb,
                         CharSizeGroup          group,
                         TextAlign              alignment,
                         LabelList              labels,
                         int                    columns   = 1);
 
-Widget radioButtonPanel(const Layout&          layout,
+Widget radioButtonPanel(const Layout&          panelLayout,
                         const GridFocusCb&     gridCb,
                         CharSizeGroup          group,
                         TextAlign              alignment,
@@ -239,13 +245,13 @@ Widget radioButtonPanel(const Layout&          layout,
                         int                    columns   = 1);
 
 Widget radioButtonPanel(Widget               **indirect,
-                        const Layout&          layout,
+                        const Layout&          panelLayout,
                         const GridFocusCb&     gridCb,
                         CharSizeGroup          group,
                         LabelList              labels,
                         int                    columns   = 1);
 
-Widget radioButtonPanel(const Layout&          layout,
+Widget radioButtonPanel(const Layout&          panelLayout,
                         const GridFocusCb&     gridCb,
                         CharSizeGroup          group,
                         LabelList              labels,
