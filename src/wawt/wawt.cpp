@@ -460,6 +460,56 @@ LayoutGenerator gridLayoutGenerator(double       borderThickness,
         };                                                            // RETURN
 }
 
+                                //--------
+                                // Tracker
+                                //--------
+
+Tracker::Tracker(Tracker&& copy)
+{
+    d_widget = copy.d_widget;
+    d_label  = copy.d_label;
+    copy.d_widget   = nullptr;
+    copy.d_label    = nullptr;
+
+    if (d_label) {
+        d_label->d_backPtr = this;
+    }
+}
+
+Tracker::~Tracker()
+{
+    if (d_label) {
+        d_label->d_backPtr  = nullptr;
+    }
+    d_widget    = nullptr;
+    d_label     = nullptr;
+}
+
+Tracker&
+Tracker::operator=(Tracker&& rhs)
+{
+    if (this != &rhs) {
+        d_widget = rhs.d_widget;
+        d_label  = rhs.d_label;
+        rhs.d_widget    = nullptr;
+        rhs.d_label     = nullptr;
+
+        if (d_label) {
+            d_label->d_backPtr = this;
+        }
+    }
+    return *this;
+}
+
+Trackee
+Tracker::tracking()
+{
+    if (d_label) {
+        throw WawtException("Tracker already assigned a trackee.");
+    }
+    return Trackee(this);
+}
+
                             //-------------------------
                             // class  Layout::WidgetRef
                             //-------------------------
@@ -468,8 +518,8 @@ const Widget *
 Layout::WidgetRef::getWidgetPointer(const Widget&     parent,
                                     const Widget&     root) const
 {
-    if (d_widget != nullptr && *d_widget != nullptr) {
-        return *d_widget;                                             // RETURN
+    if (d_tracker != nullptr && d_tracker->widget() != nullptr) {
+        return d_tracker->widget();                                   // RETURN
     }
     const Widget *widget = nullptr;
 
@@ -509,8 +559,8 @@ Layout::WidgetRef::getWidgetId() const noexcept
     WidgetId ret = d_widgetId;
 
     if (!ret.isSet()) { // if widget ID is not available
-        if (d_widget && *d_widget) { // but a forwarding pointer is
-            ret = WidgetId((*d_widget)->widgetIdValue(), false); 
+        if (d_tracker && d_tracker->widget()) { // but a forwarding pointer is
+            ret = WidgetId(d_tracker->widget()->widgetIdValue(), false); 
         }
     }
     return ret;                                                       // RETURN
@@ -934,7 +984,7 @@ Widget::text(StringView_t string, CharSizeGroup group, TextAlign alignment) &&
 // PUBLIC MEMBERS
 Widget::Widget(Widget&& copy) noexcept
 {
-    d_widgetLabel   = copy.d_widgetLabel;
+    d_widgetLabel   = std::move(copy.d_widgetLabel);
     d_root          = copy.d_root;
     d_textHit       = copy.d_textHit;
     d_methods       = std::move(copy.d_methods);
@@ -944,16 +994,7 @@ Widget::Widget(Widget&& copy) noexcept
     d_children      = std::move(copy.d_children);
 
     if (d_widgetLabel) {
-        *d_widgetLabel     = this;
-        copy.d_widgetLabel = nullptr;
-    }
-    return;                                                           // RETURN
-}
-
-Widget::~Widget() noexcept
-{
-    if (d_widgetLabel) {
-        *d_widgetLabel = nullptr;
+        d_widgetLabel.update(this);
     }
     return;                                                           // RETURN
 }
@@ -962,7 +1003,7 @@ Widget&
 Widget::operator=(Widget&& rhs) noexcept
 {
     if (this != &rhs) {
-        d_widgetLabel   = rhs.d_widgetLabel;
+        d_widgetLabel   = std::move(rhs.d_widgetLabel);
         d_root          = rhs.d_root;
         d_textHit       = rhs.d_textHit;
         d_methods       = std::move(rhs.d_methods);
@@ -972,8 +1013,7 @@ Widget::operator=(Widget&& rhs) noexcept
         d_children      = std::move(rhs.d_children);
 
         if (d_widgetLabel) {
-            *d_widgetLabel    = this;
-            rhs.d_widgetLabel = nullptr;
+            d_widgetLabel.update(this);
         }
     }
     return *this;                                                     // RETURN
@@ -1024,10 +1064,6 @@ Widget::assignWidgetIds(uint16_t        next,
     d_layoutData.d_charSizeMap  = map;
     d_drawData.d_widgetId       = next++;
     d_root                      = root;
-
-    if (d_widgetLabel) {
-        *d_widgetLabel = this;
-    }
     return next;                                                      // RETURN
 }
 

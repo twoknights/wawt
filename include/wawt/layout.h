@@ -50,13 +50,13 @@ struct Layout {
 
     class WidgetRef {
         WidgetId    d_widgetId{};
-        Widget    **d_widget  = nullptr;
+        Tracker    *d_tracker  = nullptr;
       public:
         constexpr WidgetRef()               = default;
 
         constexpr WidgetRef(WidgetId id) noexcept : d_widgetId(id) { }
 
-        constexpr WidgetRef(Widget **ptr) noexcept : d_widget(ptr) { }
+        constexpr WidgetRef(Tracker *ptr) noexcept : d_tracker(ptr) { }
 
         const Widget* getWidgetPointer(const Widget&      parent,
                                        const Widget&      root) const;
@@ -73,7 +73,7 @@ struct Layout {
                     && d_widgetId.isRelative() == rhs.d_widgetId.isRelative()
                     && d_widgetId.value()      == rhs.d_widgetId.value();
             }
-            return d_widget != nullptr && d_widget == rhs.d_widget;
+            return d_tracker != nullptr && d_tracker == rhs.d_tracker;
         }
 
         bool operator!=(const WidgetRef& rhs) const {

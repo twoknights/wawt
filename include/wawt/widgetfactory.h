@@ -53,7 +53,7 @@ GridFocusCb focusWrap(std::function<void(Widget *w, uint16_t id)>&& vcb) {
         };                                                            // RETURN
 }
 
-Widget checkBox(Widget                       **indirect,
+Widget checkBox(Trackee&&                      indirect,
                 const Layout&                  layout,
                 StringView_t                   string,
                 CharSizeGroup                  group     = CharSizeGroup(),
@@ -64,7 +64,7 @@ Widget checkBox(const Layout&                  layout,
                 CharSizeGroup                  group      = CharSizeGroup(),
                 TextAlign                      alignment  = TextAlign::eLEFT);
 
-Widget dropDownList(Widget                   **indirect,
+Widget dropDownList(Trackee&&                  indirect,
                     Layout                     listLayout,
                     GridFocusCb&&              selectCb,
                     CharSizeGroup              group,
@@ -75,7 +75,7 @@ Widget dropDownList(const Layout&              listLayout,
                     CharSizeGroup              group,
                     LabelList                  labels);
 
-Widget fixedSizeList(Widget                  **indirect,
+Widget fixedSizeList(Trackee&&                 indirect,
                      const Layout&             listLayout,
                      bool                      singleSelect,
                      const GridFocusCb&        selectCb,
@@ -88,7 +88,7 @@ Widget fixedSizeList(const Layout&             listLayout,
                      CharSizeGroup             group,
                      LabelList                 labels);
 
-Widget label(Widget                          **indirect,
+Widget label(Trackee&&                         indirect,
              const Layout&                     layout,
              StringView_t                      string,
              CharSizeGroup                     group     = CharSizeGroup(),
@@ -99,7 +99,7 @@ Widget label(const Layout&                     layout,
              CharSizeGroup                     group     = CharSizeGroup(),
              TextAlign                         alignment = TextAlign::eCENTER);
 
-Widget label(Widget                          **indirect,
+Widget label(Trackee&&                         indirect,
              const Layout&                     layout,
              StringView_t                      string,
              TextAlign                         alignment);
@@ -108,20 +108,25 @@ Widget label(const Layout&                     layout,
              StringView_t                      string,
              TextAlign                         alignment);
 
-Widget panel(Widget                          **indirect,
-             const Layout&                     layout  = Layout(),
+Widget panel(Trackee&&                         indirect,
+             const Layout&                     layout,
              std::any                          options = std::any());
 
-Widget panel(const Layout&                     layout = Layout(),
+Widget panel(const Layout&                     layout,
              std::any                          options = std::any());
+
+inline
+Widget panel() {
+    return Widget(WawtEnv::sPanel, Trackee(), Layout());
+}
 
 template<typename... WIDGET>
-Widget panelLayout(Widget                    **indirect,
+Widget panelLayout(Trackee&&                   indirect,
                    const Layout&               layoutPanel,
                    const LayoutGenerator&      generator,
                    WIDGET&&...                 widgets)
 {
-    auto container = panel(indirect, layoutPanel);
+    auto container = panel(std::move(indirect), layoutPanel);
     (container.addChild(std::move(widgets).layout(generator())),...);
     return container;                                                 // RETURN
 }
@@ -131,12 +136,12 @@ Widget panelLayout(const Layout&               layoutPanel,
                    const LayoutGenerator&      generator,
                    WIDGET&&...                 widgets)
 {
-    return panelLayout(nullptr, layoutPanel, generator,
+    return panelLayout(Trackee(), layoutPanel, generator,
                        std::forward<WIDGET>(widgets)...);             // RETURN
 }
 
 template<typename... WIDGET>
-Widget panelLayout(Widget                     **indirect,
+Widget panelLayout(Trackee&&                    indirect,
                    const Layout&                layoutPanel,
                    double                       widgetBorder,
                    int                          columns,
@@ -145,7 +150,7 @@ Widget panelLayout(Widget                     **indirect,
     auto layoutFn  = gridLayoutGenerator(widgetBorder,
                                          sizeof...(widgets),
                                          columns);
-    auto grid = panel(indirect, layoutPanel);
+    auto grid = panel(std::move(indirect), layoutPanel);
     (grid.addChild(std::move(widgets).layout(layoutFn())),...);
     return grid;                                                      // RETURN
 }
@@ -156,11 +161,11 @@ Widget panelLayout(const Layout&                layoutPanel,
                    int                          columns,
                    WIDGET&&...                  widgets)
 {
-    return panelLayout(nullptr, layoutPanel, widgetBorder, columns,
+    return panelLayout(Trackee(), layoutPanel, widgetBorder, columns,
                       std::forward<WIDGET>(widgets)...);               // RETURN
 }
 
-Widget pushButton(Widget                     **indirect,
+Widget pushButton(Trackee&&                    indirect,
                   const Layout&                buttonLayout,
                   FocusChgCb                   clicked,
                   StringView_t                 string,
@@ -173,7 +178,7 @@ Widget pushButton(const Layout&                buttonLayout,
                   CharSizeGroup                group     = CharSizeGroup(),
                   TextAlign                    alignment = TextAlign::eCENTER);
 
-Widget pushButton(Widget                     **indirect,
+Widget pushButton(Trackee&&                    indirect,
                   const Layout&                buttonLayout,
                   FocusChgCb                   clicked,
                   StringView_t                 string,
@@ -184,7 +189,7 @@ Widget pushButton(const Layout&                buttonLayout,
                   StringView_t                 string,
                   TextAlign                    alignment);
 
-Widget pushButtonGrid(Widget                 **indirect,
+Widget pushButtonGrid(Trackee&&                indirect,
                       Layout                   gridLayout,
                       int                      columns,
                       double                   borderThickness,
@@ -201,7 +206,7 @@ Widget pushButtonGrid(const Layout&            gridLayout,
                       FocusChgLabelList        buttonDefs,
                       bool                     spaced    = true);
 
-Widget pushButtonGrid(Widget                 **indirect,
+Widget pushButtonGrid(Trackee&&                indirect,
                       const Layout&            gridLayout,
                       int                      columns,
                       double                   borderThickness,
@@ -216,7 +221,7 @@ Widget pushButtonGrid(const Layout&            gridLayout,
                       FocusChgLabelList        buttonDefs,
                       bool                     spaced    = true);
 
-Widget pushButtonGrid(Widget                 **indirect,
+Widget pushButtonGrid(Trackee&&                indirect,
                       const Layout&            gridLayout,
                       double                   borderThickness,
                       CharSizeGroup            group,
@@ -229,7 +234,7 @@ Widget pushButtonGrid(const Layout&            gridLayout,
                       FocusChgLabelList        buttonDefs,
                       bool                     spaced    = true);
 
-Widget radioButtonPanel(Widget               **indirect,
+Widget radioButtonPanel(Trackee&&              indirect,
                         const Layout&          panelLayout,
                         const GridFocusCb&     gridCb,
                         CharSizeGroup          group,
@@ -244,7 +249,7 @@ Widget radioButtonPanel(const Layout&          panelLayout,
                         LabelList              labels,
                         int                    columns   = 1);
 
-Widget radioButtonPanel(Widget               **indirect,
+Widget radioButtonPanel(Trackee&&              indirect,
                         const Layout&          panelLayout,
                         const GridFocusCb&     gridCb,
                         CharSizeGroup          group,

@@ -127,20 +127,17 @@ class  Widget final {
     Widget& operator=(Widget&& rhs)                                  noexcept;
 
     Widget(char const * const className,
-           Widget           **indirect,
+           Trackee&&          indirect,
            const Layout&      layout)                                noexcept
-        : d_widgetLabel(indirect)
+        : d_widgetLabel(std::move(indirect))
         , d_drawData(className)
         , d_layoutData(layout) {
-            if (d_widgetLabel) *d_widgetLabel = this;
+            if (d_widgetLabel) d_widgetLabel.update(this);
         }
 
     Widget(char const * const className, const Layout& layout)       noexcept
         : d_drawData(className)
         , d_layoutData(layout) { }
-
-    // PUBLIC DESTRUCTOR
-    ~Widget() noexcept;
 
     // PUBLIC Ref-Qualified MANIPULATORS
 
@@ -249,10 +246,7 @@ class  Widget final {
     Children& children()                                             noexcept;
 
     void      clearTrackingPointer()                                 noexcept {
-        if (d_widgetLabel) {
-            *d_widgetLabel = nullptr;
-            d_widgetLabel  = nullptr;
-        }
+        d_widgetLabel.clear();
     }
 
     EventUpCb downEvent(double x, double y, Widget *parent = nullptr);
@@ -383,7 +377,7 @@ class  Widget final {
                 const Widget&       parent);
 
     // PRIVATE DATA MEMBERS
-    Widget            **d_widgetLabel   = nullptr;
+    Trackee             d_widgetLabel{};
     Widget             *d_root          = nullptr;
     bool                d_textHit       = false;
     DownEventMethod     d_downMethod{};

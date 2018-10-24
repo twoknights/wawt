@@ -210,6 +210,110 @@ class  WawtException : public std::runtime_error {
     }
 };
 
+                                //==============
+                                // class Tracker
+                                //==============
+
+class Widget;
+class Trackee;
+
+class Tracker {
+    friend class Trackee;
+
+    Widget          *d_widget           = nullptr;
+    Trackee         *d_label            = nullptr;
+
+  public:
+    Tracker(const Tracker&)             = delete;
+    Tracker& operator=(const Tracker&)  = delete;
+
+    Tracker()                           = default;
+    Tracker(Tracker&& copy);
+    Tracker& operator=(Tracker&& rhs);
+
+    ~Tracker();
+
+    Widget&  operator*() {
+        return *d_widget;
+    }
+
+    Widget*  operator->() {
+        return d_widget;
+    }
+
+    operator bool() const {
+        return d_widget != nullptr;
+    }
+
+    operator Trackee();
+
+    // Throws if tracker already in use.
+    Trackee  tracking();
+
+    Widget*  widget() {
+        return d_widget;
+    }
+};
+
+                                //==============
+                                // class Trackee
+                                //==============
+
+class Trackee {
+    friend class Tracker;
+
+    Tracker *d_backPtr              = nullptr;
+
+    explicit Trackee(Tracker *backPtr) : d_backPtr(backPtr) { }
+  public:
+
+    explicit Trackee()                      = default;
+
+    Trackee(const Trackee&)                 = delete;
+    Trackee& operator=(const Trackee&)      = delete;
+
+    Trackee(Trackee&& copy) : d_backPtr(copy.d_backPtr) {
+        copy.d_backPtr = nullptr;
+    }
+
+    Trackee& operator=(Trackee&& rhs) {
+        if (this != &rhs) {
+            d_backPtr       = rhs.d_backPtr;
+            rhs.d_backPtr   = nullptr;
+        }
+        return *this;
+    }
+
+    ~Trackee() {
+        clear();
+    }
+
+    void clear() {
+        if (d_backPtr) {
+            d_backPtr->d_widget = nullptr;
+            d_backPtr->d_label  = nullptr;
+            d_backPtr           = nullptr;
+        }
+    }
+
+    void update(Widget *newValue) {
+        if (d_backPtr) {
+            d_backPtr->d_widget = newValue;
+        }
+    }
+
+    operator bool() const {
+        return d_backPtr != nullptr;
+    }
+};
+
+inline
+Tracker::operator Trackee()
+{
+    return tracking();
+}
+
+
 } // end Wawt namespace
 
 #endif
