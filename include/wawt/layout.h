@@ -48,38 +48,7 @@ struct Layout {
             , eNONE
     };
 
-    class WidgetRef {
-        WidgetId    d_widgetId{};
-        Tracker    *d_tracker  = nullptr;
-      public:
-        constexpr WidgetRef()               = default;
-
-        constexpr WidgetRef(WidgetId id) noexcept : d_widgetId(id) { }
-
-        constexpr WidgetRef(Tracker *ptr) noexcept : d_tracker(ptr) { }
-
-        const Widget* getWidgetPointer(const Widget&      parent,
-                                       const Widget&      root) const;
-
-        WidgetId getWidgetId()                                  const noexcept;
-
-        bool        isRelative()                                const noexcept{
-            return d_widgetId.isSet() && d_widgetId.isRelative();
-        }
-
-        bool operator==(const WidgetRef& rhs) const {
-            if (d_widgetId.isSet()) {
-                return rhs.d_widgetId.isSet()
-                    && d_widgetId.isRelative() == rhs.d_widgetId.isRelative()
-                    && d_widgetId.value()      == rhs.d_widgetId.value();
-            }
-            return d_tracker != nullptr && d_tracker == rhs.d_tracker;
-        }
-
-        bool operator!=(const WidgetRef& rhs) const {
-            return !(*this == rhs);
-        }
-    };
+    using Coordinates = std::pair<float,float>;
 
     class Position {
       public:
@@ -87,6 +56,7 @@ struct Layout {
         float                   d_sY            = -1.0;
         WidgetRef               d_widgetRef     = WidgetId::kPARENT;
 
+        // PUBLIC CONSTRUCTORS
         constexpr Position()                = default;
 
         constexpr Position(double x, double y)                        noexcept
@@ -98,6 +68,9 @@ struct Layout {
             : d_sX(float(x))
             , d_sY(float(y))
             , d_widgetRef(widgetRef) { }
+
+        // PUBLIC ACCESSORS
+        Coordinates resolvePosition(const Widget& parent) const;
     };
 
     // PUBLIC CLASS MEMBERS
@@ -167,8 +140,14 @@ struct Layout {
     }
 
     // PUBLIC MANIPULATORS
-    // Following only works if both Positions refer the same widget
+    // Following requires that both Positions refer to the same widget
     Layout& scale(double sx, double sy);
+
+    // PUBLIC ACCESSORS
+    // Following requires widgets that have been "resolved".
+    float       resolveBorder(const Widget& reference) const;
+
+    Rectangle   resolveOutline(const Widget& parent) const;
 };
 
 using LayoutGenerator = std::function<Layout()>;

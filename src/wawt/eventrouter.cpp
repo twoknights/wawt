@@ -68,22 +68,6 @@ EventRouter::FifoMutex::unlock()
                             //------------------------
 
 // PRIVATE CLASS MEMBERS
-FocusCb
-EventRouter::wrap(FocusCb&& unwrapped)
-{
-    return  [me      = this,
-             current = d_current,
-             cb      = std::move(unwrapped)](Char_t key) {
-                std::unique_lock<FifoMutex> guard(me->d_lock);
-                bool ret = false;
-
-                if (current == me->d_current) {
-                    ret = cb(key);
-                }
-                return ret;
-             };                                                       // RETURN
-}
-
 EventUpCb
 EventRouter::wrap(EventUpCb&& unwrapped)
 {
@@ -91,16 +75,10 @@ EventRouter::wrap(EventUpCb&& unwrapped)
              current = d_current,
              cb      = std::move(unwrapped)](int x, int y, bool up) {
                 std::unique_lock<FifoMutex> guard(me->d_lock);
-                FocusCb focusCb;
-
                 assert(current == me->d_current);
-                focusCb = cb(x, y, up);
-
-                if (focusCb) {
-                    focusCb = me->wrap(std::move(focusCb));
-                }
+                cb(x, y, up);
                 me->d_downEventActive = false;
-                return focusCb;
+                return;
              };                                                       // RETURN
 }
 
@@ -139,29 +117,20 @@ EventRouter::downEvent(int x, int y)
     auto alert_p = d_alert;
     d_spinLock.clear();
 
+    auto eventUp = EventUpCb();
+
     if (alert_p) {
-        auto cb = alert_p->downEvent(x, y);
-        if (!cb) {
-            return cb;                                                // RETURN
-        }
-        return [this, cb, alert_p](int xup, int yup, bool up) {
-            FocusCb ret;
-            ret = cb(xup, yup, up);
-            return ret;
-        };                                                            // RETURN
+        eventUp = alert_p->downEvent(x, y);
     }
-
-    EventUpCb eventUp;
-
-    if (d_current) {
+    else if (d_current) {
         eventUp = d_current->downEvent(x, y);
-
-        if (eventUp) {
-            d_downEventActive = true;
-            eventUp = wrap(std::move(eventUp));
-        }
     }
-    return eventUp;                                                   // RETURN
+
+    if (eventUp) {
+        d_downEventActive = true;
+        return wrap(std::move(eventUp));                              // RETURN
+    }
+    return EventUpCb();                                               // RETURN
 }
     
 void
@@ -201,6 +170,25 @@ EventRouter::draw()
         d_current->draw();
     }
     return;                                                           // RETURN
+}
+
+bool
+EventRouter::inputEvent(Char_t input)
+{
+    std::unique_lock<FifoMutex> guard(d_lock);
+
+    while (d_spinLock.test_and_set());
+    auto alert_p = d_alert;
+    d_spinLock.clear();
+
+    if (!alert_p && d_current) {
+        return d_current->inputEvent(input);
+    }
+    
+    if (d_current) {
+        d_current->clearFocus();
+    }
+    return false;                                                     // RETURN
 }
 
 void

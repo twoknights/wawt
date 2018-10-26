@@ -36,7 +36,7 @@ class Bullets : public Wawt::ScreenImpl<Bullets,DrawOptions> {
     // PUBLIC TYPES
 
     // PUBLIC CONSTRUCTORS
-    Bullets(Wawt::FocusChgCb&& prev, Wawt::FocusChgCb&& next)
+    Bullets(Wawt::OnClickCb&& prev, Wawt::OnClickCb&& next)
         : d_next(std::move(next)), d_prev(std::move(prev)) { }
 
     // PUBLIC MANIPULATORS
@@ -48,8 +48,8 @@ class Bullets : public Wawt::ScreenImpl<Bullets,DrawOptions> {
 
 private:
     // PRIVATE DATA MEMBERS
-    Wawt::FocusChgCb d_next;
-    Wawt::FocusChgCb d_prev;
+    Wawt::OnClickCb d_next;
+    Wawt::OnClickCb d_prev;
 };
 
 inline Wawt::Widget
@@ -84,8 +84,8 @@ Bullets::createScreenPanel()
 // Start Samples:
 checkBox({}, S("Left alignment."), 1_Sz),
 checkBox({}, S("Right alignment."), 1_Sz, TextAlign::eRIGHT),
-radioButtonPanel({}, GridFocusCb(), 1_Sz, { S("A"), S("B"), S("C") }),
-radioButtonPanel({}, GridFocusCb(), 1_Sz, TextAlign::eRIGHT,
+radioButtonPanel({}, GroupClickCb(), 1_Sz, { S("A"), S("B"), S("C") }),
+radioButtonPanel({}, GroupClickCb(), 1_Sz, TextAlign::eRIGHT,
                  { S("A"), S("B"), S("C"), S("D") }, 2)));
 // End Samples.
 

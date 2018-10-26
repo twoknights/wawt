@@ -57,19 +57,19 @@ struct DrawData {
     Rectangle           d_labelBounds{};
     StringView_t        d_label{};
     std::any            d_options{};
-    const char         *d_className         = nullptr;
+    const char         *d_optionName        = nullptr;
     CharSize            d_charSize          = 0;
 
     DrawData()                          = default;
 
-    DrawData(char const * const className) noexcept
+    DrawData(char const * const optionName) noexcept
         : d_leftMark(true)
         , d_selected(false)
         , d_disableEffect(false)
         , d_hidden(false)
         , d_labelMark(eNONE)
         , d_relativeId{}
-        , d_className(className) { }
+        , d_optionName(optionName) { }
 };
 
                             //===================

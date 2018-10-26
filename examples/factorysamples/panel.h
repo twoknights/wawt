@@ -36,7 +36,7 @@ class Panels : public Wawt::ScreenImpl<Panels,DrawOptions> {
     // PUBLIC TYPES
 
     // PUBLIC CONSTRUCTORS
-    Panels(Wawt::FocusChgCb&& prev, Wawt::FocusChgCb&& next)
+    Panels(Wawt::OnClickCb&& prev, Wawt::OnClickCb&& next)
         : d_next(std::move(next)), d_prev(std::move(prev)) { }
 
     // PUBLIC MANIPULATORS
@@ -48,8 +48,8 @@ class Panels : public Wawt::ScreenImpl<Panels,DrawOptions> {
 
 private:
     // PRIVATE DATA MEMBERS
-    Wawt::FocusChgCb d_next;
-    Wawt::FocusChgCb d_prev;
+    Wawt::OnClickCb d_next;
+    Wawt::OnClickCb d_prev;
 };
 
 inline Wawt::Widget

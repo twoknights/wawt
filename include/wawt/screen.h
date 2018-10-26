@@ -150,6 +150,13 @@ class Screen {
                 std::any                 options         = std::any());
 
     /**
+     * @brief Clear any exising widget "focus" on screen.
+     */
+    void clearFocus() {
+        d_screen.setFocus();
+    }
+
+    /**
      * @brief Draw the current screen user interface elements.
      *
      * @param adapter Optional adapter to use when drawing.
@@ -215,6 +222,20 @@ class Screen {
             throw WawtException("Click on screen '" + d_name + "', "
                                                             + caught.what());
         }
+    }
+
+    /**
+     * @brief Route the input character to the widget with "focus".
+     *
+     * @param input The input character.
+     * @return Return 'true' if input was processed, 'false' otherwise.
+     */
+    bool inputEvent(Char_t input) {
+        if (d_screen.getInstalled<Widget::InputMethod>()) {
+            d_screen.inputEvent(input);
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -470,7 +491,7 @@ ScreenImpl<Derived,Option>::setup(Types&...  args)
 
     try {
         auto app = reinterpret_cast<Derived*>(this);
-        d_screen = app->createScreenPanel(args...).className(WawtEnv::sScreen);
+        d_screen= app->createScreenPanel(args...).optionName(WawtEnv::sScreen);
         d_screen.assignWidgetIds();
     }
     catch (WawtException caught) {

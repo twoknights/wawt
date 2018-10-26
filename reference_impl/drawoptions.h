@@ -143,12 +143,15 @@ struct DrawOptions {
         return std::move(*this);
     }
 
-    static auto classDefaults() {
+    static auto optionDefaults() {
         using Tuple = Wawt::WawtEnv::OptionTuple<DrawOptions>;
 
         static std::vector defaults = {
             Tuple{ Wawt::WawtEnv::sScreen,
                    0.0, 
+                   DrawOptions(Color(160u, 160u, 255u, 255u), kBLACK) },
+            Tuple{ Wawt::WawtEnv::sDialog,
+                   5.0, 
                    DrawOptions(Color(160u, 160u, 255u, 255u), kBLACK) },
             Tuple{ Wawt::WawtEnv::sPanel,
                    0.0, 
@@ -156,7 +159,7 @@ struct DrawOptions {
             Tuple{ Wawt::WawtEnv::sLabel,
                    0.0, 
                    DrawOptions(kCLEAR, kBLACK) },// fill, border
-            Tuple{ Wawt::WawtEnv::sPush,
+            Tuple{ Wawt::WawtEnv::sButton,
                    2.0, 
                    DrawOptions(Color(192u, 192u, 255u, 255u), kBLACK) },
             Tuple{ Wawt::WawtEnv::sList,

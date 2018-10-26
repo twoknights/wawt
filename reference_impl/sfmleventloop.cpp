@@ -64,7 +64,6 @@ SfmlEventLoop::run(sf::RenderWindow&                 window,
                    int                               minWidth,
                    int                               minHeight)
 {
-    auto onKey   = Wawt::FocusCb{};
     auto mouseUp = Wawt::EventUpCb{};
 
     while (window.isOpen()) {
@@ -120,36 +119,24 @@ SfmlEventLoop::run(sf::RenderWindow&                 window,
                 else if (event.type == sf::Event::MouseButtonReleased) {
                     if (event.mouseButton.button == sf::Mouse::Button::Left
                      && mouseUp) {
-                        if (onKey) {
-                            onKey(Wawt::WawtEnv::kFocusChg); // erase cursor
-                        }
-                        onKey = mouseUp(event.mouseButton.x,
-                                        event.mouseButton.y,
-                                        true);
-
-                        if (onKey) {
-                            onKey(Wawt::WawtEnv::kFocusChg); // show cursor
-                        }
+                        mouseUp(event.mouseButton.x,
+                                event.mouseButton.y,
+                                true);
                         window.clear();
                         router.draw();
                         window.display();
                     }
                 }
                 else if (event.type == sf::Event::TextEntered) {
-                    if (onKey) {
-                        window.clear();
+                    window.clear();
 
-                        Wawt::Char_t key;
-                        encodeKey(key, event.text.unicode);
+                    Wawt::Char_t key;
+                    encodeKey(key, event.text.unicode);
 
-                        if (key) {
-                            if (onKey(key)) { // focus lost?
-                                onKey = Wawt::FocusCb();
-                            }
-                        }
+                    if (router.inputEvent(key)) {
                         router.draw();
-                        window.display();
                     }
+                    window.display();
                 }
             }
             else {

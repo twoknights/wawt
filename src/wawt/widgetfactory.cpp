@@ -38,7 +38,9 @@ namespace Wawt {
 
 namespace {
 
-void addDropDown(Widget *dropDown, Widget *select, const GridFocusCb& selectCb)
+void addDropDown(Widget             *dropDown,
+                 Widget             *select,
+                 const GroupClickCb& selectCb)
 {
     auto root = dropDown->screen();
     auto id   = root->widgetIdValue();
@@ -50,12 +52,12 @@ void addDropDown(Widget *dropDown, Widget *select, const GridFocusCb& selectCb)
     auto soak = panel(Layout(root->layout()))
                  .method([root, id](auto, auto, auto, auto) {
                              return
-                                 [root, id](float, float, bool up) {
+                                 [root, id](double, double, bool up) {
                                      if (up) {
                                          root->children().pop_back();
                                          root->drawData().d_widgetId = id;
                                      }
-                                     return FocusCb();
+                                     return;
                                  };
                          });
     auto screenBox                  = root->drawData().d_rectangle;
@@ -97,7 +99,7 @@ void addDropDown(Widget *dropDown, Widget *select, const GridFocusCb& selectCb)
             {
                 widget->drawData().d_selected = true;
                 return
-                    [cb,select,widget,id,root](float x, float y, bool up)
+                    [cb,select,widget,id,root](double x, double y, bool up)
                     {
                         if (up) {
                             widget->drawData().d_selected = false;
@@ -114,11 +116,11 @@ void addDropDown(Widget *dropDown, Widget *select, const GridFocusCb& selectCb)
                                 root->children().pop_back();
 
                                 if (lclcb) {
-                                    return lclcb(lclselect, rid);
+                                    lclcb(lclselect, rid);
                                 }
                             }
                         }
-                        return FocusCb();
+                        return;
                     };
             });
     }
@@ -131,64 +133,64 @@ void addDropDown(Widget *dropDown, Widget *select, const GridFocusCb& selectCb)
     return;                                                           // RETURN
 }
 
-Widget::DownEventMethod createDropDown(GridFocusCb&& selectCb)
+Widget::DownEventMethod createDropDown(GroupClickCb&& selectCb)
 {
     return
         [cb=std::move(selectCb)] (auto, auto, auto *widget, auto *parent) {
             widget->drawData().d_selected = true;
-            return  [cb, widget, parent](float x, float y, bool up) {
+            return  [cb, widget, parent](double x, double y, bool up) {
                 if (up) {
                     widget->drawData().d_selected = false;
                     if (widget->inside(x, y)) {
                         addDropDown(parent, widget, cb);
                     }
                 }
-                return FocusCb();
+                return;
             };
         };                                                            // RETURN
 }
 
-Widget::DownEventMethod makePushButtonDownMethod(FocusChgCb&& onClick)
+Widget::DownEventMethod makePushButtonDownMethod(OnClickCb && onClick)
 {
     return
         [cb=std::move(onClick)] (auto, auto, auto *widget, auto) -> EventUpCb {
             widget->drawData().d_selected = true;
-            return  [cb, widget](float x, float y, bool up) -> FocusCb {
+            return  [cb, widget](double x, double y, bool up) -> void {
                 if (up) {
                     widget->drawData().d_selected = false;
                     if (cb) {
                         if (widget->inside(x, y)) {
-                            return cb(widget);
+                            cb(widget);
                         }
                     }
                 }
-                return FocusCb();
+                return;
             };
         };                                                            // RETURN
 }
 
-Widget::DownEventMethod makeToggleButtonDownMethod(const GridFocusCb&  cb)
+Widget::DownEventMethod makeToggleButtonDownMethod(const GroupClickCb& cb)
 {
     return
         [cb] (auto, auto, auto *widget, auto *parent) -> EventUpCb {
-            return  [cb, widget, parent](float x, float y, bool up) -> FocusCb{
+            return  [cb, widget, parent](double x, double y, bool up) -> void {
                 if (up && widget->inside(x, y)) {
                     widget->drawData().d_selected =
                         !widget->drawData().d_selected;
                     if (cb) {
-                        return cb(parent, widget->relativeId());
+                        cb(parent, widget->relativeId());
                     }
                 }
-                return FocusCb();
+                return;
             };
         };                                                            // RETURN
 }
 
-Widget::DownEventMethod makeRadioButtonDownMethod(const GridFocusCb& cb)
+Widget::DownEventMethod makeRadioButtonDownMethod(const GroupClickCb& cb)
 {
     return
         [cb] (auto, auto, auto *widget, auto *parent) -> EventUpCb {
-            return  [cb, widget, parent](float x, float y, bool up) -> FocusCb{
+            return  [cb, widget, parent](double x, double y, bool up) -> void {
                 if (up && widget->inside(x, y)) {
                     if (!widget->drawData().d_selected) {
                         for (auto& child : parent->children()) {
@@ -201,7 +203,7 @@ Widget::DownEventMethod makeRadioButtonDownMethod(const GridFocusCb& cb)
                         }
                     }
                 }
-                return FocusCb();
+                return;
             };
         };                                                            // RETURN
 }
@@ -216,10 +218,9 @@ Widget::LayoutMethod genSpacedLayout(const DimensionPtr&   bounds,
     return
         [=] (Widget                 *widget,
              const Widget&           parent,
-             const Widget&           root,
              bool                    firstPass,
              DrawProtocol           *adapter) -> void {
-            Widget::defaultLayout(widget, parent, root, firstPass, adapter);
+            Widget::defaultLayout(widget, parent, firstPass, adapter);
 
             auto& data = widget->drawData();
 
@@ -309,8 +310,8 @@ Widget checkBox(Trackee&&               indirect,
                 CharSizeGroup           group,
                 TextAlign               alignment)
 {
-    return  Widget(WawtEnv::sBullet, std::move(indirect), layout)
-            .method(makeToggleButtonDownMethod(GridFocusCb()))
+    return  Widget(WawtEnv::sItem, std::move(indirect), layout)
+            .method(makeToggleButtonDownMethod(GroupClickCb()))
             .labelSelect(layout.d_thickness <= 0.0)
             .text(string, group, alignment)
             .textMark(DrawData::BulletMark::eSQUARE,
@@ -322,8 +323,8 @@ Widget checkBox(const Layout&           layout,
                 CharSizeGroup           group,
                 TextAlign               alignment)
 {
-    return  Widget(WawtEnv::sBullet, layout)
-            .method(makeToggleButtonDownMethod(GridFocusCb()))
+    return  Widget(WawtEnv::sItem, layout)
+            .method(makeToggleButtonDownMethod(GroupClickCb()))
             .labelSelect(layout.d_thickness <= 0.0)
             .text(string, group, alignment)
             .textMark(DrawData::BulletMark::eSQUARE,
@@ -332,7 +333,7 @@ Widget checkBox(const Layout&           layout,
 
 Widget dropDownList(Trackee&&                  indirect,
                     Layout                     layout,
-                    GridFocusCb&&              selectCb,
+                    GroupClickCb&&             selectCb,
                     CharSizeGroup              group,
                     LabelList                  labels)
 {
@@ -352,14 +353,14 @@ Widget dropDownList(Trackee&&                  indirect,
                         .textMark(DrawData::BulletMark::eDOWNARROW))
             .addChild(fixedSizeList({{-1.0,1.0,0_wr},{1.0,1.0}},
                                     true,
-                                    GridFocusCb(),
+                                    GroupClickCb(),
                                     group,
                                     labels).disabled(true).hidden(true));
     return parent;                                                    // RETURN
 }
 
 Widget dropDownList(const Layout&              listLayout,
-                    GridFocusCb&&              selectCb,
+                    GroupClickCb&&             selectCb,
                     CharSizeGroup              group,
                     LabelList                  labels)
 {
@@ -370,7 +371,7 @@ Widget dropDownList(const Layout&              listLayout,
 Widget fixedSizeList(Trackee&&               indirect,
                      const Layout&           listLayout,
                      bool                    singleSelect,
-                     const GridFocusCb&      selectCb,
+                     const GroupClickCb&     selectCb,
                      CharSizeGroup           group,
                      LabelList               labels)
 {
@@ -391,7 +392,7 @@ Widget fixedSizeList(Trackee&&               indirect,
 
 Widget fixedSizeList(const Layout&           listLayout,
                      bool                    singleSelect,
-                     const GridFocusCb&      selectCb,
+                     const GroupClickCb&     selectCb,
                      CharSizeGroup           group,
                      LabelList               labels)
 {
@@ -447,18 +448,18 @@ Widget panel(const Layout& layout, std::any options)
 
 Widget pushButton(Trackee&&             indirect,
                   const Layout&         layout,
-                  FocusChgCb            clicked,
+                  OnClickCb             clicked,
                   StringView_t          string,
                   CharSizeGroup         group,
                   TextAlign             alignment)
 {
-    return  Widget(WawtEnv::sPush, std::move(indirect), layout)
+    return  Widget(WawtEnv::sButton, std::move(indirect), layout)
             .method(makePushButtonDownMethod(std::move(clicked)))
             .text(string, group, alignment);                          // RETURN
 }
 
 Widget pushButton(const Layout&         layout,
-                  FocusChgCb            clicked,
+                  OnClickCb             clicked,
                   StringView_t          string,
                   CharSizeGroup         group,
                   TextAlign             alignment)
@@ -468,7 +469,7 @@ Widget pushButton(const Layout&         layout,
 }
 
 Widget pushButton(const Layout&         layout,
-                  FocusChgCb            clicked,
+                  OnClickCb             clicked,
                   StringView_t          string,
                   TextAlign             alignment)
 {
@@ -478,7 +479,7 @@ Widget pushButton(const Layout&         layout,
 
 Widget pushButton(Trackee&&             indirect,
                   const Layout&         layout,
-                  FocusChgCb            clicked,
+                  OnClickCb             clicked,
                   StringView_t          string,
                   TextAlign             alignment)
 {
@@ -492,7 +493,7 @@ Widget pushButtonGrid(Trackee&&               indirect,
                       double                  borderThickness,
                       CharSizeGroup           group,
                       TextAlign               alignment,
-                      FocusChgLabelList       buttonDefs,
+                      ClickLabelList          buttonDefs,
                       bool                    spaced)
 {
     auto gridPanel   = panel(std::move(indirect), gridLayout);
@@ -507,17 +508,16 @@ Widget pushButtonGrid(Trackee&&               indirect,
         gridPanel.method(
             [] (Widget                 *widget,
                 const Widget&           parent,
-                const Widget&           root,
                 bool                    firstPass,
                 DrawProtocol           *adapter) -> void
             {
                 if (firstPass) {
-                    Widget::defaultLayout(widget, parent, root, true, adapter);
+                    Widget::defaultLayout(widget, parent, true, adapter);
                 }
                 else if (widget->hasChildren()) {
                     for (auto& child : widget->children()) {
                         auto fn = child.getInstalled<Widget::LayoutMethod>();
-                        fn(&child, *widget, root, true, adapter);
+                        fn(&child, *widget, true, adapter);
                     }
                 }
             });
@@ -546,7 +546,7 @@ Widget pushButtonGrid(const Layout&           gridLayout,
                       double                  borderThickness,
                       CharSizeGroup           group,
                       TextAlign               alignment,
-                      FocusChgLabelList       buttonDefs,
+                      ClickLabelList          buttonDefs,
                       bool                    spaced)
 {
     return pushButtonGrid(Trackee(),  gridLayout, columns, borderThickness,
@@ -558,7 +558,7 @@ Widget pushButtonGrid(Trackee&&               indirect,
                       int                     columns,
                       double                  borderThickness,
                       CharSizeGroup           group,
-                      FocusChgLabelList       buttonDefs,
+                      ClickLabelList          buttonDefs,
                       bool                    spaced)
 {
     return pushButtonGrid(std::move(indirect), gridLayout, columns,
@@ -570,7 +570,7 @@ Widget pushButtonGrid(const Layout&           gridLayout,
                       int                     columns,
                       double                  borderThickness,
                       CharSizeGroup           group,
-                      FocusChgLabelList       buttonDefs,
+                      ClickLabelList          buttonDefs,
                       bool                    spaced)
 {
     return pushButtonGrid(Trackee(), gridLayout, columns, borderThickness,
@@ -582,7 +582,7 @@ Widget pushButtonGrid(Trackee&&               indirect,
                       const Layout&           gridLayout,
                       double                  borderThickness,
                       CharSizeGroup           group,
-                      FocusChgLabelList       buttonDefs,
+                      ClickLabelList          buttonDefs,
                       bool                    spaced)
 {
     return pushButtonGrid(std::move(indirect), gridLayout, buttonDefs.size(),
@@ -593,7 +593,7 @@ Widget pushButtonGrid(Trackee&&               indirect,
 Widget pushButtonGrid(const Layout&           gridLayout,
                       double                  borderThickness,
                       CharSizeGroup           group,
-                      FocusChgLabelList       buttonDefs,
+                      ClickLabelList          buttonDefs,
                       bool                    spaced)
 {
     return pushButtonGrid(Trackee(), gridLayout, buttonDefs.size(),
@@ -603,7 +603,7 @@ Widget pushButtonGrid(const Layout&           gridLayout,
 
 Widget radioButtonPanel(Trackee&&               indirect,
                         const Layout&           panelLayout,
-                        const GridFocusCb&      gridCb,
+                        const GroupClickCb&     gridCb,
                         CharSizeGroup           group,
                         TextAlign               alignment,
                         LabelList               labels,
@@ -628,7 +628,7 @@ Widget radioButtonPanel(Trackee&&               indirect,
 }
 
 Widget radioButtonPanel(const Layout&           panelLayout,
-                        const GridFocusCb&      gridCb,
+                        const GroupClickCb&     gridCb,
                         CharSizeGroup           group,
                         TextAlign               alignment,
                         LabelList               labels,
@@ -640,7 +640,7 @@ Widget radioButtonPanel(const Layout&           panelLayout,
 
 Widget radioButtonPanel(Trackee&&               indirect,
                         const Layout&           panelLayout,
-                        const GridFocusCb&      gridCb,
+                        const GroupClickCb&     gridCb,
                         CharSizeGroup           group,
                         LabelList               labels,
                         int                     columns)
@@ -650,13 +650,73 @@ Widget radioButtonPanel(Trackee&&               indirect,
 }
 
 Widget radioButtonPanel(const Layout&           panelLayout,
-                        const GridFocusCb&      gridCb,
+                        const GroupClickCb&     gridCb,
                         CharSizeGroup           group,
                         LabelList               labels,
                         int                     columns)
 {
     return radioButtonPanel(Trackee(), panelLayout,
                             gridCb, group, TextAlign::eLEFT, labels, columns);
+}
+
+Widget widgetGrid(Trackee&&                    indirect,
+                  const Layout&                layoutPanel,
+                  int                          rows,
+                  int                          columns,
+                  const WidgetGenerator&       generator,
+                  bool                         spaced)
+{
+    auto grid   = panel(std::move(indirect), layoutPanel);
+    auto bounds = std::make_shared<Dimensions>();
+
+    for (auto r = 0; r < rows; ++r) {
+        for (auto c = 0; c < columns; ++c) {
+            auto next = generator(r, c);
+
+            if (spaced && next.hasLabelLayout()) {
+                next.method(genSpacedLayout(bounds,
+                                            rows,
+                                            columns,
+                                            next.layoutData().d_textAlign));
+            }
+            grid.addChild(std::move(next));
+        }
+    }
+
+    if (spaced && bounds.use_count() > 1) {
+        grid.method(
+            [] (Widget                 *widget,
+                const Widget&           parent,
+                bool                    firstPass,
+                DrawProtocol           *adapter) -> void
+            {
+                if (firstPass) {
+                    Widget::defaultLayout(widget, parent, true, adapter);
+                }
+                else if (widget->hasChildren()) {
+                    for (auto& child : widget->children()) {
+                        auto fn = child.getInstalled<Widget::LayoutMethod>();
+                        fn(&child, *widget, true, adapter);
+                    }
+                }
+            });
+    }
+    return grid;                                                      // RETURN
+}
+
+
+Widget widgetGrid(const Layout&                layoutPanel,
+                  int                          rows,
+                  int                          columns,
+                  const WidgetGenerator&       generator,
+                  bool                         spaced)
+{
+    return widgetGrid(Trackee(),
+                      layoutPanel,
+                      rows,
+                      columns,
+                      generator,
+                      spaced);                                        // RETURN
 }
 
 }  // namespace Wawt

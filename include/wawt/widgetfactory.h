@@ -27,31 +27,15 @@
 
 namespace Wawt {
 
-using FocusChgCb        = std::function<FocusCb(Widget *)>;
-using FocusChgLabel     = std::pair<FocusChgCb, StringView_t>;
-using FocusChgLabelList = std::initializer_list<FocusChgLabel>;
+using OnClickCb         = std::function<void(Widget *)>;
+using ClickLabelPair    = std::pair<OnClickCb, StringView_t>;
+using ClickLabelList    = std::initializer_list<ClickLabelPair>;
 
-using GridFocusCb       = std::function<FocusCb(Widget *,uint16_t relativeId)>;
+using GroupClickCb      = std::function<void(Widget *,uint16_t relativeId)>;
 
 using LabelList         = std::initializer_list<StringView_t>;
 
-inline
-FocusChgCb focusWrap(std::function<void(Widget *w)>&& vcb) {
-    return
-        [cb=std::move(vcb)](Widget *w) -> FocusCb {
-            cb(w);
-            return FocusCb();
-        };                                                            // RETURN
-}
-
-inline
-GridFocusCb focusWrap(std::function<void(Widget *w, uint16_t id)>&& vcb) {
-    return
-        [cb = std::move(vcb)](Widget *w, uint16_t id) -> FocusCb {
-            cb(w, id);
-            return FocusCb();
-        };                                                            // RETURN
-}
+using WidgetGenerator   = std::function<Widget(int row, int column)>;
 
 Widget checkBox(Trackee&&                      indirect,
                 const Layout&                  layout,
@@ -66,25 +50,25 @@ Widget checkBox(const Layout&                  layout,
 
 Widget dropDownList(Trackee&&                  indirect,
                     Layout                     listLayout,
-                    GridFocusCb&&              selectCb,
+                    GroupClickCb&&             selectCb,
                     CharSizeGroup              group,
                     LabelList                  labels);
 
 Widget dropDownList(const Layout&              listLayout,
-                    GridFocusCb&&              selectCb,
+                    GroupClickCb&&             selectCb,
                     CharSizeGroup              group,
                     LabelList                  labels);
 
 Widget fixedSizeList(Trackee&&                 indirect,
                      const Layout&             listLayout,
                      bool                      singleSelect,
-                     const GridFocusCb&        selectCb,
+                     const GroupClickCb&       selectCb,
                      CharSizeGroup             group,
                      LabelList                 labels);
 
 Widget fixedSizeList(const Layout&             listLayout,
                      bool                      singleSelect,
-                     const GridFocusCb&        selectCb,
+                     const GroupClickCb&       selectCb,
                      CharSizeGroup             group,
                      LabelList                 labels);
 
@@ -167,25 +151,25 @@ Widget panelLayout(const Layout&                layoutPanel,
 
 Widget pushButton(Trackee&&                    indirect,
                   const Layout&                buttonLayout,
-                  FocusChgCb                   clicked,
+                  OnClickCb                    clicked,
                   StringView_t                 string,
                   CharSizeGroup                group     = CharSizeGroup(),
                   TextAlign                    alignment = TextAlign::eCENTER);
 
 Widget pushButton(const Layout&                buttonLayout,
-                  FocusChgCb                   clicked,
+                  OnClickCb                    clicked,
                   StringView_t                 string,
                   CharSizeGroup                group     = CharSizeGroup(),
                   TextAlign                    alignment = TextAlign::eCENTER);
 
 Widget pushButton(Trackee&&                    indirect,
                   const Layout&                buttonLayout,
-                  FocusChgCb                   clicked,
+                  OnClickCb                    clicked,
                   StringView_t                 string,
                   TextAlign                    alignment);
 
 Widget pushButton(const Layout&                buttonLayout,
-                  FocusChgCb                   clicked,
+                  OnClickCb                    clicked,
                   StringView_t                 string,
                   TextAlign                    alignment);
 
@@ -195,7 +179,7 @@ Widget pushButtonGrid(Trackee&&                indirect,
                       double                   borderThickness,
                       CharSizeGroup            group,
                       TextAlign                alignment,
-                      FocusChgLabelList        buttonDefs,
+                      ClickLabelList           buttonDefs,
                       bool                     spaced    = true);
 
 Widget pushButtonGrid(const Layout&            gridLayout,
@@ -203,7 +187,7 @@ Widget pushButtonGrid(const Layout&            gridLayout,
                       double                   borderThickness,
                       CharSizeGroup            group,
                       TextAlign                alignment,
-                      FocusChgLabelList        buttonDefs,
+                      ClickLabelList           buttonDefs,
                       bool                     spaced    = true);
 
 Widget pushButtonGrid(Trackee&&                indirect,
@@ -211,39 +195,39 @@ Widget pushButtonGrid(Trackee&&                indirect,
                       int                      columns,
                       double                   borderThickness,
                       CharSizeGroup            group,
-                      FocusChgLabelList        buttonDefs,
+                      ClickLabelList           buttonDefs,
                       bool                     spaced    = true);
 
 Widget pushButtonGrid(const Layout&            gridLayout,
                       int                      columns,
                       double                   borderThickness,
                       CharSizeGroup            group,
-                      FocusChgLabelList        buttonDefs,
+                      ClickLabelList           buttonDefs,
                       bool                     spaced    = true);
 
 Widget pushButtonGrid(Trackee&&                indirect,
                       const Layout&            gridLayout,
                       double                   borderThickness,
                       CharSizeGroup            group,
-                      FocusChgLabelList        buttonDefs,
+                      ClickLabelList           buttonDefs,
                       bool                     spaced    = true);
 
 Widget pushButtonGrid(const Layout&            gridLayout,
                       double                   borderThickness,
                       CharSizeGroup            group,
-                      FocusChgLabelList        buttonDefs,
+                      ClickLabelList           buttonDefs,
                       bool                     spaced    = true);
 
 Widget radioButtonPanel(Trackee&&              indirect,
                         const Layout&          panelLayout,
-                        const GridFocusCb&     gridCb,
+                        const GroupClickCb&    gridCb,
                         CharSizeGroup          group,
                         TextAlign              alignment,
                         LabelList              labels,
                         int                    columns   = 1);
 
 Widget radioButtonPanel(const Layout&          panelLayout,
-                        const GridFocusCb&     gridCb,
+                        const GroupClickCb&    gridCb,
                         CharSizeGroup          group,
                         TextAlign              alignment,
                         LabelList              labels,
@@ -251,16 +235,29 @@ Widget radioButtonPanel(const Layout&          panelLayout,
 
 Widget radioButtonPanel(Trackee&&              indirect,
                         const Layout&          panelLayout,
-                        const GridFocusCb&     gridCb,
+                        const GroupClickCb&    gridCb,
                         CharSizeGroup          group,
                         LabelList              labels,
                         int                    columns   = 1);
 
 Widget radioButtonPanel(const Layout&          panelLayout,
-                        const GridFocusCb&     gridCb,
+                        const GroupClickCb&    gridCb,
                         CharSizeGroup          group,
                         LabelList              labels,
                         int                    columns   = 1);
+
+Widget widgetGrid(Trackee&&                    indirect,
+                  const Layout&                layoutPanel,
+                  int                          rows,
+                  int                          columns,
+                  const WidgetGenerator&       generator,
+                  bool                         spaced = false);
+
+Widget widgetGrid(const Layout&                layoutPanel,
+                  int                          rows,
+                  int                          columns,
+                  const WidgetGenerator&       generator,
+                  bool                         spaced = false);
 
 } // end Wawt namespace
 

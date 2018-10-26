@@ -36,7 +36,7 @@ class Labels : public Wawt::ScreenImpl<Labels,DrawOptions> {
     // PUBLIC TYPES
 
     // PUBLIC CONSTRUCTORS
-    Labels(Wawt::FocusChgCb&& next) : d_next(std::move(next)) { }
+    Labels(Wawt::OnClickCb&& next) : d_next(std::move(next)) { }
 
     // PUBLIC MANIPULATORS
     // Called by 'WawtScreenImpl::setup()':
@@ -47,7 +47,7 @@ class Labels : public Wawt::ScreenImpl<Labels,DrawOptions> {
 
 private:
     // PRIVATE DATA MEMBERS
-    Wawt::FocusChgCb d_next;
+    Wawt::OnClickCb d_next;
 };
 
 inline Wawt::Widget

@@ -63,7 +63,6 @@ struct Indent {
     Indent(unsigned int indent = 0) : d_indent(indent) { }
 };
 
-inline
 std::ostream& operator<<(std::ostream& os, Indent indent) {
     if (indent.d_indent > 0) {
         os << std::setw(indent.d_indent) << ' ';
@@ -71,7 +70,6 @@ std::ostream& operator<<(std::ostream& os, Indent indent) {
     return os;                                                        // RETURN
 }
 
-inline
 std::ostream& operator<<(std::ostream& os, const WidgetId id) {
     if (id == WidgetId::kPARENT) {
         os << "parent";
@@ -94,198 +92,87 @@ std::ostream& operator<<(std::ostream& os, const WidgetId id) {
     return os;
 }
 
-inline bool isBackspace(wchar_t ch) {
-    return ch == L'\b';
-}
-
-inline bool isBackspace(char32_t ch) {
-    return ch == U'\b';
-}
-
-inline bool isEnter(wchar_t ch) {
-    return ch == L'\r';
-}
-
-inline bool isEnter(char32_t ch) {
-    return ch == U'\r';
-}
-
-inline bool isEos(wchar_t ch) {
-    return ch == L'\0';
-}
-
-inline bool isEos(char32_t ch) {
-    return ch == U'\0';
-}
-
-inline std::wstring makeString(wchar_t ch) {
-    return isEos(ch) ? std::wstring()
-                     : std::wstring(1, static_cast<wchar_t>(ch));
-}
-
-inline
-std::string makeString(char32_t ch) {
-    std::string result;
-    if (!isEos(ch)) {
-        auto c = static_cast<uint32_t>(ch);
-        switch (sizeOfChar(ch)) {
-          case 4: result.push_back(char(0360|((c >> 18)&007)));
-                  result.push_back(char(0200|((c >> 12)&077)));
-                  result.push_back(char(0200|((c >>  6)&077)));
-                  result.push_back(char(0200|( c       &077)));
-                  break;
-          case 3: result.push_back(char(0340|((c >> 12)&017)));
-                  result.push_back(char(0200|((c >>  6)&077)));
-                  result.push_back(char(0200|( c       &077)));
-                  break;
-          case 2: result.push_back(char(0300|((c >>  6)&037)));
-                  result.push_back(char(0200|( c       &077)));
-                  break;
-          default:result.push_back(char(       c    &  0177));
-                  break;
-        };
-    }
-    return result;
-}
-
-inline int textLength(const std::wstring& text) {
-    return text.length();
-}
-
-inline int textLength(const std::string& text) {
-    int   length = 0;
-    auto  p      = text.c_str();
-    auto  end    = p + text.length();
-    while (p < end && *p) {
-        auto c = *p;
-        ++length;
-        p += (c&0340) == 0340 ? ((c&020) ? 4 : 3) : ((c&0200) ? 2 : 1);
-    }
-    return length;
-}
-
-inline
-void outputXMLString(std::ostream& os, const std::string_view& text) {
-    // NOTE: std::codecvt is deprecated. So, to avoid compiler warnings,
-    // and until this is sorted out, lets roll our own.
-    // For anticipated use (i.e. test drivers), this is expected to be
-    // good enough.
-    for (auto it = text.begin(); it != text.end(); ) {
-        char ch = *it++;
-        if (ch == u8'"') {
-            os << "&quot;";
-        }
-        else if (ch == u'\'') {
-            os << "&apos;";
-        }
-        else if (ch == u'<') {
-            os << "&lt;";
-        }
-        else if (ch == u'>') {
-            os << "&gt;";
-        }
-        else if (ch == u'&') {
-            os << "&amp;";
-        }
-        else if ((ch & 0200) == 0) {
-            os.put(ch);
-        } // end of 7 bit ASCII
-        else if ((ch & 0340) == 0300) {
-            auto value = int(ch & 037) << 6;
-
-            if (it != text.end()) {
-                value |= int(*it++ & 077);
-                os << "&#" << value << ';';
-            }
-        }
-        else if ((ch & 0360) == 0340) {
-            auto value = int(ch & 017) << 6;
-
-            if (it != text.end()) {
-                value |= int(*it++ & 077);
-
-                if (it != text.end()) {
-                    value <<= 6;
-                    value  |= int(*it++ & 077);
-                    os << "&#" << value << ';';
-                }
-            }
-        }
-        else if ((ch & 0370) == 0360) {
-            auto value = int(ch & 07) << 6;
-
-            if (it != text.end()) {
-                value |= int(*it++ & 077);
-
-                if (it != text.end()) {
-                    value <<= 6;
-                    value  |= int(*it++ & 077);
-
-                    if (it != text.end()) {
-                        value <<= 6;
-                        value  |= int(*it++ & 077);
-                        os << "&#" << value << ';';
-                    }
-                }
-            }
+void appendChar(String_t *str, Char_t ch) {
+    if (ch != '\0') {
+        if constexpr(std::is_same_v<Char_t, wchar_t>) {
+            str->push_back(ch);
         }
         else {
-            break;
+            auto c   = static_cast<uint32_t>(ch);
+            auto lng = (c & 0x1FF800) ? ((c & 0x1F0000) ? 4 : 3)
+                                      : ((c & 03600)    ? 2 : 1);
+            switch (lng) {
+              case 4: str->push_back(char(0360|((c >> 18)&007)));
+                      str->push_back(char(0200|((c >> 12)&077)));
+                      str->push_back(char(0200|((c >>  6)&077)));
+                      str->push_back(char(0200|( c       &077)));
+                      break;
+              case 3: str->push_back(char(0340|((c >> 12)&017)));
+                      str->push_back(char(0200|((c >>  6)&077)));
+                      str->push_back(char(0200|( c       &077)));
+                      break;
+              case 2: str->push_back(char(0300|((c >>  6)&037)));
+                      str->push_back(char(0200|( c       &077)));
+                      break;
+              default:str->push_back(char(       c    &  0177));
+                      break;
+            };
         }
     }
+    return;                                                           // RETURN
+}
+
+// Only one of the following is used, suppress complaints about that with 
+// "inline".
+
+inline
+wchar_t frontChar(const std::wstring_view& s) {
+    return s.empty() ? '\0' : s[0];                                   // RETURN
 }
 
 inline
-void outputXMLString(std::ostream& os, const std::wstring_view& text) {
-    // NOTE: std::codecvt is deprecated. So, to avoid compiler warnings,
-    // and until this is sorted out, lets roll our own.
-    // For anticipated use (i.e. test drivers), this is expected to be
-    // good enough.
-    for (auto c : text) {
-        unsigned char ch = static_cast<char>(c);
+char32_t frontChar(const std::string_view& text) {
+    auto it     = text.begin();
+    auto ch     = *it++;
+    auto value  = int{};
 
-        if (static_cast<decltype(c)>(ch) == c) {
-            if (ch == L'"') {
-                os << "&quot;";
-            }
-            else if (ch == L'\'') {
-                os << "&apos;";
-            }
-            else if (ch == L'<') {
-                os << "&lt;";
-            }
-            else if (ch == L'>') {
-                os << "&gt;";
-            }
-            else if (ch == L'&') {
-                os << "&amp;";
-            }
-            else if ((ch & 0200) == 0) {
-                os.put(ch);
-            } // end of 7 bit ASCII
-            else {
-                os << "&#" << unsigned(ch) << ';';
-            }
-        }
-        else  {
-            os << "&#" << unsigned(c) << ';';
+    if ((ch & 0200) == 0) { // 7 bit ASCII
+        return ch;                                                    // RETURN
+    }
+
+    if ((ch & 0340) == 0300) {
+        value = int(ch & 037); // 1 + 1 bytes
+    }
+    else if ((ch & 0360) == 0340) {
+        value = int(ch & 017) << 6;
+
+        if (it != text.end()) {
+            value |= int(*it++ & 077); // 2 + 1 bytes
         }
     }
+    else if ((ch & 0370) == 0360) {
+        value = int(ch & 07) << 6;
+
+        if (it != text.end()) {
+            value |= int(*it++ & 077);
+
+            if (it != text.end()) {
+                value <<= 6;
+                value  |= int(*it++ & 077); // 3 + 1 bytes
+            }
+        }
+    }
+    return it == text.end() ? U'\0'
+                            : char32_t((value << 6) | int(*it & 077));// RETURN
 }
 
 Widget::DownEventMethod eatDownEvents() {
     return
         [] (auto, auto, auto, auto) -> EventUpCb {
-            return  [](float, float, bool) -> FocusCb {
-                return FocusCb();
+            return  [](double, double, bool) -> void {
+                return;
             };
         };                                                            // RETURN
-}
-
-float borderThickness(const Widget& root, const Layout& layout) {
-    auto min = std::min(root.drawData().d_rectangle.d_width,
-                        root.drawData().d_rectangle.d_height);
-    return float(min * layout.d_thickness / 1000.0);                  // RETURN
 }
 
 bool findWidget(const Widget              **widget,
@@ -313,96 +200,6 @@ bool findWidget(const Widget              **widget,
     return false;                                                     // RETURN
 }
 
-using Corner = std::pair<float,float>;
-
-Corner findCorner(const Layout::Position& position,
-                  const Widget&           parent,
-                  const Widget&           root) {
-    auto       reference  = position.d_widgetRef.getWidgetPointer(parent, root);
-    auto&      rectangle  = reference->drawData().d_rectangle;
-    auto&      ul_x       = rectangle.d_ux;
-    auto&      ul_y       = rectangle.d_uy;
-    auto       lr_x       = ul_x + rectangle.d_width;
-    auto       lr_y       = ul_y + rectangle.d_height;
-
-    auto xorigin = (ul_x  + lr_x)/2.0;
-    auto yorigin = (ul_y  + lr_y)/2.0;
-    auto xradius = lr_x - xorigin;
-    auto yradius = lr_y - yorigin;
-
-    if (reference == &parent || reference == &root) {
-        auto       thickness  = std::ceil(reference->drawData().d_border);
-        xradius -= thickness;
-        yradius -= thickness;
-    }
-
-    auto x = xorigin + position.d_sX*xradius;
-    auto y = yorigin + position.d_sY*yradius;
-
-    return Corner(x,y);                                               // RETURN
-}
-
-Rectangle makeRectangle(const Layout&         layout,
-                        const Widget&         parent,
-                        const Widget&         root) {
-    auto [ux, uy]   = findCorner(layout.d_upperLeft,  parent, root);
-    auto [lx, ly]   = findCorner(layout.d_lowerRight, parent, root);
-    auto width      = lx - ux;
-    auto height     = ly - uy;
-
-    if (layout.d_pin != Layout::Vertex::eNONE) {
-        auto  square = (width + height)/2.0;
-
-        if (square > width) {
-            square = width;
-        }
-        else if (square > height) {
-            square = height;
-        }
-        auto  deltaW = square - width;
-        auto  deltaH = square - height;
-
-        switch (layout.d_pin) {
-          case Layout::Vertex::eUPPER_LEFT: {
-                ly += deltaH; lx += deltaW;
-            } break;
-          case Layout::Vertex::eUPPER_CENTER: {
-                ly += deltaH; lx += deltaW/2.0;
-                              ux -= deltaW/2.0;
-            } break;
-          case Layout::Vertex::eUPPER_RIGHT: {
-                ly += deltaH;
-                              ux -= deltaW;
-            } break;
-          case Layout::Vertex::eCENTER_LEFT: {
-                uy -= deltaH/2.0;
-                ly += deltaH/2.0; lx += deltaW;
-            } break;
-          case Layout::Vertex::eCENTER_CENTER: {
-                uy -= deltaH/2.0; ux -= deltaW/2.0;
-                ly += deltaH/2.0; lx += deltaW/2.0;
-            } break;
-          case Layout::Vertex::eCENTER_RIGHT: {
-                uy -= deltaH/2.0; ux -= deltaW;
-                ly += deltaH/2.0;
-            } break;
-          case Layout::Vertex::eLOWER_LEFT: {
-                uy -= deltaH;
-                              lx += deltaW;
-            } break;
-          case Layout::Vertex::eLOWER_CENTER: {
-                uy -= deltaH; ux -= deltaW/2.0;
-                              lx += deltaW/2.0;
-            } break;
-          case Layout::Vertex::eLOWER_RIGHT: {
-                uy -= deltaH; ux -= deltaW;
-            } break;
-          default: break;
-        }
-    }
-    return { ux, uy, lx - ux, ly - uy };                              // RETURN
-}
-
 } // end unnamed namespace
 
 std::atomic_flag    WawtEnv::_atomicFlag   = ATOMIC_FLAG_INIT;
@@ -410,17 +207,16 @@ WawtEnv            *WawtEnv::_instance     = nullptr;
 std::any            WawtEnv::_any;
 
 // The following defaults should be found in all fonts.
-Char_t   WawtEnv::kCursor     = C('|');
 Char_t   WawtEnv::kFocusChg   = C('\0');
 
-char     WawtEnv::sScreen[]   = "screen";
+char     WawtEnv::sButton[]   = "button";
 char     WawtEnv::sDialog[]   = "dialog";
-char     WawtEnv::sPanel[]    = "panel";
-char     WawtEnv::sLabel[]    = "label";
-char     WawtEnv::sPush[]     = "pushButton";
-char     WawtEnv::sBullet[]   = "bulletMark";
+char     WawtEnv::sEntry[]    = "entry";
 char     WawtEnv::sItem[]     = "item";
+char     WawtEnv::sLabel[]    = "label";
 char     WawtEnv::sList[]     = "list";
+char     WawtEnv::sPanel[]    = "panel";
+char     WawtEnv::sScreen[]   = "screen";
 
 LayoutGenerator gridLayoutGenerator(double       borderThickness,
                                     std::size_t  widgetCount,
@@ -459,6 +255,71 @@ LayoutGenerator gridLayoutGenerator(double       borderThickness,
             return layout;
         };                                                            // RETURN
 }
+
+void outputXMLString(std::ostream& os, StringView_t text)
+{
+    // NOTE: std::codecvt is deprecated. So, to avoid compiler warnings,
+    // and until this is sorted out, lets roll our own. Avoid multibyte
+    // routines which are dependent on locale too.
+    // For anticipated use (i.e. test drivers), this is expected to be
+    // good enough.
+
+    while (!text.empty()) {
+        auto ch = popFrontChar(text);
+
+        if (ch == '\0') { // Invalid  string
+            break;
+        }
+
+        if (ch == C('"')) {
+            os << "&quot;";
+        }
+        else if (ch == C('\'')) {
+            os << "&apos;";
+        }
+        else if (ch == C('<')) {
+            os << "&lt;";
+        }
+        else if (ch == C('>')) {
+            os << "&gt;";
+        }
+        else if (ch == C('&')) {
+            os << "&amp;";
+        }
+        else if (static_cast<int>(ch) > 0x1f && static_cast<int>(ch) < 0x7f) {
+            os.put(ch);
+        }
+        else {
+            os << "&#" << static_cast<int>(ch) << ';';
+        }
+    }
+    return;                                                           // RETURN
+}
+
+Char_t popFrontChar(StringView_t& view)
+{
+    auto front = frontChar(view);
+    if (front != '\0') {
+        view.remove_prefix(sizeOfChar(front)/sizeof(Char_t));
+    }
+    return front;                                                     // RETURN
+}
+
+String_t toString(Char_t *charArray, std::size_t length)
+{
+    auto result = String_t{};
+
+    for (auto i = 0u; i < length; ++i) {
+        auto ch = charArray[i];
+
+        if (ch == '\0') {
+            break;                                                     // BREAK
+        }
+        appendChar(&result, ch);
+    }
+    return result;                                                    // RETURN
+}
+
 
                                 //--------
                                 // Tracker
@@ -501,8 +362,7 @@ Tracker::operator=(Tracker&& rhs)
     return *this;
 }
 
-Trackee
-Tracker::tracking()
+Tracker::operator Trackee()
 {
     if (d_label) {
         throw WawtException("Tracker already assigned a trackee.");
@@ -510,16 +370,15 @@ Tracker::tracking()
     return Trackee(this);
 }
 
-                            //-------------------------
-                            // class  Layout::WidgetRef
-                            //-------------------------
+                            //-----------------
+                            // class  WidgetRef
+                            //-----------------
 
 const Widget *
-Layout::WidgetRef::getWidgetPointer(const Widget&     parent,
-                                    const Widget&     root) const
+WidgetRef::getWidgetPointer(const Widget& parent) const
 {
-    if (d_tracker != nullptr && d_tracker->widget() != nullptr) {
-        return d_tracker->widget();                                   // RETURN
+    if (d_tracker != nullptr && *d_tracker) {
+        return &**d_tracker;                                          // RETURN
     }
     const Widget *widget = nullptr;
 
@@ -529,7 +388,7 @@ Layout::WidgetRef::getWidgetPointer(const Widget&     parent,
                 widget = &parent;
             }
             else if (d_widgetId == WidgetId::kROOT) {
-                widget = &root;
+                widget = parent.screen();
             }
             else {
                 auto offset = d_widgetId.value();
@@ -539,11 +398,11 @@ Layout::WidgetRef::getWidgetPointer(const Widget&     parent,
                 }
             }
         }
-        else if (root.widgetIdValue() == d_widgetId.value()) {
-            widget = &root;
+        else if (parent.screen()->widgetIdValue() == d_widgetId.value()) {
+            widget = parent.screen();
         }
         else {
-            findWidget(&widget, root, d_widgetId.value());
+            findWidget(&widget, *parent.screen(), d_widgetId.value());
         }
     }
 
@@ -554,21 +413,123 @@ Layout::WidgetRef::getWidgetPointer(const Widget&     parent,
 }
 
 WidgetId
-Layout::WidgetRef::getWidgetId() const noexcept
+WidgetRef::getWidgetId() const noexcept
 {
     WidgetId ret = d_widgetId;
 
     if (!ret.isSet()) { // if widget ID is not available
-        if (d_tracker && d_tracker->widget()) { // but a forwarding pointer is
-            ret = WidgetId(d_tracker->widget()->widgetIdValue(), false); 
+        if (d_tracker && *d_tracker) { // but a forwarding pointer is
+            ret = WidgetId((*d_tracker)->widgetIdValue(), false); 
         }
     }
     return ret;                                                       // RETURN
 }
 
+                            //------------------------
+                            // class  Layout::Position
+                            //------------------------
+
+
+Layout::Coordinates
+Layout::Position::resolvePosition(const Widget& parent) const
+{
+    auto       reference  = d_widgetRef.getWidgetPointer(parent);
+    auto&      rectangle  = reference->drawData().d_rectangle;
+    auto&      ul_x       = rectangle.d_ux;
+    auto&      ul_y       = rectangle.d_uy;
+    auto       lr_x       = ul_x + rectangle.d_width;
+    auto       lr_y       = ul_y + rectangle.d_height;
+
+    auto xorigin = (ul_x  + lr_x)/2.0;
+    auto yorigin = (ul_y  + lr_y)/2.0;
+    auto xradius = lr_x - xorigin;
+    auto yradius = lr_y - yorigin;
+
+    if (reference == &parent || reference == parent.screen()) {
+        auto       thickness  = std::ceil(reference->drawData().d_border);
+        xradius -= thickness;
+        yradius -= thickness;
+    }
+
+    auto x = xorigin + d_sX*xradius;
+    auto y = yorigin + d_sY*yradius;
+
+    return Coordinates(x,y);                                          // RETURN
+}
+
                             //--------------
                             // class  Layout
                             //--------------
+
+float
+Layout::resolveBorder(const Widget& reference) const
+{
+    assert(reference.screen());
+    auto min = std::min(reference.drawData().d_rectangle.d_width,
+                        reference.drawData().d_rectangle.d_height);
+    return float(min * d_thickness / 1000.0);                         // RETURN
+}
+
+Rectangle
+Layout::resolveOutline(const Widget& parent) const
+{
+    auto [ux, uy]   = d_upperLeft.resolvePosition(parent);
+    auto [lx, ly]   = d_lowerRight.resolvePosition(parent);
+    auto width      = lx - ux;
+    auto height     = ly - uy;
+
+    if (d_pin != Vertex::eNONE) {
+        auto  square = (width + height)/2.0;
+
+        if (square > width) {
+            square = width;
+        }
+        else if (square > height) {
+            square = height;
+        }
+        auto  deltaW = square - width;
+        auto  deltaH = square - height;
+
+        switch (d_pin) {
+          case Vertex::eUPPER_LEFT: {
+                ly += deltaH; lx += deltaW;
+            } break;
+          case Vertex::eUPPER_CENTER: {
+                ly += deltaH; lx += deltaW/2.0;
+                              ux -= deltaW/2.0;
+            } break;
+          case Vertex::eUPPER_RIGHT: {
+                ly += deltaH;
+                              ux -= deltaW;
+            } break;
+          case Vertex::eCENTER_LEFT: {
+                uy -= deltaH/2.0;
+                ly += deltaH/2.0; lx += deltaW;
+            } break;
+          case Vertex::eCENTER_CENTER: {
+                uy -= deltaH/2.0; ux -= deltaW/2.0;
+                ly += deltaH/2.0; lx += deltaW/2.0;
+            } break;
+          case Vertex::eCENTER_RIGHT: {
+                uy -= deltaH/2.0; ux -= deltaW;
+                ly += deltaH/2.0;
+            } break;
+          case Vertex::eLOWER_LEFT: {
+                uy -= deltaH;
+                              lx += deltaW;
+            } break;
+          case Vertex::eLOWER_CENTER: {
+                uy -= deltaH; ux -= deltaW/2.0;
+                              lx += deltaW/2.0;
+            } break;
+          case Vertex::eLOWER_RIGHT: {
+                uy -= deltaH; ux -= deltaW;
+            } break;
+          default: break;
+        }
+    }
+    return { ux, uy, lx - ux, ly - uy };                              // RETURN
+}
 
 Layout&
 Layout::scale(double sx, double sy)
@@ -644,7 +605,6 @@ Widget::layout(DrawProtocol       *adapter,
          &Methods::d_layoutMethod,
          this,
          parent,
-         *d_root,
          firstPass,
          adapter);
 
@@ -671,7 +631,6 @@ Widget::defaultDraw(Widget *widget, DrawProtocol *adapter)
 void
 Widget::defaultLayout(Widget                  *widget,
                       const Widget&            parent,
-                      const Widget&            root,
                       bool                     firstPass,
                       DrawProtocol            *adapter) noexcept
 {
@@ -679,8 +638,8 @@ Widget::defaultLayout(Widget                  *widget,
     auto const& layoutData = widget->layoutData();
 
     if (firstPass) {
-        data.d_rectangle= makeRectangle(layoutData.d_layout, parent, root);
-        data.d_border   = borderThickness(root, layoutData.d_layout);
+        data.d_rectangle = layoutData.d_layout.resolveOutline(parent);
+        data.d_border    = layoutData.d_layout.resolveBorder(*parent.screen());
     }
 
     if (!data.d_label.empty()
@@ -699,7 +658,7 @@ Widget::defaultSerialize(std::ostream&      os,
     auto  spaces     = Indent(indent);
     auto& drawData   = widget.drawData();
     auto& layoutData = widget.layoutData();
-    auto& widgetName = drawData.d_className;
+    auto& widgetName = drawData.d_optionName;
     auto& widgetId   = drawData.d_widgetId;
     auto& layout     = layoutData.d_layout;
 
@@ -895,6 +854,16 @@ Widget::method(DrawMethod&& newMethod) && noexcept
 }
 
 Widget
+Widget::method(InputMethod&& newMethod) && noexcept
+{
+    if (!d_methods) {
+        d_methods = std::make_unique<Methods>();
+    }
+    d_methods->d_inputMethod = std::move(newMethod);
+    return std::move(*this);                                          // RETURN
+}
+
+Widget
 Widget::method(LayoutMethod&& newMethod) && noexcept
 {
     if (!d_methods) {
@@ -938,6 +907,16 @@ Widget::method(DrawMethod&& newMethod) & noexcept
         d_methods = std::make_unique<Methods>();
     }
     d_methods->d_drawMethod = std::move(newMethod);
+    return *this;                                                     // RETURN
+}
+
+Widget&
+Widget::method(InputMethod&& newMethod) & noexcept
+{
+    if (!d_methods) {
+        d_methods = std::make_unique<Methods>();
+    }
+    d_methods->d_inputMethod = std::move(newMethod);
     return *this;                                                     // RETURN
 }
 
@@ -1022,7 +1001,7 @@ Widget::operator=(Widget&& rhs) noexcept
 Widget&
 Widget::addChild(Widget&& child) &
 {
-    if (!d_root) {
+    if (!d_root) { // a no-op once widget IDs are assigned
         children().push_back(std::move(child));
         if (d_methods && d_methods->d_newChildMethod) {
             d_methods->d_newChildMethod(this, &children().back());
@@ -1046,12 +1025,12 @@ Widget::assignWidgetIds(uint16_t        next,
     }
 
     if (d_layoutData.d_layout.d_thickness == -1.0) {
-        auto thickness = WawtEnv::defaultBorderThickness(className());
+        auto thickness = WawtEnv::defaultBorderThickness(optionName());
         d_layoutData.d_layout.d_thickness = thickness;
     }
 
     if (!options().has_value()) {
-        options(WawtEnv::defaultOptions(d_drawData.d_className));
+        options(WawtEnv::defaultOptions(d_drawData.d_optionName));
     }
     d_drawData.d_relativeId = relativeId;
     relativeId  = 0;
@@ -1090,7 +1069,7 @@ Widget::children() const noexcept
 Widget
 Widget::clone() const
 {
-    auto copy = Widget{d_drawData.d_className, {}};
+    auto copy = Widget{d_drawData.d_optionName, {}};
 
     copy.d_root          = d_root;
     copy.d_textHit       = d_textHit;
@@ -1113,6 +1092,14 @@ Widget::clone() const
 EventUpCb
 Widget::downEvent(double x, double y, Widget *parent)
 {
+    if (d_root == this) {
+        auto input = getInstalled<InputMethod>();
+
+        if (input) {
+            input(this, WawtEnv::kFocusChg); // hide cursor
+            method(InputMethod()); // lose focus
+        }
+    }
     auto upCb = EventUpCb();
 
     if (hasChildren()) {
@@ -1120,7 +1107,7 @@ Widget::downEvent(double x, double y, Widget *parent)
 
         for (auto rit = widgets.rbegin(); rit != widgets.rend(); ++rit) {
             if (upCb = rit->downEvent(x, y, this)) {
-                break;                                             // BREAK
+                break;                                                 // BREAK
             }
         }
     }
@@ -1151,6 +1138,23 @@ Widget::draw(DrawProtocol *adapter) noexcept
     return;                                                           // RETURN
 }
 
+bool
+Widget::inputEvent(Char_t input) noexcept
+{
+    auto handler = getInstalled<InputMethod>();
+
+    if (handler) {
+        if (handler(this, input)) {
+            return true;                                              // RETURN
+        }
+
+        if (this == d_root) {
+            method(InputMethod());
+        }
+    }
+    return false;                                                     // RETURN
+}
+
 const Widget*
 Widget::lookup(WidgetId id) const noexcept
 {
@@ -1177,7 +1181,7 @@ Widget::popDialog()
 {
     if (this == d_root) {
         if (hasChildren()) {
-            if (0 == std::strcmp(children().back().drawData().d_className,
+            if (0 == std::strcmp(children().back().drawData().d_optionName,
                                  WawtEnv::sDialog)) {
                 children().pop_back();
                 d_drawData.d_widgetId
@@ -1197,11 +1201,11 @@ Widget::pushDialog(Widget&& child, DrawProtocol *adapter)
 {
     auto childId = WidgetId{};
 
-    if (0      == std::strcmp(child.drawData().d_className, WawtEnv::sDialog)
+    if (0      == std::strcmp(child.drawData().d_optionName, WawtEnv::sDialog)
      && d_root != nullptr) {
         if (this == d_root) {
             if (!hasChildren()
-             || (0 != std::strcmp(children().back().drawData().d_className,
+             || (0 != std::strcmp(children().back().drawData().d_optionName,
                                   WawtEnv::sDialog))) {
                 auto id = widgetIdValue();
                 auto relativeId
@@ -1297,6 +1301,29 @@ Widget::serialize(std::ostream&     os,
     return;                                                           // RETURN
 }
 
+void
+Widget::setFocus(Widget *target)  noexcept
+{
+    if (d_root) {
+        if (d_root != this) {
+            d_root->setFocus(target);
+            return;                                                   // RETURN
+        }
+
+        if (target == nullptr) {
+            if (d_methods) {
+                method(InputMethod());
+            }
+            return;                                                   // RETURN
+        }
+        auto handler =  [target](Widget*, Char_t input) -> bool {
+                            return target->inputEvent(input);
+                        };
+        method(handler);
+        handler(target, WawtEnv::kFocusChg); // show cursor
+    }
+}
+
                                 //-----------
                                 // class Draw
                                 //-----------
@@ -1311,7 +1338,7 @@ bool
 Draw::draw(const DrawData& drawData)  noexcept
 {
     auto  spaces     = Indent(0);
-    auto& widgetName = drawData.d_className;
+    auto& widgetName = drawData.d_optionName;
     auto& widgetId   = drawData.d_widgetId;
 
     auto fmtflags = d_os.flags();

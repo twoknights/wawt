@@ -80,10 +80,12 @@ class  Widget final {
     using DrawMethod
         = std::function<void(Widget *widget, DrawProtocol *adapter)>;
 
+    using InputMethod
+        = std::function<bool(Widget *widget, Char_t input)>;
+
     using LayoutMethod
         = std::function<void(Widget                  *widget,
                              const Widget&            parent,
-                             const Widget&            root,
                              bool                     firstPass,
                              DrawProtocol            *adapter)>;
 
@@ -101,14 +103,13 @@ class  Widget final {
 
     static void      defaultLayout(Widget                  *widget,
                                    const Widget&            parent,
-                                   const Widget&            root,
                                    bool                     firstPass,
                                    DrawProtocol            *adapter) noexcept;
 
-    static void     defaultSerialize(std::ostream&      os,
-                                     std::string       *closeTag,
-                                     const Widget&      widget,
-                                     unsigned int       indent);
+    static void      defaultSerialize(std::ostream&      os,
+                                      std::string       *closeTag,
+                                      const Widget&      widget,
+                                      unsigned int       indent);
 
     static void      labelLayout(DrawData          *data,
                                  bool               firstPass,
@@ -126,17 +127,17 @@ class  Widget final {
 
     Widget& operator=(Widget&& rhs)                                  noexcept;
 
-    Widget(char const * const className,
+    Widget(char const * const optionName,
            Trackee&&          indirect,
            const Layout&      layout)                                noexcept
         : d_widgetLabel(std::move(indirect))
-        , d_drawData(className)
+        , d_drawData(optionName)
         , d_layoutData(layout) {
             if (d_widgetLabel) d_widgetLabel.update(this);
         }
 
-    Widget(char const * const className, const Layout& layout)       noexcept
-        : d_drawData(className)
+    Widget(char const * const optionName, const Layout& layout)      noexcept
+        : d_drawData(optionName)
         , d_layoutData(layout) { }
 
     // PUBLIC Ref-Qualified MANIPULATORS
@@ -154,8 +155,8 @@ class  Widget final {
         return *this;
     }
 
-    Widget  className(char const * const className) &&               noexcept {
-        d_drawData.d_className = className;
+    Widget  optionName(char const * const optionName) &&             noexcept {
+        d_drawData.d_optionName = optionName;
         return std::move(*this);
     }
 
@@ -201,12 +202,14 @@ class  Widget final {
 
     Widget  method(DownEventMethod&& newMethod) &&                    noexcept;
     Widget  method(DrawMethod&&      newMethod) &&                    noexcept;
+    Widget  method(InputMethod&&     newMethod) &&                    noexcept;
     Widget  method(LayoutMethod&&    newMethod) &&                    noexcept;
     Widget  method(NewChildMethod&&  newMethod) &&                    noexcept;
     Widget  method(SerializeMethod&& newMethod) &&                    noexcept;
 
     Widget& method(DownEventMethod&& newMethod) &                     noexcept;
     Widget& method(DrawMethod&&      newMethod) &                     noexcept;
+    Widget& method(InputMethod&&     newMethod) &                     noexcept;
     Widget& method(LayoutMethod&&    newMethod) &                     noexcept;
     Widget& method(NewChildMethod&&  newMethod) &                     noexcept;
     Widget& method(SerializeMethod&& newMethod) &                     noexcept;
@@ -257,6 +260,8 @@ class  Widget final {
         return d_drawData;
     }
 
+    bool inputEvent(Char_t input)                                    noexcept;
+
     Layout&   layout()                                               noexcept {
         return d_layoutData.d_layout;
     }
@@ -280,6 +285,8 @@ class  Widget final {
         return d_root;                    
     }
 
+    void      setFocus(Widget* target = nullptr)                     noexcept;
+
     void      setSelected(bool setting)                              noexcept {
         d_drawData.d_selected = setting;
     }
@@ -288,8 +295,8 @@ class  Widget final {
 
     const Children& children()                                 const noexcept;
 
-    const char     *className()                                const noexcept {
-        return d_drawData.d_className;
+    const char     *optionName()                               const noexcept {
+        return d_drawData.d_optionName;
     }
 
     Widget          clone()                                    const;
@@ -303,6 +310,11 @@ class  Widget final {
 
     bool            hasChildren()                              const noexcept {
         return d_children && !d_children->empty();
+    }
+
+    bool            hasLabelLayout()                           const noexcept {
+        return !d_drawData.d_label.empty()
+            || d_drawData.d_labelMark != DrawData::BulletMark::eNONE;
     }
 
     bool            hasLabelSelect()                           const noexcept {
@@ -344,6 +356,10 @@ class  Widget final {
         return d_root;                    
     }
 
+    Tracker        *tracker()                                  const noexcept {
+        return d_widgetLabel.get();
+    }
+
     void            serialize(std::ostream&     os,
                               unsigned int      indent = 0)    const noexcept;
 
@@ -358,6 +374,7 @@ class  Widget final {
         LayoutMethod        d_layoutMethod;
         NewChildMethod      d_newChildMethod;
         SerializeMethod     d_serializeMethod;
+        InputMethod         d_inputMethod;
     };
     using MethodsPtr = std::unique_ptr<Methods>;
 

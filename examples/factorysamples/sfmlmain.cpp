@@ -92,7 +92,7 @@ int main()
                                    sf::ContextSettings());
 
     auto drawAdapter = SfmlDrawAdapter(window, path);
-    auto wawtEnv     = Wawt::WawtEnv(DrawOptions::classDefaults(),
+    auto wawtEnv     = Wawt::WawtEnv(DrawOptions::optionDefaults(),
                                      &drawAdapter);
 
     Wawt::EventRouter::Handle panels, labels, bullets, lists, buttons;
@@ -101,42 +101,33 @@ int main()
     labels  = router.create<Labels>("Label Samples",
                                     [&router,&panels](auto) {
                                        router.activate<Panels>(panels);
-                                       return Wawt::FocusCb();
                                     });
     panels  = router.create<Panels>("Panel Samples",
                                     [&router,&labels](auto) {
                                        router.activate<Labels>(labels);
-                                       return Wawt::FocusCb();
                                     },
                                     [&router,&bullets](auto) {
                                        router.activate<Bullets>(bullets);
-                                       return Wawt::FocusCb();
                                     });
     bullets = router.create<Bullets>("Bullet Button Samples",
                                     [&router,&panels](auto) {
                                        router.activate<Panels>(panels);
-                                       return Wawt::FocusCb();
                                     },
                                     [&router,&lists](auto) {
                                        router.activate<Lists>(lists);
-                                       return Wawt::FocusCb();
                                     });
     lists   = router.create<Lists>("Fixed Size Lists",
                                     [&router,&bullets](auto) {
                                        router.activate<Bullets>(bullets);
-                                       return Wawt::FocusCb();
                                     },
                                     [&router,&buttons](auto) {
                                        router.activate<Buttons>(buttons);
-                                       return Wawt::FocusCb();
                                     });
     buttons = router.create<Buttons>("Push Buttons & Grids",
                                     [&router,&lists](auto) {
                                        router.activate<Lists>(lists);
-                                       return Wawt::FocusCb();
                                     },
                                     [](auto) {
-                                       return Wawt::FocusCb();
                                     });
 
     router.activate<Labels>(labels);

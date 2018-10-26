@@ -71,8 +71,6 @@ class EventRouter {
     using SetTimerFn = Screen::SetTimerCb;
 
     // PRIVATE CLASS MEMBERS
-    FocusCb   wrap(FocusCb&& unwrapped);
-
     EventUpCb wrap(EventUpCb&& unwrapped);
 
     // PRIVATE MANIPULATORS
@@ -153,6 +151,8 @@ class EventRouter {
     EventUpCb downEvent(int x, int y);
     
     void draw();
+
+    bool inputEvent(Char_t input);
 
     bool isShuttingDown() {
         return d_shutdownFlag.load();

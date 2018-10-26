@@ -51,13 +51,13 @@ class WawtEnv {
     using DefaultOptions  = std::vector<OptionTuple<Options>>;
 
     // PUBLIC CLASS MEMBERS
-    static float         defaultBorderThickness(const std::string& className) {
-        return _instance ? _instance->_defaultBorderThickness(className)
+    static float        defaultBorderThickness(const std::string& optionName) {
+        return _instance ? _instance->_defaultBorderThickness(optionName)
                          : 0.0;
     }
 
-    static const std::any& defaultOptions(const std::string& className)  {
-        return _instance ? _instance->_defaultOptions(className)
+    static const std::any& defaultOptions(const std::string& optionName)  {
+        return _instance ? _instance->_defaultOptions(optionName)
                          : _any;
     }
 
@@ -74,62 +74,37 @@ class WawtEnv {
     }
 
     // PUBLIC CLASS DATA
-    static Char_t   kCursor;
     static Char_t   kFocusChg;
 
-    static char    sScreen[];
+    static char    sButton[];
     static char    sDialog[];
-    static char    sPanel[];
-    static char    sLabel[];
-    static char    sPush[];
-    static char    sBullet[];
+    static char    sEntry[];
     static char    sItem[];
+    static char    sLabel[];
     static char    sList[];
+    static char    sPanel[];
+    static char    sScreen[];
 
     // PUBLIC CONSTRUCTOR
-    WawtEnv()
-    : d_classDefaults{}
-    , d_strings{}
-    , d_drawAdapter(nullptr)
-    {
-        while (_atomicFlag.test_and_set()) {};
-        
-        if (_instance == nullptr) {
-            _instance = this;
-        }
-        _atomicFlag.clear();
+    WawtEnv() : d_optionDefaults{}, d_strings{}, d_drawAdapter(nullptr) {
+        _init();
     }
 
     WawtEnv(DrawProtocol *adapter)
-    : d_classDefaults{}
-    , d_strings{}
-    , d_drawAdapter(adapter)
-    {
-        while (_atomicFlag.test_and_set()) {};
-        
-        if (_instance == nullptr) {
-            _instance = this;
-        }
-        _atomicFlag.clear();
+    : d_optionDefaults{}, d_strings{}, d_drawAdapter(adapter) {
+        _init();
     }
 
     template <typename Options>
-    WawtEnv(const DefaultOptions<Options>&  classDefaults,
+    WawtEnv(const DefaultOptions<Options>&  optionDefaults,
             DrawProtocol                   *adapter = nullptr)
-    : d_classDefaults{}
-    , d_strings{}
-    , d_drawAdapter(adapter)
+    : d_optionDefaults{}, d_strings{}, d_drawAdapter(adapter)
     {
-        for (auto& [className, border, options] : classDefaults) {
-            d_classDefaults.try_emplace(className, border, options);
+        for (auto& [optionName, border, options] : optionDefaults) {
+            d_optionDefaults.try_emplace(optionName, border, options);
         }
 
-        while (_atomicFlag.test_and_set()) {};
-        
-        if (_instance == nullptr) {
-            _instance     = this;
-        }
-        _atomicFlag.clear();
+        _init();
     }
 
     // PUBLIC DESTRUCTOR
@@ -148,25 +123,35 @@ class WawtEnv {
     static std::any             _any;
 
     // PRIVATE MANIPULATORS
+    void _init() {
+        while (_atomicFlag.test_and_set()) {};
+        
+        if (_instance == nullptr) {
+            _instance     = this;
+        }
+        _atomicFlag.clear();
+    }
+
     StringView_t      _translate(const StringView_t& phrase) {
+        // MUST BE THREAD-SAFE
         return *d_strings.emplace(phrase).first; // TBD: translate
     }
 
     // PRIVATE ACCESSORS
-    float          _defaultBorderThickness(const std::string& className) const
+    float          _defaultBorderThickness(const std::string& optionName) const
                                                                      noexcept {
-        auto it = d_classDefaults.find(className);
-        return d_classDefaults.end() != it ? it->second.first : 0.0;
+        auto it = d_optionDefaults.find(optionName);
+        return d_optionDefaults.end() != it ? it->second.first : 0.0;
     }
 
-    const std::any& _defaultOptions(const std::string& className) const
+    const std::any& _defaultOptions(const std::string& optionName) const
                                                                      noexcept {
-        auto it = d_classDefaults.find(className);
-        return d_classDefaults.end() != it ? it->second.second : _any;
+        auto it = d_optionDefaults.find(optionName);
+        return d_optionDefaults.end() != it ? it->second.second : _any;
     }
 
     // PRIVATE DATA MEMBERS
-    std::map<std::string, Defaults> d_classDefaults{};
+    std::map<std::string, Defaults> d_optionDefaults{};
     std::unordered_set<String_t>    d_strings{};
     DrawProtocol                   *d_drawAdapter;
 };

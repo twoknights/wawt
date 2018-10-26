@@ -53,6 +53,8 @@ auto toString(int n) {
     }
 }
 
+String_t toString(Char_t *charArray, std::size_t length);
+
 //! Compute the bytes required by a character when represented in a string.
 inline
 constexpr std::size_t sizeOfChar(const Char_t ch) {
@@ -66,11 +68,14 @@ constexpr std::size_t sizeOfChar(const Char_t ch) {
     }
 }
 
+Char_t popFrontChar(StringView_t& view);
+
+void outputXMLString(std::ostream& os, StringView_t text);
+
 //
 //! Callback methods used in application's "event loops":
 //
-using FocusCb     = std::function<bool(Char_t)>;
-using EventUpCb   = std::function<FocusCb(double x, double y, bool)>;
+using EventUpCb   = std::function<void(double x, double y, bool)>;
 
                             //==================
                             // struct Dimensions
@@ -233,26 +238,19 @@ class Tracker {
 
     ~Tracker();
 
-    Widget&  operator*() {
+    Widget&  operator*() noexcept {
         return *d_widget;
     }
 
-    Widget*  operator->() {
+    Widget*  operator->() noexcept {
         return d_widget;
     }
 
-    operator bool() const {
+    operator bool() const noexcept {
         return d_widget != nullptr;
     }
 
     operator Trackee();
-
-    // Throws if tracker already in use.
-    Trackee  tracking();
-
-    Widget*  widget() {
-        return d_widget;
-    }
 };
 
                                 //==============
@@ -264,19 +262,19 @@ class Trackee {
 
     Tracker *d_backPtr              = nullptr;
 
-    explicit Trackee(Tracker *backPtr) : d_backPtr(backPtr) { }
+    explicit Trackee(Tracker *backPtr) noexcept : d_backPtr(backPtr) { }
   public:
 
-    explicit Trackee()                      = default;
+    constexpr explicit Trackee()            = default;
 
     Trackee(const Trackee&)                 = delete;
     Trackee& operator=(const Trackee&)      = delete;
 
-    Trackee(Trackee&& copy) : d_backPtr(copy.d_backPtr) {
+    Trackee(Trackee&& copy)  noexcept : d_backPtr(copy.d_backPtr) {
         copy.d_backPtr = nullptr;
     }
 
-    Trackee& operator=(Trackee&& rhs) {
+    Trackee& operator=(Trackee&& rhs) noexcept {
         if (this != &rhs) {
             d_backPtr       = rhs.d_backPtr;
             rhs.d_backPtr   = nullptr;
@@ -284,11 +282,11 @@ class Trackee {
         return *this;
     }
 
-    ~Trackee() {
+    ~Trackee() noexcept {
         clear();
     }
 
-    void clear() {
+    void clear() noexcept {
         if (d_backPtr) {
             d_backPtr->d_widget = nullptr;
             d_backPtr->d_label  = nullptr;
@@ -296,22 +294,60 @@ class Trackee {
         }
     }
 
-    void update(Widget *newValue) {
+    void update(Widget *newValue) noexcept {
         if (d_backPtr) {
             d_backPtr->d_widget = newValue;
         }
     }
 
-    operator bool() const {
+    operator bool() const noexcept {
         return d_backPtr != nullptr;
+    }
+
+    Tracker *get() const noexcept {
+        return d_backPtr;
     }
 };
 
-inline
-Tracker::operator Trackee()
-{
-    return tracking();
-}
+                                //================
+                                // class WidgetRef
+                                //================
+
+class WidgetRef {
+    WidgetId    d_widgetId{};
+    Tracker    *d_tracker  = nullptr;
+  public:
+    constexpr WidgetRef()               = default;
+
+    constexpr WidgetRef(WidgetId id) noexcept : d_widgetId(id) { }
+
+    WidgetRef(Tracker *ptr)          noexcept : d_tracker(ptr) { }
+
+    const Widget* getWidgetPointer(const Widget& parent) const;
+
+    WidgetId    getWidgetId()                                  const noexcept;
+
+    bool        isRelative()                                   const noexcept {
+        return d_widgetId.isSet() && d_widgetId.isRelative();
+    }
+
+    bool        isSet()                                        const noexcept {
+        return d_widgetId.isSet() || d_tracker != nullptr;
+    }
+
+    bool operator==(const WidgetRef& rhs)                      const noexcept {
+        if (d_widgetId.isSet()) {
+            return rhs.d_widgetId.isSet()
+                && d_widgetId.isRelative() == rhs.d_widgetId.isRelative()
+                && d_widgetId.value()      == rhs.d_widgetId.value();
+        }
+        return d_tracker != nullptr && d_tracker == rhs.d_tracker;
+    }
+
+    bool operator!=(const WidgetRef& rhs)                      const noexcept {
+        return !(*this == rhs);
+    }
+};
 
 
 } // end Wawt namespace

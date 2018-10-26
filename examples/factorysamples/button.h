@@ -36,7 +36,7 @@ class Buttons : public Wawt::ScreenImpl<Buttons,DrawOptions> {
     // PUBLIC TYPES
 
     // PUBLIC CONSTRUCTORS
-    Buttons(Wawt::FocusChgCb&& prev, Wawt::FocusChgCb&& next)
+    Buttons(Wawt::OnClickCb&& prev, Wawt::OnClickCb&& next)
         : d_next(std::move(next)), d_prev(std::move(prev)) { }
 
     // PUBLIC MANIPULATORS
@@ -50,22 +50,31 @@ class Buttons : public Wawt::ScreenImpl<Buttons,DrawOptions> {
 
 private:
     // PRIVATE DATA MEMBERS
-    Wawt::FocusChgCb d_next;
-    Wawt::FocusChgCb d_prev;
+    Wawt::OnClickCb d_next;
+    Wawt::OnClickCb d_prev;
 };
 
 inline Wawt::Widget
 Buttons::createScreenPanel()
 {
     using namespace Wawt;
-    auto lineColor   = defaultOptions(WawtEnv::sPanel)
+    auto lineColor  = defaultOptions(WawtEnv::sPanel)
                           .lineColor(defaultOptions(WawtEnv::sScreen)
                                           .d_fillColor);
-    auto layoutGrid  = gridLayoutGenerator(-1.0, 6, 1);
-    auto layoutFn    =
+    auto layoutGrid = gridLayoutGenerator(-1.0, 6, 1);
+    auto layoutFn   =
         [layoutGrid]() mutable -> Layout {
             return layoutGrid().scale(1.0, 0.8);
         };
+    auto widgetFn   =
+        [childLayout = gridLayoutGenerator(-1.0, 10, 3)] (int r,
+                                                          int c) -> Widget {
+            return pushButton(childLayout(),
+                              OnClickCb(),
+                              toString((7-r*3)+c),
+                              3_Sz);
+        };
+
     auto screen =
         panel().addChild(
                     label({{-1.0, -1.0}, {1.0, -0.9}, 0.1},
@@ -82,33 +91,24 @@ Buttons::createScreenPanel()
                                 layoutFn,
 
 // Start Samples:
-pushButton({}, FocusChgCb(), S("Click Me (1_Sz)"), 1_Sz),
+pushButton({}, OnClickCb(), S("Click Me (1_Sz)"), 1_Sz),
 pushButtonGrid({}, -1.0, 2_Sz,
-               { {FocusChgCb(),S("Non-spaced Grid Choice 1 (2_Sz)")},
-                 {FocusChgCb(),S("Non-spaced Grid Choice 2 (2_Sz)")} }, false),
+               { {OnClickCb(),S("Non-spaced Grid Choice 1 (2_Sz)")},
+                 {OnClickCb(),S("Non-spaced Grid Choice 2 (2_Sz)")} }, false),
 pushButtonGrid({}, -1.0, 2_Sz,
-               { {FocusChgCb(),S("Spaced Grid Choice 1 (2_Sz)")},
-                 {FocusChgCb(),S("Spaced Grid Choice 2 (2_Sz)")} }),
+               { {OnClickCb(),S("Spaced Grid Choice 1 (2_Sz)")},
+                 {OnClickCb(),S("Spaced Grid Choice 2 (2_Sz)")} }),
 pushButtonGrid({}, 2, -1.0, 3_Sz,
-               { {FocusChgCb(),S("Non-spaced Grid Choice 1 (3_Sz)")},
-                 {FocusChgCb(),S("Non-spaced Grid Choice 2 (3_Sz)")},
-                 {FocusChgCb(),S("Choice 3 (3_Sz)")},
-                 {FocusChgCb(),S("Choice 4 (3_Sz)")} }, false),
+               { {OnClickCb(),S("Non-spaced Grid Choice 1 (3_Sz)")},
+                 {OnClickCb(),S("Non-spaced Grid Choice 2 (3_Sz)")},
+                 {OnClickCb(),S("Choice 3 (3_Sz)")},
+                 {OnClickCb(),S("Choice 4 (3_Sz)")} }, false),
 pushButtonGrid({}, 2, -1.0, 3_Sz,
-               { {FocusChgCb(),S("Spaced Grid Choice 1 (3_Sz)")},
-                 {FocusChgCb(),S("Spaced Grid Choice 2 (3_Sz)")},
-                 {FocusChgCb(),S("Choice 3 (3_Sz)")},
-                 {FocusChgCb(),S("Choice 4 (3_Sz)")} }, true),
-pushButtonGrid({}, 3, -1.0, 3_Sz, { {FocusChgCb(),S("7")},
-                             {FocusChgCb(),S("8")},
-                             {FocusChgCb(),S("9")},
-                             {FocusChgCb(),S("4")},
-                             {FocusChgCb(),S("5")},
-                             {FocusChgCb(),S("6")},
-                             {FocusChgCb(),S("1")},
-                             {FocusChgCb(),S("2")},
-                             {FocusChgCb(),S("3")},
-                             {FocusChgCb(),S("0")} }, true)));
+               { {OnClickCb(),S("Spaced Grid Choice 1 (3_Sz)")},
+                 {OnClickCb(),S("Spaced Grid Choice 2 (3_Sz)")},
+                 {OnClickCb(),S("Choice 3 (3_Sz)")},
+                 {OnClickCb(),S("Choice 4 (3_Sz)")} }, true),
+widgetGrid({}, 3, 3, widgetFn, true)));
 // End Samples.
     return screen;                                                    // RETURN
 }

@@ -36,7 +36,7 @@ class Lists : public Wawt::ScreenImpl<Lists,DrawOptions> {
     // PUBLIC TYPES
 
     // PUBLIC CONSTRUCTORS
-    Lists(Wawt::FocusChgCb&& prev, Wawt::FocusChgCb&& next)
+    Lists(Wawt::OnClickCb&& prev, Wawt::OnClickCb&& next)
         : d_next(std::move(next)), d_prev(std::move(prev)) { }
 
     // PUBLIC MANIPULATORS
@@ -60,8 +60,8 @@ class Lists : public Wawt::ScreenImpl<Lists,DrawOptions> {
 
 private:
     // PRIVATE DATA MEMBERS
-    Wawt::FocusChgCb d_next;
-    Wawt::FocusChgCb d_prev;
+    Wawt::OnClickCb d_next;
+    Wawt::OnClickCb d_prev;
     Wawt::Tracker    d_singleSelect;
     Wawt::Tracker    d_multiSelect;
     Wawt::Tracker    d_dropDown;
@@ -94,11 +94,11 @@ Lists::createScreenPanel()
                                 layoutFn,
 
 // Start Samples:
-fixedSizeList(d_singleSelect, {}, true, GridFocusCb(), 1_Sz,
+fixedSizeList(d_singleSelect, {}, true, GroupClickCb(), 1_Sz,
               {S("Single Select"), S("Second"), S("Third"), S("Fourth")}),
-fixedSizeList(d_multiSelect, {}, false, GridFocusCb(), 1_Sz,
+fixedSizeList(d_multiSelect, {}, false, GroupClickCb(), 1_Sz,
               {S("Multi Select"), S("Second"), S("Third"), S("Fourth")}),
-dropDownList(d_dropDown, {}, GridFocusCb(), 1_Sz,
+dropDownList(d_dropDown, {}, GroupClickCb(), 1_Sz,
               {S("First"), S("Second"), S("Third"), S("Fourth")})));
 // End Samples.
 
