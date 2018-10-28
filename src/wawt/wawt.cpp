@@ -18,6 +18,7 @@
 
 #include "wawt/wawtenv.h"
 #include "wawt/widget.h"
+#include "wawt/drawprotocol.h"
 
 #include <cassert>
 #include <cstring>
@@ -46,6 +47,7 @@ namespace Wawt {
 namespace {
 
 const Widget::Children s_emptyList;
+const Text             s_emptyText;
 
 struct Indent {
     unsigned int d_indent;
@@ -132,6 +134,9 @@ wchar_t frontChar(const std::wstring_view& s) {
 
 inline
 char32_t frontChar(const std::string_view& text) {
+    if (text.empty()) {
+        return U'\0';                                                 // RETURN
+    }
     auto it     = text.begin();
     auto ch     = *it++;
     auto value  = int{};
@@ -300,7 +305,12 @@ Char_t popFrontChar(StringView_t& view)
 {
     auto front = frontChar(view);
     if (front != '\0') {
-        view.remove_prefix(sizeOfChar(front)/sizeof(Char_t));
+        if constexpr(std::is_same_v<Char_t, wchar_t>) {
+            view.remove_prefix(1);
+        }
+        else {
+            view.remove_prefix(sizeOfChar(front));
+        }
     }
     return front;                                                     // RETURN
 }
@@ -320,15 +330,14 @@ String_t toString(Char_t *charArray, std::size_t length)
     return result;                                                    // RETURN
 }
 
-
                                 //--------
                                 // Tracker
                                 //--------
 
 Tracker::Tracker(Tracker&& copy)
 {
-    d_widget = copy.d_widget;
-    d_label  = copy.d_label;
+    d_widget        = copy.d_widget;
+    d_label         = copy.d_label;
     copy.d_widget   = nullptr;
     copy.d_label    = nullptr;
 
@@ -350,8 +359,8 @@ Tracker&
 Tracker::operator=(Tracker&& rhs)
 {
     if (this != &rhs) {
-        d_widget = rhs.d_widget;
-        d_label  = rhs.d_label;
+        d_widget        = rhs.d_widget;
+        d_label         = rhs.d_label;
         rhs.d_widget    = nullptr;
         rhs.d_label     = nullptr;
 
@@ -430,15 +439,15 @@ WidgetRef::getWidgetId() const noexcept
                             //------------------------
 
 
-Layout::Coordinates
+Coordinates
 Layout::Position::resolvePosition(const Widget& parent) const
 {
     auto       reference  = d_widgetRef.getWidgetPointer(parent);
-    auto&      rectangle  = reference->drawData().d_rectangle;
-    auto&      ul_x       = rectangle.d_ux;
-    auto&      ul_y       = rectangle.d_uy;
-    auto       lr_x       = ul_x + rectangle.d_width;
-    auto       lr_y       = ul_y + rectangle.d_height;
+    auto&      rectangle  = reference->layoutData();
+    auto&      ul_x       = rectangle.d_upperLeft.d_x;
+    auto&      ul_y       = rectangle.d_upperLeft.d_y;
+    auto       lr_x       = ul_x + rectangle.d_bounds.d_width;
+    auto       lr_y       = ul_y + rectangle.d_bounds.d_height;
 
     auto xorigin = (ul_x  + lr_x)/2.0;
     auto yorigin = (ul_y  + lr_y)/2.0;
@@ -446,7 +455,7 @@ Layout::Position::resolvePosition(const Widget& parent) const
     auto yradius = lr_y - yorigin;
 
     if (reference == &parent || reference == parent.screen()) {
-        auto       thickness  = std::ceil(reference->drawData().d_border);
+        auto       thickness  = rectangle.d_border;
         xradius -= thickness;
         yradius -= thickness;
     }
@@ -454,24 +463,15 @@ Layout::Position::resolvePosition(const Widget& parent) const
     auto x = xorigin + d_sX*xradius;
     auto y = yorigin + d_sY*yradius;
 
-    return Coordinates(x,y);                                          // RETURN
+    return Coordinates{float(x), float(y)};                           // RETURN
 }
 
                             //--------------
                             // class  Layout
                             //--------------
 
-float
-Layout::resolveBorder(const Widget& reference) const
-{
-    assert(reference.screen());
-    auto min = std::min(reference.drawData().d_rectangle.d_width,
-                        reference.drawData().d_rectangle.d_height);
-    return float(min * d_thickness / 1000.0);                         // RETURN
-}
-
-Rectangle
-Layout::resolveOutline(const Widget& parent) const
+Layout::Result
+Layout::resolveLayout(const Widget& parent) const
 {
     auto [ux, uy]   = d_upperLeft.resolvePosition(parent);
     auto [lx, ly]   = d_lowerRight.resolvePosition(parent);
@@ -528,7 +528,11 @@ Layout::resolveOutline(const Widget& parent) const
           default: break;
         }
     }
-    return { ux, uy, lx - ux, ly - uy };                              // RETURN
+    auto min    = std::min(parent.screen()->layoutData().d_bounds.d_width,
+                           parent.screen()->layoutData().d_bounds.d_height);
+    auto border = float(min * d_thickness / 1000.0);
+
+    return { ux, uy, lx - ux, ly - uy, border };                      // RETURN
 }
 
 Layout&
@@ -536,7 +540,7 @@ Layout::scale(double sx, double sy)
 {
     if (d_upperLeft.d_widgetRef != d_lowerRight.d_widgetRef) {
         // No common coordinate system, so:
-        throw WawtException("Incompatible widget references in scaling.");
+        throw WawtException("'scale' requires compatible widget references.");
     }
     auto dx  = d_lowerRight.d_sX - d_upperLeft.d_sX;
     auto dy  = d_lowerRight.d_sY - d_upperLeft.d_sY;
@@ -548,8 +552,122 @@ Layout::scale(double sx, double sy)
     d_lowerRight.d_sY += (sdy - dy)/2.0;
     return *this;
 }
+
+                                //--------------------
+                                // class  Text::Layout
+                                //--------------------
+
+bool
+Text::Layout::resolveSizes(CharSize                    *size,
+                           Bounds                      *bounds,
+                           const String_t&              string,
+                           bool                         hasBulletMark,
+                           const Wawt::Layout::Result&  container,
+                           CharSize                     upperLimit,
+                           DrawProtocol                *adapter,
+                           const std::any&              options) noexcept
+{
+    auto constraint       = container.d_bounds;
+    auto borderAdjustment = 2*(container.d_border + 1);
+    constraint.d_width   -= borderAdjustment;
+    constraint.d_height  -= borderAdjustment;
+    return adapter->setTextValues(bounds,
+                                  size,
+                                  constraint,
+                                  hasBulletMark,
+                                  string,
+                                  upperLimit,
+                                  options);
+}
+
+Coordinates
+Text::Layout::position(const Bounds&                bounds,
+                       const Wawt::Layout::Result&  container) noexcept
+{
+    Coordinates position;
+    auto borderAdjustment = 2*(container.d_border + 1);
+    position.d_x = container.d_upperLeft.d_x + container.d_border + 1;
+    position.d_y = container.d_upperLeft.d_y + container.d_border + 1;
+
+    if (d_textAlign != TextAlign::eLEFT) {
+        auto space = container.d_bounds.d_width
+                   - bounds.d_width
+                   - borderAdjustment;
+
+        if (d_textAlign == TextAlign::eCENTER) {
+            space /= 2.0f;
+        }
+        position.d_x += space;
+    }
+    auto space = container.d_bounds.d_height - bounds.d_height
+               - borderAdjustment;
+
+    space /= 2.0f;
+    position.d_y += space;
+    return position;                                                  // RETURN
+}
+
+Text::CharSize
+Text::Layout::upperLimit(const Wawt::Layout::Result& container) noexcept
+{
+    auto charSizeLimit    = container.d_bounds.d_height;
+    auto borderAdjustment = 2*(container.d_border + 1);
+
+    if (charSizeLimit-4 <= borderAdjustment) {
+        return 0;                                                     // RETURN
+    }
+    charSizeLimit -= borderAdjustment;
+
+    if (d_charSizeGroup) {
+        if (auto it  = d_charSizeMap->find(*d_charSizeGroup);
+                 it != d_charSizeMap->end()) {
+            if (charSizeLimit > it->second + 1) {
+                charSizeLimit = it->second + 1;
+            }
+        }
+    }
+    return charSizeLimit;                                             // RETURN
+}
+
+                                //------------
+                                // class  Text
+                                //------------
+
+void
+Text::resolveLayout(bool                         firstPass,
+                    const Wawt::Layout::Result&  container,
+                    DrawProtocol                *adapter,
+                    const std::any&              options) noexcept
+{
+    auto charSizeLimit    = d_layout.upperLimit(container);
+
+    if (firstPass || d_data.d_charSize + 1 != charSizeLimit) {
+        if (!d_layout.resolveSizes(&d_data.d_charSize,
+                                   &d_data.d_bounds,
+                                   d_data.d_string,
+                                   d_data.d_labelMark != BulletMark::eNONE,
+                                   container,
+                                   charSizeLimit,
+                                   adapter,
+                                   options)) {
+            d_data.d_successfulLayout = false;
+            return;                                                   // RETURN
+        }
+
+        if (d_layout.d_charSizeGroup) {
+            (*d_layout.d_charSizeMap)[*d_layout.d_charSizeGroup]
+                = d_data.d_charSize;
+        }
+    }
+
+    d_data.d_upperLeft        = d_layout.position(d_data.d_bounds, container);
+    d_data.d_successfulLayout = true;
+    return;                                                           // RETURN
+}
+
+
                                 //-------------
-                                // class Widget
+                                // class  Widget
                                 //-------------
 
 // SPECIALIZATIONS
@@ -608,11 +726,12 @@ Widget::layout(DrawProtocol       *adapter,
          firstPass,
          adapter);
 
-    d_layoutData.d_refreshBounds = false;
+    if (hasText()) {
+        text().d_layout.d_refreshBounds = false;
+    }
 
-    auto space = std::min(d_drawData.d_rectangle.d_width,
-                          d_drawData.d_rectangle.d_height)
-               - 2*d_drawData.d_border;
+    auto space = std::min(d_rectangle.d_bounds.d_height,
+                          d_rectangle.d_bounds.d_width)-2*d_rectangle.d_border;
 
     if (space > 8 && hasChildren()) {
         for (auto& child : children()) {
@@ -625,7 +744,11 @@ Widget::layout(DrawProtocol       *adapter,
 void
 Widget::defaultDraw(Widget *widget, DrawProtocol *adapter)
 {
-    adapter->draw(widget->drawData());
+    adapter->draw(widget->layoutData(), widget->settings());
+
+    if (widget->hasText() && widget->text().d_data.d_successfulLayout) {
+        adapter->draw(widget->text().d_data, widget->settings());
+    }
 }
 
 void
@@ -634,17 +757,15 @@ Widget::defaultLayout(Widget                  *widget,
                       bool                     firstPass,
                       DrawProtocol            *adapter) noexcept
 {
-    auto&       data       = widget->drawData();
-    auto const& layoutData = widget->layoutData();
-
     if (firstPass) {
-        data.d_rectangle = layoutData.d_layout.resolveOutline(parent);
-        data.d_border    = layoutData.d_layout.resolveBorder(*parent.screen());
+        widget->layoutData() = widget->layout().resolveLayout(parent);
     }
 
-    if (!data.d_label.empty()
-     || data.d_labelMark != DrawData::BulletMark::eNONE) {
-        labelLayout(&data, firstPass, layoutData, adapter);
+    if (widget->hasText()) {
+        widget->text().resolveLayout(firstPass,
+                                     widget->layoutData(),
+                                     adapter,
+                                     widget->options());
     }
     return;                                                           // RETURN
 }
@@ -656,11 +777,10 @@ Widget::defaultSerialize(std::ostream&      os,
                          unsigned int       indent)
 {
     auto  spaces     = Indent(indent);
-    auto& drawData   = widget.drawData();
-    auto& layoutData = widget.layoutData();
-    auto& widgetName = drawData.d_optionName;
-    auto& widgetId   = drawData.d_widgetId;
-    auto& layout     = layoutData.d_layout;
+    auto& layout     = widget.layout();
+    auto& settings   = widget.settings();
+    auto& widgetName = settings.d_optionName;
+    auto& widgetId   = settings.d_widgetIdValue;
 
     auto fmtflags = os.flags();
     os.setf(std::ios::boolalpha);
@@ -668,7 +788,7 @@ Widget::defaultSerialize(std::ostream&      os,
     std::ostringstream ss;
     ss << spaces << "</" << widgetName << ">\n";
     os << spaces << "<" << widgetName << " id='" << widgetId
-       << "' rid='" << drawData.d_relativeId << "'>\n";
+       << "' rid='" << widget.settings().d_relativeId << "'>\n";
 
     *closeTag = ss.str();
 
@@ -697,21 +817,23 @@ Widget::defaultSerialize(std::ostream&      os,
     spaces -= 2;
     os << spaces << "</layout>\n";
 
-    if (!drawData.d_label.empty()) {
+    if (widget.hasText()) {
+        auto& textData   = widget.text().d_data;
+        auto& textLayout = widget.text().d_layout;
         os << spaces
-           << "<text align='"   << int(layoutData.d_textAlign)
+           << "<text align='"   << int(textLayout.d_textAlign)
            << "' group='";
 
-        if (layoutData.d_charSizeGroup) {
-            os << *layoutData.d_charSizeGroup;
+        if (textLayout.d_charSizeGroup) {
+            os << *textLayout.d_charSizeGroup;
         }
 
-        if (drawData.d_labelMark != DrawData::BulletMark::eNONE) {
-            os << "' mark='"    << int(drawData.d_labelMark)
-               << "' left='"    << bool(drawData.d_leftMark);
+        if (textData.d_labelMark != Text::BulletMark::eNONE) {
+            os << "' mark='"    << int(textData.d_labelMark)
+               << "' left='"    << bool(textData.d_leftAlignMark);
         }
         os << "'>";
-        outputXMLString(os, drawData.d_label);
+        outputXMLString(os, textData.d_string);
         os << "</text>\n";
     }
     else {
@@ -749,77 +871,6 @@ Widget::defaultSerialize(std::ostream&      os,
            << spaces << "</installedMethods>\n";
     }
     os.flags(fmtflags);
-    return;                                                           // RETURN
-}
-
-void
-Widget::labelLayout(DrawData                  *data,
-                    bool                       firstPass,
-                    const Widget::LayoutData&  layoutData,
-                    DrawProtocol              *adapter) noexcept
-{
-    auto charSizeMap      = layoutData.d_charSizeMap.get();
-    auto charSizeLimit    = data->d_rectangle.d_height;
-    auto borderAdjustment = 2*(data->d_border + 1);
-
-    if (charSizeLimit <= borderAdjustment) {
-        return;                                                       // RETURN
-    }
-    charSizeLimit -= borderAdjustment;
-
-    if (layoutData.d_charSizeGroup) {
-        if (auto it  = charSizeMap->find(*layoutData.d_charSizeGroup);
-                 it != charSizeMap->end()) {
-            if (charSizeLimit > it->second + 1) {
-                charSizeLimit = it->second + 1;
-            }
-        }
-    }
-    data->d_labelBounds.d_ux= data->d_rectangle.d_ux + data->d_border + 1;
-    data->d_labelBounds.d_uy= data->d_rectangle.d_uy + data->d_border + 1;
-
-    if (firstPass || data->d_charSize + 1 != charSizeLimit) {
-        auto textBounds = Dimensions{
-            data->d_rectangle.d_width  - borderAdjustment,
-            data->d_rectangle.d_height - borderAdjustment };
-
-        if (data->d_label.empty()) {
-            data->d_charSize = charSizeLimit-1;
-        }
-        else if (!adapter->getTextMetrics(&textBounds,
-                                          &data->d_charSize,
-                                          *data,
-                                          charSizeLimit)) {
-            assert(!"Failed to get text metrics.");
-            data->d_charSize    = charSizeLimit - 1;
-        }
-        else {
-            assert(data->d_charSize < charSizeLimit);
-        }
-
-        if (layoutData.d_charSizeGroup) {
-            (*charSizeMap)[*layoutData.d_charSizeGroup] = data->d_charSize;
-        }
-        data->d_labelBounds.d_width   = textBounds.d_x;
-        data->d_labelBounds.d_height  = textBounds.d_y;
-    }
-
-    if (layoutData.d_textAlign != TextAlign::eLEFT) {
-        auto space = data->d_rectangle.d_width
-                   - data->d_labelBounds.d_width
-                   - borderAdjustment;
-
-        if (layoutData.d_textAlign == TextAlign::eCENTER) {
-            space /= 2.0f;
-        }
-        data->d_labelBounds.d_ux += space;
-    }
-    auto space = data->d_rectangle.d_height
-               - data->d_labelBounds.d_height
-               - borderAdjustment;
-
-    space /= 2.0f;
-    data->d_labelBounds.d_uy += space;
     return;                                                           // RETURN
 }
 
@@ -950,14 +1001,24 @@ Widget::method(SerializeMethod&& newMethod) & noexcept
     return *this;                                                     // RETURN
 }
 
-Widget
-Widget::text(StringView_t string, CharSizeGroup group, TextAlign alignment) &&
+Widget&
+Widget::text(StringView_t string, CharSizeGroup group, TextAlign alignment) &
                                                                       noexcept
 {
-    d_layoutData.d_charSizeGroup    = group;
-    d_layoutData.d_textAlign        = alignment;
-    d_drawData.d_label              = WawtEnv::translate(string);
-    return std::move(*this);                                          // RETURN
+    text().d_layout.d_charSizeGroup    = group;
+    text().d_layout.d_textAlign        = alignment;
+    text().d_data.d_string             = string;
+    return *this;                                                     // RETURN
+}
+
+Widget&
+Widget::textMark(Text::BulletMark  mark,
+                 bool              leftAlignMark) & noexcept
+{
+    text().d_data.d_labelMark     = mark;
+    text().d_data.d_leftAlignMark = leftAlignMark;
+    d_settings.d_hideSelect       = mark != Text::BulletMark::eNONE;
+    return *this;
 }
 
 // PUBLIC MEMBERS
@@ -965,16 +1026,35 @@ Widget::Widget(Widget&& copy) noexcept
 {
     d_widgetLabel   = std::move(copy.d_widgetLabel);
     d_root          = copy.d_root;
-    d_textHit       = copy.d_textHit;
-    d_methods       = std::move(copy.d_methods);
     d_downMethod    = std::move(copy.d_downMethod);
-    d_drawData      = std::move(copy.d_drawData);
-    d_layoutData    = std::move(copy.d_layoutData);
+    d_methods       = std::move(copy.d_methods);
+    d_layout        = std::move(copy.d_layout);
+    d_rectangle     = std::move(copy.d_rectangle);
+    d_settings      = std::move(copy.d_settings);
+    d_text          = std::move(copy.d_text);
     d_children      = std::move(copy.d_children);
 
     if (d_widgetLabel) {
         d_widgetLabel.update(this);
     }
+
+    if (d_root == &copy) { // copy after 'assignWidgets' called: redo
+        d_root = this;
+        assert(d_text);
+
+        if (hasChildren()) {
+            auto next       = uint16_t{1};
+            auto relativeId = uint16_t{0};
+
+            for (auto& widget : children()) {
+                next = widget.assignWidgetIds(next,
+                                              relativeId++,
+                                              d_text->d_layout.d_charSizeMap,
+                                              this);
+            }
+        }
+    }
+    copy.d_root = nullptr;
     return;                                                           // RETURN
 }
 
@@ -982,18 +1062,8 @@ Widget&
 Widget::operator=(Widget&& rhs) noexcept
 {
     if (this != &rhs) {
-        d_widgetLabel   = std::move(rhs.d_widgetLabel);
-        d_root          = rhs.d_root;
-        d_textHit       = rhs.d_textHit;
-        d_methods       = std::move(rhs.d_methods);
-        d_downMethod    = std::move(rhs.d_downMethod);
-        d_drawData      = std::move(rhs.d_drawData);
-        d_layoutData    = std::move(rhs.d_layoutData);
-        d_children      = std::move(rhs.d_children);
-
-        if (d_widgetLabel) {
-            d_widgetLabel.update(this);
-        }
+        this->~Widget(); // Destructor is NOT virtual!
+        new (this) Widget(std::move(rhs)); // uses move constructor
     }
     return *this;                                                     // RETURN
 }
@@ -1001,7 +1071,7 @@ Widget::operator=(Widget&& rhs) noexcept
 Widget&
 Widget::addChild(Widget&& child) &
 {
-    if (!d_root) { // a no-op once widget IDs are assigned
+    if (!d_root) { // this method is a no-op once widget IDs are assigned
         children().push_back(std::move(child));
         if (d_methods && d_methods->d_newChildMethod) {
             d_methods->d_newChildMethod(this, &children().back());
@@ -1019,20 +1089,26 @@ Widget::assignWidgetIds(uint16_t        next,
     if (root == nullptr) {
         next = 1;
         root = this;
-        map = std::make_shared<CharSizeMap>();
-        d_layoutData.d_layout.d_upperLeft = {-1.0, -1.0};
-        d_layoutData.d_layout.d_lowerRight= { 1.0,  1.0};
+        map = std::make_shared<Text::CharSizeMap>();
+        d_layout.d_upperLeft = {-1.0, -1.0};
+        d_layout.d_lowerRight= { 1.0,  1.0};
+        text().d_layout.d_charSizeMap  = map;
     }
+    else if (hasText()) { // Don't create text layout if not needed.
+        d_text->d_layout.d_charSizeMap = map;
+    }
+    d_root                      = root;
 
-    if (d_layoutData.d_layout.d_thickness == -1.0) {
+    if (d_layout.d_thickness == -1.0) {
         auto thickness = WawtEnv::defaultBorderThickness(optionName());
-        d_layoutData.d_layout.d_thickness = thickness;
+        d_layout.d_thickness = thickness;
     }
 
     if (!options().has_value()) {
-        options(WawtEnv::defaultOptions(d_drawData.d_optionName));
+        options(WawtEnv::defaultOptions(d_settings.d_optionName));
     }
-    d_drawData.d_relativeId = relativeId;
+
+    d_settings.d_relativeId = relativeId;
     relativeId  = 0;
 
     if (hasChildren()) {
@@ -1040,9 +1116,7 @@ Widget::assignWidgetIds(uint16_t        next,
             next = widget.assignWidgetIds(next, relativeId++, map, root);
         }
     }
-    d_layoutData.d_charSizeMap  = map;
-    d_drawData.d_widgetId       = next++;
-    d_root                      = root;
+    d_settings.d_widgetIdValue  = next++;
     return next;                                                      // RETURN
 }
 
@@ -1069,17 +1143,22 @@ Widget::children() const noexcept
 Widget
 Widget::clone() const
 {
-    auto copy = Widget{d_drawData.d_optionName, {}};
+    // Copy everything EXCEPT for 'd_widgetLabel' (Tracker reference)
+    auto copy = Widget{d_settings.d_optionName, {}};
 
-    copy.d_root          = d_root;
-    copy.d_textHit       = d_textHit;
-    copy.d_downMethod    = d_downMethod;
+    copy.d_root         = d_root;
+    copy.d_downMethod   = d_downMethod;
 
     if (d_methods) {
-        copy.d_methods = std::make_unique<Methods>(*d_methods);
+        copy.d_methods  = std::make_unique<Methods>(*d_methods);
     }
-    copy.d_drawData      = d_drawData;
-    copy.d_layoutData    = d_layoutData;
+    copy.d_layout       = d_layout;
+    copy.d_rectangle    = d_rectangle;
+    copy.d_settings     = d_settings;
+
+    if (d_text) {
+        copy.d_text     = std::make_unique<Text>(*d_text);
+    }
 
     if (hasChildren()) {
         for (auto& child : children()) {
@@ -1092,7 +1171,7 @@ Widget::clone() const
 EventUpCb
 Widget::downEvent(double x, double y, Widget *parent)
 {
-    if (d_root == this) {
+    if (d_root == this && d_methods) {
         auto input = getInstalled<InputMethod>();
 
         if (input) {
@@ -1122,9 +1201,9 @@ void
 Widget::draw(DrawProtocol *adapter) noexcept
 {
     if (!isHidden()) {
-        if (d_layoutData.d_refreshBounds) { // realign new string
-            labelLayout(&d_drawData, false, d_layoutData, adapter);
-            d_layoutData.d_refreshBounds = false;
+        if (d_text && d_text->d_layout.d_refreshBounds) { // realign new string
+            // TBF: labelLayout(&d_drawData, false, d_layoutData, adapter);
+            d_text->d_layout.d_refreshBounds = false;
         }
 
         call(&defaultDraw, &Methods::d_drawMethod, this, adapter);
@@ -1181,10 +1260,10 @@ Widget::popDialog()
 {
     if (this == d_root) {
         if (hasChildren()) {
-            if (0 == std::strcmp(children().back().drawData().d_optionName,
+            if (0 == std::strcmp(children().back().settings().d_optionName,
                                  WawtEnv::sDialog)) {
                 children().pop_back();
-                d_drawData.d_widgetId
+                d_settings.d_widgetIdValue
                         = hasChildren() ? children().back().widgetIdValue() + 1
                                         : 1;
             }
@@ -1201,11 +1280,11 @@ Widget::pushDialog(Widget&& child, DrawProtocol *adapter)
 {
     auto childId = WidgetId{};
 
-    if (0      == std::strcmp(child.drawData().d_optionName, WawtEnv::sDialog)
+    if (0      == std::strcmp(child.settings().d_optionName, WawtEnv::sDialog)
      && d_root != nullptr) {
         if (this == d_root) {
             if (!hasChildren()
-             || (0 != std::strcmp(children().back().drawData().d_optionName,
+             || (0 != std::strcmp(children().back().settings().d_optionName,
                                   WawtEnv::sDialog))) {
                 auto id = widgetIdValue();
                 auto relativeId
@@ -1224,10 +1303,11 @@ Widget::pushDialog(Widget&& child, DrawProtocol *adapter)
                 screen.children().emplace_back(std::move(child));
                 // Dialog's get their own char size map providing a
                 // seperate "name space" for char size group IDs.
-                d_drawData.d_widgetId
+                auto map = std::make_shared<Text::CharSizeMap>();
+                d_settings.d_widgetIdValue
                     = screen.assignWidgetIds(id,
                                              relativeId,
-                                             std::make_shared<CharSizeMap>(),
+                                             map,
                                              d_root);
                 screen.layout(adapter, true,  *d_root);
                 screen.layout(adapter, false, *d_root);
@@ -1241,13 +1321,14 @@ Widget::pushDialog(Widget&& child, DrawProtocol *adapter)
     return childId;                                                   // RETURN
 }
 
-void
-Widget::resetLabel(StringView_t newLabel, bool copy)
+bool
+Widget::resetLabel(StringView_t newLabel)
 {
-    d_drawData.d_label = copy ? WawtEnv::translate(std::move(newLabel))
-                              : newLabel;
-    d_layoutData.d_refreshBounds = true;
-    return;                                                           // RETURN
+    if (d_text) {
+        d_text->d_data.d_string = newLabel;
+        d_text->d_layout.d_refreshBounds = true;
+    }
+    return bool(d_text);                                              // RETURN
 }
 
 void
@@ -1255,12 +1336,12 @@ Widget::resizeScreen(double width, double height, DrawProtocol *adapter)
 {
     if (d_root && adapter) {
         if (d_root == this) {
-            assert(d_layoutData.d_charSizeMap);
-            d_layoutData.d_charSizeMap->clear();
-            d_root->d_drawData.d_rectangle.d_width  = width;
-            d_root->d_drawData.d_rectangle.d_height = height;
-            d_root->d_drawData.d_border
-                = float(width * layout().d_thickness/1000.0);
+            assert(text().d_layout.d_charSizeMap);
+            text().d_layout.d_charSizeMap->clear();
+            d_root->d_rectangle.d_bounds.d_width  = width;
+            d_root->d_rectangle.d_bounds.d_height = height;
+            d_root->d_rectangle.d_border
+                = float(std::min(width, height) * layout().d_thickness/1000.0);
 
             if (hasChildren()) {
                 for (auto& child : children()) {
@@ -1324,63 +1405,50 @@ Widget::setFocus(Widget *target)  noexcept
     }
 }
 
+const Text&
+Widget::text() const noexcept
+{
+    return d_text ? *d_text : s_emptyText;
+}
+
                                 //-----------
                                 // class Draw
                                 //-----------
 
 
-Draw::Draw()
+DrawStream::DrawStream()
 : d_os(std::cout)
 {
 }
 
 bool
-Draw::draw(const DrawData& drawData)  noexcept
+DrawStream::draw(const Wawt::Layout::Result& box,
+                 const Widget::Settings&     settings) noexcept
 {
     auto  spaces     = Indent(0);
-    auto& widgetName = drawData.d_optionName;
-    auto& widgetId   = drawData.d_widgetId;
+    auto  widgetName = settings.d_optionName;
+    auto  widgetId   = settings.d_widgetIdValue;
 
     auto fmtflags = d_os.flags();
     d_os.setf(std::ios::boolalpha);
 
     d_os << spaces << "<" << widgetName << " id='" << widgetId
-         << "' rid=" << drawData.d_relativeId << "'>\n";
+         << "' rid=" << settings.d_relativeId << "'>\n";
 
     spaces += 2;
     d_os << spaces
-         << "<draw options='" << drawData.d_options.has_value()
-         << "' selected='"    << bool(drawData.d_selected)
-         << "' disable='"     << bool(drawData.d_disableEffect)
-         << "' hidden='"      << bool(drawData.d_hidden)
-         << "'>\n";
-    spaces += 2;
-    d_os << spaces
-         << "<rect x='"       << std::floor(drawData.d_rectangle.d_ux)
-         <<     "' y='"       << std::floor(drawData.d_rectangle.d_uy)
-         <<     "' width='"   << std::ceil(drawData.d_rectangle.d_width)
-         <<     "' height='"  << std::ceil(drawData.d_rectangle.d_height)
-         <<     "' border='"  << std::ceil(drawData.d_border)
+         << "<settings options='"  << settings.d_options.has_value()
+         << "' selected='"         << bool(settings.d_selected)
+         << "' disable='"          << bool(settings.d_disabled)
+         << "' hidden='"           << bool(settings.d_hidden)
+         << "'/>\n"
+         << spaces
+         << "<rect x='"       << std::floor(box.d_upperLeft.d_x)
+         <<     "' y='"       << std::floor(box.d_upperLeft.d_y)
+         <<     "' width='"   << std::ceil(box.d_bounds.d_width)
+         <<     "' height='"  << std::ceil(box.d_bounds.d_height)
+         <<     "' border='"  << std::ceil(box.d_border)
          << "'/>\n";
-
-    if (drawData.d_labelBounds.d_width > 0) {
-        d_os << spaces
-             << "<text x='"      << std::round(drawData.d_labelBounds.d_ux)
-             <<     "' y='"      << std::round(drawData.d_labelBounds.d_uy)
-             <<     "' width='"  << std::round(drawData.d_labelBounds.d_width)
-             <<     "' height='" << std::round(drawData.d_labelBounds.d_height)
-             <<     "' charSize='" << drawData.d_charSize;
-
-        if (drawData.d_labelMark != DrawData::BulletMark::eNONE) {
-            d_os << "' mark='"    << int(drawData.d_labelMark)
-                 << "' left='"    << bool(drawData.d_leftMark);
-        }
-        d_os << "'/>\n" << spaces << "<string>";
-        outputXMLString(d_os, drawData.d_label);
-        d_os << "</string>\n";
-    }
-    spaces -= 2;
-    d_os << spaces << "</draw>\n";
     spaces -= 2;
     d_os << spaces << "</" << widgetName << ">\n";
     d_os.flags(fmtflags);
@@ -1388,19 +1456,60 @@ Draw::draw(const DrawData& drawData)  noexcept
 }
 
 bool
-Draw::getTextMetrics(Dimensions          *textBounds,
-                     DrawData::CharSize  *charSize,
-                     const DrawData&      drawData,
-                     DrawData::CharSize   upperLimit)    noexcept
+DrawStream::draw(const Text::Data&        text,
+                 const Widget::Settings&  settings) noexcept
 {
-    auto  count     = drawData.d_label.length();
+    auto  spaces     = Indent(0);
+    auto  widgetName = settings.d_optionName;
+    auto  widgetId   = settings.d_widgetIdValue;
 
-    if (drawData.d_labelMark != DrawData::BulletMark::eNONE) {
+    auto fmtflags = d_os.flags();
+    d_os.setf(std::ios::boolalpha);
+
+    d_os << spaces << "<" << widgetName << " id='" << widgetId
+         << "' rid=" << settings.d_relativeId << "'>\n";
+
+    spaces += 2;
+    d_os << spaces
+         << "<text x='"        << std::floor(text.d_upperLeft.d_x)
+         <<     "' y='"        << std::floor(text.d_upperLeft.d_y)
+         <<     "' width='"    << std::ceil(text.d_bounds.d_width)
+         <<     "' height='"   << std::ceil(text.d_bounds.d_height)
+         <<     "' charSize='" << text.d_charSize;
+
+    if (text.d_labelMark != Text::BulletMark::eNONE) {
+        d_os << "' mark='"    << int(text.d_labelMark)
+             << "' left='"    << bool(text.d_leftAlignMark);
+    }
+    d_os << "'/>\n";
+    spaces += 2;
+    d_os << spaces << "<string>";
+    outputXMLString(d_os, text.d_string);
+    d_os << "</string>\n";
+    spaces -= 2;
+    d_os << spaces << "</text>\n";
+    spaces -= 2;
+    d_os << spaces << "</" << widgetName << ">\n";
+    d_os.flags(fmtflags);
+    return d_os.good();                                               // RETURN
+}
+
+bool
+DrawStream::setTextValues(Bounds          *textBounds,
+                          Text::CharSize  *charSize,
+                          const Bounds&    container,
+                          bool             hasBulletMark,
+                          StringView_t     string,
+                          Text::CharSize   upperLimit,
+                          const std::any&)    noexcept
+{
+    auto  count     = string.length();
+
+    if (hasBulletMark) {
         count += 1;
     }
-    auto  thickness = std::ceil(drawData.d_border);
-    auto  width     = drawData.d_rectangle.d_width  - 2*thickness - 2;
-    auto  height    = drawData.d_rectangle.d_height - 2*thickness - 2;
+    auto  width     = container.d_width;
+    auto  height    = container.d_height;
     auto  size      = count > 0 ? width/count : height;
 
     *charSize   = size >= upperLimit ? upperLimit - 1 : size;

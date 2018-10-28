@@ -22,7 +22,10 @@
 #include <SFML/Graphics/Font.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
 
-#include <wawt/draw.h>
+#include <wawt/layout.h>
+#include <wawt/text.h>
+#include <wawt/widget.h>
+#include <wawt/drawprotocol.h>
 
 #include <string>
 
@@ -46,13 +49,19 @@ class SfmlDrawAdapter : public Wawt::DrawProtocol {
                     const std::string&  otherFontPath = "");
 
     // PUBLIC Wawt::DrawAdapter INTERFACE
-    bool  draw(const Wawt::DrawData&  drawData)              noexcept override;
+    bool  draw(const Wawt::Layout::Result&    box,
+               const Wawt::Widget::Settings&  settings)      noexcept override;
 
-    bool  getTextMetrics(Wawt::Dimensions          *textBounds,
-                         Wawt::DrawData::CharSize  *charSize,
-                         const Wawt::DrawData&      drawData,
-                         Wawt::DrawData::CharSize   upperLimit)
-                                                             noexcept override;
+    bool  draw(const Wawt::Text::Data&        text,
+               const Wawt::Widget::Settings&  settings)      noexcept override;
+
+    bool  setTextValues(Wawt::Bounds          *textBounds,
+                        Wawt::Text::CharSize  *charSize,
+                        const Wawt::Bounds&    container,
+                        bool                   hasBulletMark,
+                        Wawt::StringView_t     string,
+                        Wawt::Text::CharSize   upperLimit,
+                        const std::any&        options)      noexcept override;
 
     // PUBLIC ACCESSORS
     bool   isGood()                                          const noexcept {

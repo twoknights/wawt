@@ -20,7 +20,6 @@
 #define WAWT_WAWTENV_H
 
 #include "wawt/wawt.h"
-#include "wawt/draw.h"
 
 #include <any>
 #include <atomic>
@@ -38,6 +37,8 @@ namespace Wawt {
                                 //==============
                                 // class WawtEnv
                                 //==============
+
+class DrawProtocol;
 
 class WawtEnv {
   public:

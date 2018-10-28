@@ -77,30 +77,23 @@ void outputXMLString(std::ostream& os, StringView_t text);
 //
 using EventUpCb   = std::function<void(double x, double y, bool)>;
 
-                            //==================
-                            // struct Dimensions
-                            //==================
 
-struct  Dimensions {
+                            //===================
+                            // struct Coordinates
+                            //===================
+
+struct  Coordinates {
     float           d_x                 = 0;
     float           d_y                 = 0;
 };
 
-                            //=================
-                            // struct Rectangle
-                            //=================
+                                //==============
+                                // struct Bounds
+                                //==============
 
-struct  Rectangle  {
-    float           d_ux                = 0;
-    float           d_uy                = 0;
+struct  Bounds {
     float           d_width             = 0;
     float           d_height            = 0;
-
-    bool inside(double x, double y) const {
-        auto dx = float(x) - d_ux;
-        auto dy = float(y) - d_uy;
-        return dx >= 0 && dy >= 0 && dx < d_width && dy < d_height;
-    }
 };
 
                             //===============

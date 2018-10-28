@@ -22,7 +22,7 @@
 #include "wawt/wawtenv.h"
 
 #include "wawt/layout.h"
-#include "wawt/draw.h"
+#include "wawt/text.h"
 
 #include <cassert>
 #include <deque>
@@ -42,34 +42,42 @@ namespace Wawt {
                                 // class Widget
                                 //=============
 
-enum class  TextAlign { eINVALID, eLEFT, eCENTER, eRIGHT };
-struct      CharSizeGroup : std::optional<uint16_t> { };
-
-inline constexpr CharSizeGroup operator ""_Sz(unsigned long long int n) {
-    return CharSizeGroup{n};
-}
-
-constexpr CharSizeGroup kNOGROUP{};
+class DrawProtocol;
 
 class  Widget final {
   public:
+
+                            //========================
+                            // struct Widget::Settings
+                            //========================
+
+    struct Settings {
+        const char         *d_optionName        = nullptr;
+        std::any            d_options{};
+        uint16_t            d_widgetIdValue     = 0;
+        uint16_t            d_selected:1,
+                            d_disabled:1,
+                            d_hidden:1,
+                            d_hideSelect:1,
+                            d_relativeId:12;
+
+        Settings()              = default;
+
+        Settings(char const * const optionName)
+            : d_optionName(optionName)
+            , d_selected(false)
+            , d_disabled(false)
+            , d_hidden(false)
+            , d_hideSelect(false)
+            , d_relativeId(0) { }
+    };
+
+    // PUBLIC TYPES
     using Children          = std::deque<Widget>;
     using ChildrenPtr       = std::unique_ptr<Children>;
     using OptionsFactory    = std::function<std::any(const std::string&)>;
     using BorderDefaults    = std::function<double(const std::string&)>;
-    using CharSizeMap       = std::map<uint16_t, uint16_t>;
-    using CharSizeMapPtr    = std::shared_ptr<CharSizeMap>;
-
-    struct LayoutData {
-        Layout              d_layout{};
-        TextAlign           d_textAlign     = TextAlign::eCENTER;
-        CharSizeGroup       d_charSizeGroup{};
-        CharSizeMapPtr      d_charSizeMap{};
-        bool                d_refreshBounds = false;
-
-        LayoutData()                        = default;
-        LayoutData(const Layout& layout) noexcept : d_layout(layout) { }
-    };
+    using CharSizeMapPtr    = Text::CharSizeMapPtr;
 
     using DownEventMethod
         = std::function<EventUpCb(double    x,
@@ -111,11 +119,6 @@ class  Widget final {
                                       const Widget&      widget,
                                       unsigned int       indent);
 
-    static void      labelLayout(DrawData          *data,
-                                 bool               firstPass,
-                                 const LayoutData&  layoutData,
-                                 DrawProtocol      *adapter)         noexcept;
-
     // PUBLIC CONSTRUCTORS
     Widget()                                = delete;
 
@@ -131,14 +134,18 @@ class  Widget final {
            Trackee&&          indirect,
            const Layout&      layout)                                noexcept
         : d_widgetLabel(std::move(indirect))
-        , d_drawData(optionName)
-        , d_layoutData(layout) {
+        , d_root(nullptr)
+        , d_downMethod()
+        , d_methods()
+        , d_layout(layout)
+        , d_rectangle()
+        , d_settings(optionName)
+        , d_text() {
             if (d_widgetLabel) d_widgetLabel.update(this);
         }
 
     Widget(char const * const optionName, const Layout& layout)      noexcept
-        : d_drawData(optionName)
-        , d_layoutData(layout) { }
+        : Widget(optionName, Trackee(), layout) { }
 
     // PUBLIC Ref-Qualified MANIPULATORS
 
@@ -146,57 +153,47 @@ class  Widget final {
     Widget& addChild(Widget&& child) &;
 
     Widget  border(double thickness) &&                              noexcept {
-        d_layoutData.d_layout.border(thickness);
+        d_layout.border(thickness);
         return std::move(*this);
     }
 
     Widget& border(double thickness) &                               noexcept {
-        d_layoutData.d_layout.border(thickness);
+        d_layout.border(thickness);
         return *this;
     }
 
     Widget  optionName(char const * const optionName) &&             noexcept {
-        d_drawData.d_optionName = optionName;
+        d_settings.d_optionName = optionName;
         return std::move(*this);
     }
 
     Widget  disabled(bool setting) &&                                noexcept {
-        d_drawData.d_disableEffect = setting;
+        d_settings.d_disabled = setting;
         return std::move(*this);
     }
 
     Widget& disabled(bool setting) &                                 noexcept {
-        d_drawData.d_disableEffect = setting;
+        d_settings.d_disabled = setting;
         return *this;
     }
 
     Widget  hidden(bool setting) &&                                  noexcept {
-        d_drawData.d_hidden = setting;
+        d_settings.d_hidden = setting;
         return std::move(*this);
     }
 
     Widget& hidden(bool setting) &                                   noexcept {
-        d_drawData.d_hidden = setting;
-        return *this;
-    }
-
-    Widget  labelSelect(bool setting) &&                             noexcept {
-        d_textHit = setting;
-        return std::move(*this);
-    }
-
-    Widget& labelSelect(bool setting) &                              noexcept {
-        d_textHit = setting;
+        d_settings.d_hidden = setting;
         return *this;
     }
 
     Widget  layout(const Layout& newLayout) &&                       noexcept {
-        d_layoutData.d_layout = newLayout;
+        d_layout = newLayout;
         return std::move(*this);
     }
 
     Widget& layout(const Layout& newLayout) &                        noexcept {
-        d_layoutData.d_layout = newLayout;
+        d_layout = newLayout;
         return *this;
     }
 
@@ -215,29 +212,53 @@ class  Widget final {
     Widget& method(SerializeMethod&& newMethod) &                     noexcept;
 
     Widget  options(std::any options) &&                             noexcept {
-        d_drawData.d_options = std::move(options);
+        d_settings.d_options = std::move(options);
         return std::move(*this);
     }
 
     Widget& options(std::any options) &                              noexcept {
-        d_drawData.d_options = std::move(options);
+        d_settings.d_options = std::move(options);
         return *this;
     }
 
-    Widget text(StringView_t   string,
-                CharSizeGroup  group     = CharSizeGroup(),
-                TextAlign      alignment = TextAlign::eCENTER) &&    noexcept;
-
-    Widget text(StringView_t string, TextAlign alignment) &&         noexcept {
-        return std::move(*this).text(string, CharSizeGroup(), alignment);
-    }
-
-    Widget textMark(DrawData::BulletMark  mark,
-                    bool                  leftMark = true) &&        noexcept {
-        d_drawData.d_labelMark = mark;
-        d_drawData.d_leftMark  = leftMark;
+    Widget  useTextBounds(bool setting) &&                           noexcept {
+        text().d_data.d_useTextBounds = setting;
         return std::move(*this);
     }
+
+    Widget& useTextBounds(bool setting) &                            noexcept {
+        text().d_data.d_useTextBounds = setting;
+        return *this;
+    }
+
+    Widget  text(StringView_t   string,
+                 CharSizeGroup  group     = CharSizeGroup(),
+                 TextAlign      alignment = TextAlign::eCENTER) &&   noexcept {
+        this->text(string, group, alignment);
+        return std::move(*this);
+    }
+
+    Widget& text(StringView_t   string,
+                 CharSizeGroup  group     = CharSizeGroup(),
+                 TextAlign      alignment = TextAlign::eCENTER) &    noexcept;
+
+    Widget  text(StringView_t string, TextAlign alignment) &&        noexcept {
+        this->text(string, CharSizeGroup(), alignment);
+        return std::move(*this);
+    }
+
+    Widget& text(StringView_t string, TextAlign alignment) &         noexcept {
+        return text(string, CharSizeGroup(), alignment);
+    }
+
+    Widget  textMark(Text::BulletMark  mark,
+                     bool              leftAlignMark = true) &&      noexcept {
+        this->textMark(mark, leftAlignMark);
+        return std::move(*this);
+    }
+
+    Widget& textMark(Text::BulletMark  mark,
+                     bool              leftAlignMark = true) &       noexcept;
 
     // PUBLIC MANIPULATORS
 
@@ -256,18 +277,14 @@ class  Widget final {
 
     void      draw(DrawProtocol *adapter = WawtEnv::drawAdapter())   noexcept;
 
-    DrawData& drawData()                                             noexcept {
-        return d_drawData;
-    }
-
     bool inputEvent(Char_t input)                                    noexcept;
 
     Layout&   layout()                                               noexcept {
-        return d_layoutData.d_layout;
+        return d_layout;
     }
 
-    LayoutData& layoutData()                                         noexcept {
-        return d_layoutData;
+    Layout::Result& layoutData()                                     noexcept {
+        return d_rectangle;
     }
 
     void      popDialog();
@@ -275,7 +292,7 @@ class  Widget final {
     WidgetId  pushDialog(Widget&&       child,
                          DrawProtocol  *adapter = WawtEnv::drawAdapter());
 
-    void      resetLabel(StringView_t newLabel, bool copy = true);
+    bool      resetLabel(StringView_t newLabel);
 
     void      resizeScreen(double         width,
                            double         height,
@@ -288,7 +305,18 @@ class  Widget final {
     void      setFocus(Widget* target = nullptr)                     noexcept;
 
     void      setSelected(bool setting)                              noexcept {
-        d_drawData.d_selected = setting;
+        d_settings.d_selected = setting;
+    }
+
+    Text&     text()                                                 noexcept {
+        if (!d_text) {
+            d_text = std::make_unique<Text>();
+        }
+        return *d_text;
+    }
+
+    WidgetId::IdType& widgetIdValue()                                noexcept {
+        return d_settings.d_widgetIdValue;
     }
 
     // PUBLIC ACCESSORS
@@ -296,14 +324,10 @@ class  Widget final {
     const Children& children()                                 const noexcept;
 
     const char     *optionName()                               const noexcept {
-        return d_drawData.d_optionName;
+        return d_settings.d_optionName;
     }
 
     Widget          clone()                                    const;
-
-    const DrawData& drawData()                                 const noexcept {
-        return d_drawData;
-    }
 
     template<class Method>
     Method          getInstalled()                             const noexcept;
@@ -312,48 +336,57 @@ class  Widget final {
         return d_children && !d_children->empty();
     }
 
-    bool            hasLabelLayout()                           const noexcept {
-        return !d_drawData.d_label.empty()
-            || d_drawData.d_labelMark != DrawData::BulletMark::eNONE;
-    }
-
-    bool            hasLabelSelect()                           const noexcept {
-        return d_textHit;
+    bool            hasText()                                  const noexcept {
+        return bool(d_text);
     }
 
     bool            inside(double x, double y)                 const noexcept {
-        return d_textHit ? d_drawData.d_labelBounds.inside(x, y)
-                         : d_drawData.d_rectangle.inside(x, y);
+        return testTextBounds() ? d_text->d_data.inside(x, y)
+                                : d_rectangle.inside(x, y);
     }
 
     bool            isDisabled()                               const noexcept {
-        return d_drawData.d_disableEffect;
+        return d_settings.d_disabled;
     }
 
     bool            isHidden()                                 const noexcept {
-        return d_drawData.d_hidden;
+        return d_settings.d_hidden;
     }
 
     bool            isSelected()                               const noexcept {
-        return d_drawData.d_selected;
+        return d_settings.d_selected;
     }
 
-    const LayoutData& layoutData()                             const noexcept {
-        return d_layoutData;
+    const Layout&   layout()                                   const noexcept {
+        return d_layout;
     }
+
+    const Layout::Result& layoutData()                         const noexcept {
+        return d_rectangle;
+    }
+
+    const Text&     text()                                     const noexcept;
 
     const Widget   *lookup(WidgetId id)                        const noexcept;
 
     const std::any& options()                                  const noexcept {
-        return d_drawData.d_options;
+        return d_settings.d_options;
     }
 
     uint16_t        relativeId()                               const noexcept {
-        return d_drawData.d_relativeId;
+        return d_settings.d_relativeId;
     }
 
     const Widget   *screen()                                   const noexcept {
         return d_root;                    
+    }
+
+    const Settings& settings()                                 const noexcept {
+        return d_settings;  
+    }
+
+    bool            testTextBounds()                           const noexcept {
+        return d_text && d_text->d_data.d_useTextBounds;
     }
 
     Tracker        *tracker()                                  const noexcept {
@@ -364,7 +397,7 @@ class  Widget final {
                               unsigned int      indent = 0)    const noexcept;
 
     WidgetId::IdType widgetIdValue()                           const noexcept {
-        return d_drawData.d_widgetId;
+        return d_settings.d_widgetIdValue;
     }
 
   private:
@@ -377,6 +410,7 @@ class  Widget final {
         InputMethod         d_inputMethod;
     };
     using MethodsPtr = std::unique_ptr<Methods>;
+    using TextPtr    = std::unique_ptr<Text>;
 
     // PRIVATE METHODS
     template <typename Callable, typename R, typename... Args>
@@ -393,14 +427,15 @@ class  Widget final {
                 bool                firstPass,
                 const Widget&       parent);
 
-    // PRIVATE DATA MEMBERS
-    Trackee             d_widgetLabel{};
-    Widget             *d_root          = nullptr;
-    bool                d_textHit       = false;
-    DownEventMethod     d_downMethod{};
-    MethodsPtr          d_methods{};
-    DrawData            d_drawData{};
-    LayoutData          d_layoutData{};
+    // PRIVATE DATA MEMBERS (Note: default constructor deleted)
+    Trackee             d_widgetLabel;
+    Widget             *d_root;
+    DownEventMethod     d_downMethod;
+    MethodsPtr          d_methods;
+    Layout              d_layout;
+    Layout::Result      d_rectangle;
+    Settings            d_settings;
+    TextPtr             d_text;
 
     // The ordering of widgets should not be changed during execution
     // EXCEPT for appending widgets to the "root" panel. This allows for

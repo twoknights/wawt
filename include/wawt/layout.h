@@ -28,12 +28,36 @@ namespace Wawt {
 
 class Widget;
 
-                            //=============
-                            // class Layout
-                            //=============
+                                //=============
+                                // class Layout
+                                //=============
 
 struct Layout {
     // PUBLIC TYPES
+                            //======================
+                            // struct Layout::Result
+                            //======================
+
+    struct Result {
+        Coordinates         d_upperLeft{};
+        Bounds              d_bounds{};
+        float               d_border    = 0.0;
+
+        Result()                = default;
+
+        Result(float x, float y, float width, float height, float border)
+            : d_upperLeft{x, y}
+            , d_bounds{width, height}
+            , d_border(border) { }
+
+        bool inside(double x, double y) const {
+            auto dx = float(x) - d_upperLeft.d_x;
+            auto dy = float(y) - d_upperLeft.d_y;
+            return dx >= 0               && dy >= 0
+                && dx < d_bounds.d_width && dy < d_bounds.d_height;
+        }
+    };
+
     // Layout attributes:
     enum class Vertex  {
               eUPPER_LEFT
@@ -47,8 +71,6 @@ struct Layout {
             , eLOWER_RIGHT
             , eNONE
     };
-
-    using Coordinates = std::pair<float,float>;
 
     class Position {
       public:
@@ -144,10 +166,8 @@ struct Layout {
     Layout& scale(double sx, double sy);
 
     // PUBLIC ACCESSORS
-    // Following requires widgets that have been "resolved".
-    float       resolveBorder(const Widget& reference) const;
-
-    Rectangle   resolveOutline(const Widget& parent) const;
+    // Following requires 'parent' to have been already "resolved".
+    Result      resolveLayout(const Widget& parent) const;
 };
 
 using LayoutGenerator = std::function<Layout()>;

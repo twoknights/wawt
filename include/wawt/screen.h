@@ -274,7 +274,7 @@ class Screen {
 
     //! Access the screen's height (requires 'activate' to have been performed).
     int height() const {
-        return d_screen.drawData().d_rectangle.d_height;
+        return d_screen.layoutData().d_bounds.d_height;
     }
 
     //! Access the screen's "name" (requires 'setup' to have been performed).
@@ -289,7 +289,7 @@ class Screen {
 
     //! Access the screen's width (requires 'activate' to have been performed).
     double width() const {
-        return d_screen.drawData().d_rectangle.d_width;
+        return d_screen.layoutData().d_bounds.d_width;
     }
 };
 

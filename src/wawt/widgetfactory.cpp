@@ -55,15 +55,13 @@ void addDropDown(Widget             *dropDown,
                                  [root, id](double, double, bool up) {
                                      if (up) {
                                          root->children().pop_back();
-                                         root->drawData().d_widgetId = id;
+                                         root->widgetIdValue() = id;
                                      }
                                      return;
                                  };
                          });
-    auto screenBox                  = root->drawData().d_rectangle;
-    auto screenBorder               = root->drawData().d_border;
-    soak.drawData().d_rectangle     = screenBox;
-    soak.drawData().d_border        = screenBorder;
+    auto screenBox       = root->layoutData();
+    soak.layoutData()    = screenBox;
     auto& screen         = root->children().emplace_back(std::move(soak));
     auto  newChildMethod = root->getInstalled<Widget::NewChildMethod>();
     
@@ -77,13 +75,13 @@ void addDropDown(Widget             *dropDown,
                        .emplace_back(dropDown->children()[1].clone());
     list.hidden(false).disabled(false);
     
-    auto ux    = list.drawData().d_rectangle.d_ux;
-    auto uy    = list.drawData().d_rectangle.d_uy;
-    auto lx    = ux + list.drawData().d_rectangle.d_width;
-    auto ly    = uy + list.drawData().d_rectangle.d_height;
+    auto ux    = list.layoutData().d_upperLeft.d_x;
+    auto uy    = list.layoutData().d_upperLeft.d_y;
+    auto lx    = ux + list.layoutData().d_bounds.d_width;
+    auto ly    = uy + list.layoutData().d_bounds.d_height;
 
-    auto width = screenBox.d_width  - 2*screenBorder;
-    auto height= screenBox.d_height - 2*screenBorder;
+    auto width = screenBox.d_bounds.d_width  - 2*screenBox.d_border;
+    auto height= screenBox.d_bounds.d_height - 2*screenBox.d_border;
 
     list.layout().d_upperLeft.d_sX         = -1.0 + 2.0 * ux / width;
     list.layout().d_upperLeft.d_sY         = -1.0 + 2.0 * uy / height;
@@ -97,22 +95,24 @@ void addDropDown(Widget             *dropDown,
         item.method( // on click copy label to drop-down etc. and clean up.
             [cb=selectCb,select,id,root](auto, auto, Widget *widget, auto)
             {
-                widget->drawData().d_selected = true;
+                widget->setSelected(true);
                 return
                     [cb,select,widget,id,root](double x, double y, bool up)
                     {
                         if (up) {
-                            widget->drawData().d_selected = false;
+                            widget->setSelected(false);
 
                             if (widget->inside(x, y)) {
-                                select->resetLabel(widget->drawData().d_label);
+                                select->resetLabel(widget->text()
+                                                         .d_data.d_string);
                                 auto lclselect = select;
-                                auto lclcb   = std::move(cb);
-                                auto rid     = widget->drawData().d_relativeId;
-                                root->drawData().d_widgetId = id;
+                                auto lclcb     = std::move(cb);
+                                auto rid       = widget->settings()
+                                                        .d_relativeId;
+                                root->widgetIdValue() = id;
                                 // The "pop" destroys the lambda captures, so
                                 // only the local variables can be used
-                                // following it.
+                                // afterwords.
                                 root->children().pop_back();
 
                                 if (lclcb) {
@@ -125,10 +125,10 @@ void addDropDown(Widget             *dropDown,
             });
     }
 
-    root->drawData().d_widgetId
+    root->widgetIdValue()
         = screen.assignWidgetIds(id,
                                  relativeId,
-                                 dropDown->layoutData().d_charSizeMap,
+                                 dropDown->text().d_layout.d_charSizeMap,
                                  root);
     return;                                                           // RETURN
 }
@@ -137,10 +137,10 @@ Widget::DownEventMethod createDropDown(GroupClickCb&& selectCb)
 {
     return
         [cb=std::move(selectCb)] (auto, auto, auto *widget, auto *parent) {
-            widget->drawData().d_selected = true;
+            widget->setSelected(true);
             return  [cb, widget, parent](double x, double y, bool up) {
                 if (up) {
-                    widget->drawData().d_selected = false;
+                    widget->setSelected(false);
                     if (widget->inside(x, y)) {
                         addDropDown(parent, widget, cb);
                     }
@@ -154,10 +154,10 @@ Widget::DownEventMethod makePushButtonDownMethod(OnClickCb && onClick)
 {
     return
         [cb=std::move(onClick)] (auto, auto, auto *widget, auto) -> EventUpCb {
-            widget->drawData().d_selected = true;
+            widget->setSelected(true);
             return  [cb, widget](double x, double y, bool up) -> void {
                 if (up) {
-                    widget->drawData().d_selected = false;
+                    widget->setSelected(false);
                     if (cb) {
                         if (widget->inside(x, y)) {
                             cb(widget);
@@ -175,8 +175,7 @@ Widget::DownEventMethod makeToggleButtonDownMethod(const GroupClickCb& cb)
         [cb] (auto, auto, auto *widget, auto *parent) -> EventUpCb {
             return  [cb, widget, parent](double x, double y, bool up) -> void {
                 if (up && widget->inside(x, y)) {
-                    widget->drawData().d_selected =
-                        !widget->drawData().d_selected;
+                    widget->setSelected(!widget->isSelected());
                     if (cb) {
                         cb(parent, widget->relativeId());
                     }
@@ -192,11 +191,11 @@ Widget::DownEventMethod makeRadioButtonDownMethod(const GroupClickCb& cb)
         [cb] (auto, auto, auto *widget, auto *parent) -> EventUpCb {
             return  [cb, widget, parent](double x, double y, bool up) -> void {
                 if (up && widget->inside(x, y)) {
-                    if (!widget->drawData().d_selected) {
+                    if (!widget->isSelected()) {
                         for (auto& child : parent->children()) {
-                            child.drawData().d_selected = 0;
+                            child.setSelected(false);
                         }
-                        widget->drawData().d_selected = true;
+                        widget->setSelected(true);
 
                         if (cb) {
                             return cb(parent, widget->relativeId());
@@ -208,12 +207,12 @@ Widget::DownEventMethod makeRadioButtonDownMethod(const GroupClickCb& cb)
         };                                                            // RETURN
 }
 
-using DimensionPtr = std::shared_ptr<Dimensions>;
+using BoundsPtr = std::shared_ptr<Bounds>;
 
-Widget::LayoutMethod genSpacedLayout(const DimensionPtr&   bounds,
-                                     int                   rows,
-                                     int                   columns,
-                                     TextAlign             alignment)
+Widget::LayoutMethod genSpacedLayout(const BoundsPtr&   bounds,
+                                     int                rows,
+                                     int                columns,
+                                     TextAlign          alignment)
 {
     return
         [=] (Widget                 *widget,
@@ -222,30 +221,36 @@ Widget::LayoutMethod genSpacedLayout(const DimensionPtr&   bounds,
              DrawProtocol           *adapter) -> void {
             Widget::defaultLayout(widget, parent, firstPass, adapter);
 
-            auto& data = widget->drawData();
+            auto& data     = widget->text().d_data;
+            auto& settings = widget->settings();
+
+            if (!data.d_successfulLayout) {
+                return;
+            }
 
             if (firstPass) {
-                if (data.d_relativeId == 0 // ignore old values
-                 || data.d_labelBounds.d_width > bounds->d_x) {
-                    bounds->d_x = data.d_labelBounds.d_width;
+                if (settings.d_relativeId == 0 // ignore old values
+                 || data.d_bounds.d_width > bounds->d_width) {
+                    bounds->d_width = data.d_bounds.d_width;
                 }
 
-                if (data.d_relativeId == 0
-                 || data.d_labelBounds.d_height > bounds->d_y) {
-                    bounds->d_y = data.d_labelBounds.d_height;
+                if (settings.d_relativeId == 0
+                 || data.d_bounds.d_height > bounds->d_height) {
+                    bounds->d_height = data.d_bounds.d_height;
                 }
                 return;
             }
             // 'bounds' gives the text box dimensions. The border thickness
             // is unchanged, so:
-            auto width = bounds->d_x + 2*(data.d_border + 1);
-            auto height= bounds->d_y + 2*(data.d_border + 1);
+            auto border = std::ceil(widget->layoutData().d_border);
+            auto width  = bounds->d_width  + 2*(border + 1);
+            auto height = bounds->d_height + 2*(border + 1);
 
             // Now placing the widget requires the panels dimensions to
             // calculate the border margin and spacing between buttons.
-            auto panelWidth   = parent.drawData().d_rectangle.d_width;
-            auto panelHeight  = parent.drawData().d_rectangle.d_height;
-            auto panelBorder  = parent.drawData().d_border;
+            auto panelWidth   = parent.layoutData().d_bounds.d_width;
+            auto panelHeight  = parent.layoutData().d_bounds.d_height;
+            auto panelBorder  = parent.layoutData().d_border;
 
             if (panelWidth-2*panelBorder <= width) {
                 assert(!"width bad");
@@ -276,28 +281,31 @@ Widget::LayoutMethod genSpacedLayout(const DimensionPtr&   bounds,
             // ... which might mean the panel needs margins:
             auto marginx = (panelWidth - columns*width - (columns-1)*spacex)/2;
             auto marginy = (panelHeight- rows * height -    (rows-1)*spacey)/2;
-            auto c       = data.d_relativeId % columns;
-            auto r       = data.d_relativeId / columns;
+            auto c       = settings.d_relativeId % columns;
+            auto r       = settings.d_relativeId / columns;
             
             // Translate the button at row 'r' and column 'c'
-            auto& rectangle     = data.d_rectangle;
-            rectangle.d_width   = width;
-            rectangle.d_height  = height;
-            rectangle.d_ux      = parent.drawData().d_rectangle.d_ux
+            auto& position      = widget->layoutData().d_upperLeft;
+            auto& extent        = widget->layoutData().d_bounds;
+            extent.d_width      = width;
+            extent.d_height     = height;
+            position.d_x        = parent.layoutData().d_upperLeft.d_x
                                         + marginx + c * (spacex+width);
-            rectangle.d_uy      = parent.drawData().d_rectangle.d_uy
+            position.d_y        = parent.layoutData().d_upperLeft.d_y
                                         + marginy + r * (spacey+height);
-            auto& label         = data.d_labelBounds;
-            label.d_uy          = rectangle.d_uy + (height-label.d_height)/2.0;
-            label.d_ux          = rectangle.d_ux +  data.d_border + 1;
+            auto& labelPosition = data.d_upperLeft;
+            auto& labelBounds   = data.d_bounds;
+            labelPosition.d_y   = position.d_y
+                                        + (height-labelBounds.d_height)/2.0;
+            labelPosition.d_x   = position.d_x + border + 1;
 
             if (alignment != TextAlign::eLEFT) {
-                auto space = width - label.d_width - 2*(data.d_border+1);
+                auto space = width - labelBounds.d_width - 2*(border+1);
 
                 if (alignment == TextAlign::eCENTER) {
                     space /= 2.0;
                 }
-                label.d_ux += space;
+                labelPosition.d_x += space;
             }
         };                                                            // RETURN
 }
@@ -312,9 +320,9 @@ Widget checkBox(Trackee&&               indirect,
 {
     return  Widget(WawtEnv::sItem, std::move(indirect), layout)
             .method(makeToggleButtonDownMethod(GroupClickCb()))
-            .labelSelect(layout.d_thickness <= 0.0)
+            .useTextBounds(layout.d_thickness <= 0.0)
             .text(string, group, alignment)
-            .textMark(DrawData::BulletMark::eSQUARE,
+            .textMark(Text::BulletMark::eSQUARE,
                       alignment != TextAlign::eRIGHT);                // RETURN
 }
 
@@ -325,9 +333,9 @@ Widget checkBox(const Layout&           layout,
 {
     return  Widget(WawtEnv::sItem, layout)
             .method(makeToggleButtonDownMethod(GroupClickCb()))
-            .labelSelect(layout.d_thickness <= 0.0)
+            .useTextBounds(layout.d_thickness <= 0.0)
             .text(string, group, alignment)
-            .textMark(DrawData::BulletMark::eSQUARE,
+            .textMark(Text::BulletMark::eSQUARE,
                       alignment != TextAlign::eRIGHT);                // RETURN
 }
 
@@ -350,7 +358,7 @@ Widget dropDownList(Trackee&&                  indirect,
             .addChild(Widget(WawtEnv::sList, selectLayout())
                         .method(createDropDown(std::move(selectCb)))
                         .text(S(""), group, TextAlign::eLEFT)
-                        .textMark(DrawData::BulletMark::eDOWNARROW))
+                        .textMark(Text::BulletMark::eDOWNARROW))
             .addChild(fixedSizeList({{-1.0,1.0,0_wr},{1.0,1.0}},
                                     true,
                                     GroupClickCb(),
@@ -502,7 +510,7 @@ Widget pushButtonGrid(Trackee&&               indirect,
                                            buttonDefs.size(),
                                            columns,
                                            &rows);
-    auto bounds      = std::make_shared<Dimensions>();
+    auto bounds      = std::make_shared<Bounds>();
 
     if (spaced) {
         gridPanel.method(
@@ -618,9 +626,9 @@ Widget radioButtonPanel(Trackee&&               indirect,
         gridPanel.addChild(
             Widget(WawtEnv::sItem, std::move(indirect), childLayout())
                 .method(makeRadioButtonDownMethod(gridCb))
-                .labelSelect(true)
+                .useTextBounds(true)
                 .text(label, group, alignment)
-                .textMark(DrawData::BulletMark::eROUND,
+                .textMark(Text::BulletMark::eROUND,
                           alignment != TextAlign::eRIGHT));
 
     }
@@ -667,17 +675,17 @@ Widget widgetGrid(Trackee&&                    indirect,
                   bool                         spaced)
 {
     auto grid   = panel(std::move(indirect), layoutPanel);
-    auto bounds = std::make_shared<Dimensions>();
+    auto bounds = std::make_shared<Bounds>();
 
     for (auto r = 0; r < rows; ++r) {
         for (auto c = 0; c < columns; ++c) {
             auto next = generator(r, c);
 
-            if (spaced && next.hasLabelLayout()) {
+            if (spaced && next.hasText()) {
                 next.method(genSpacedLayout(bounds,
                                             rows,
                                             columns,
-                                            next.layoutData().d_textAlign));
+                                            next.text().d_layout.d_textAlign));
             }
             grid.addChild(std::move(next));
         }
