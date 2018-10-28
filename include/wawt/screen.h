@@ -125,29 +125,17 @@ class Screen {
     /**
      * @brief Extend the screen definition with a pop dialog box.
      *
-     * @param dialog  A vector of "widgets" that are the dialog's contents.
-     * @param width The width of the panel where 1.0 is the screen width.
-     * @param height The height of the panel where 1.0 is the screen height.
-     * @param thickness The dialog's border thickness, defaulting to 2.
-     * @param options Panel display options defaulting to the screen options.
+     * @param dialog  A panel containing the dialog to be displayed.
      *
-     * @return The widget ID of the first widget in 'panel' on success.
+     * @returns The widget ID assigned to the dialog panel on success.
      * 
-     * The 'width' and 'height' will be used to create a centered panel with
-     * those dimensions (see: 'Layout::centered'). Their values must
-     * be in the range of 0.1 and 1.0; the returned widget ID is unset if
-     * they are not. If a modal pop-up is already active, then this method
-     * replaces that one.
      * Note that the screen is overlayed with a transparent widget which
      * prevents any user interface element other than the pop-up 'panel'
      * from receiving input events.
+     * If the 'dialogBox' is not identified with the correct "option name"
+     * ('WawtEnv::sDialog'), the widget ID returned is not set.
      */
-    WidgetId addModalDialogBox(
-                const Widget::Children&  dialog,
-                double                   width           = 0.33,
-                double                   height          = 0.33,
-                double                   thickness       = 2.0,
-                std::any                 options         = std::any());
+    WidgetId addModalDialogBox(Widget&& dialogBox);
 
     /**
      * @brief Clear any exising widget "focus" on screen.
@@ -409,34 +397,16 @@ class ScreenImpl : public Screen {
     // PROTECTED DATA MEMBERS
 };
 
-inline WidgetId
-Screen::addModalDialogBox(const Widget::Children&  dialog,
-                          double                   width,
-                          double                   height,
-                          double                   thickness,
-                          std::any                 options)
+inline 
+WidgetId
+Screen::addModalDialogBox(Widget&& dialogBox)
 {
-    auto ret = WidgetId{};
-
-    if (width <= 1.0 && height <= 1.0 && width >  0.1 && height >  0.1) {
-        if (d_modalActive) {
-            dropModalDialogBox();
-        }
-        d_modalActive = true;
-
-        if (!options.has_value()) {
-            options = WawtEnv::instance()->defaultOptions(WawtEnv::sScreen);
-        }
-        auto modal = Widget(WawtEnv::sDialog,
-                            Layout::centered(width, height).border(thickness))
-                        .options(std::move(options));
-
-        for (auto& child: dialog) {
-            modal.addChild(child.clone());
-        }
-        ret = d_screen.pushDialog(std::move(modal));
+    if (d_modalActive) {
+        dropModalDialogBox();
     }
-    return ret;                                                       // RETURN
+    auto widgetId = d_screen.pushDialog(std::move(dialogBox));
+    d_modalActive = widgetId.isSet();
+    return widgetId;                                                  // RETURN
 }
 
 template<class Derived,class Option>

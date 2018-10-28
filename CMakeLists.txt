@@ -22,6 +22,7 @@ add_compile_options(-std=c++1z -Wall -Wextra -Wshadow -pedantic -pthread)
 include_directories(include ${CRYPTO_INCLUDE_DIR} ${SFML_INCLUDE_DIR})
 
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+    add_compile_options(-ggdb3)
     set(LIBSUFFIX "-d")
     set(GCOVLIB gcov)
     add_compile_options(-fprofile-arcs -ftest-coverage)

@@ -66,6 +66,26 @@ Panels::createScreenPanel()
         [layoutGrid, n = 0]() mutable -> Layout {
             return layoutGrid().scale(0.8, 0.8).border(n++ % 2 ? 5.0 : -1.0);
         };
+    auto popDialog =
+        [me = this](Widget *) -> void {
+            auto buttons = pushButtonGrid({}, 2.0, kNOGROUP,
+                            {
+                                {   [me](Widget *) -> void {
+                                        me->dropModalDialogBox();
+                                    },
+                                    S("Close")
+                                }
+                            });
+            auto dialog = dialogBox(
+                    Layout().scale(0.33, 0.33),
+                    std::move(buttons),
+                    { // Note: the 2_Sz here is not the same as the one below
+                        {S("Pop-up dialogs...")},
+                        {S("... are panels too! Only the 'Close'"), 2_Sz},
+                        {S("button is active on the screen."), 2_Sz}
+                    });
+            me->addModalDialogBox(std::move(dialog));
+        };
     auto screen =
         panel().addChild(
                     label({{-1.0, -1.0}, {1.0, -0.9}, 0.1}, S("Panels"))
@@ -73,7 +93,9 @@ Panels::createScreenPanel()
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(
                     pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}}, -1.0, 2_Sz,
-                                   {{d_prev, S("Prev")}, {d_next, S("Next")}})
+                                   {{d_prev,    S("Prev")},
+                                    {popDialog, S("Dialog")},
+                                    {d_next,    S("Next")}})
                                     .border(5).options(lineColor))
                .addChild(
                     panelLayout({{-1.0, 1.0, 0_wr}, {1.0, -1.0, 1_wr}},

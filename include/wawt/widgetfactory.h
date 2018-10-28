@@ -27,14 +27,17 @@
 
 namespace Wawt {
 
+struct LabelDef {
+    StringView_t    d_string{};
+    CharSizeGroup   d_group{};
+};
+
 using OnClickCb         = std::function<void(Widget *)>;
 using ClickLabelPair    = std::pair<OnClickCb, StringView_t>;
 using ClickLabelList    = std::initializer_list<ClickLabelPair>;
-
 using GroupClickCb      = std::function<void(Widget *,uint16_t relativeId)>;
-
 using LabelList         = std::initializer_list<StringView_t>;
-
+using LabelDefList      = std::initializer_list<LabelDef>;
 using WidgetGenerator   = std::function<Widget(int row, int column)>;
 
 Widget checkBox(Trackee&&                      indirect,
@@ -47,6 +50,15 @@ Widget checkBox(const Layout&                  layout,
                 StringView_t                   string,
                 CharSizeGroup                  group      = CharSizeGroup(),
                 TextAlign                      alignment  = TextAlign::eLEFT);
+
+Widget dialogBox(Trackee&&                     indirect,
+                 const Layout&                 dialogLayout,
+                 Widget&&                      buttons,
+                 LabelDefList                  dialog);
+
+Widget dialogBox(const Layout&                 dialogLayout,
+                 Widget&&                      buttons,
+                 LabelDefList                  dialog);
 
 Widget dropDownList(Trackee&&                  indirect,
                     Layout                     listLayout,

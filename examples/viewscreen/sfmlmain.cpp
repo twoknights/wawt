@@ -18,11 +18,11 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#include <wawt/draw.h>
 #include <wawt/screen.h>
 #include <wawt/wawtenv.h>
 #include <wawt/widget.h>
 #include <wawt/widgetfactory.h>
+#include <wawt/drawprotocol.h>
 
 #include <SFML/System/String.hpp>
 #include <SFML/Window/ContextSettings.hpp>
@@ -69,7 +69,32 @@ ViewScreen::createScreenPanel()
     //*********************************************************************
     // START SCREEN DEFINITION
     //*********************************************************************
-    auto screen = 
+    //auto screen = 
+    auto lineColor = defaultOptions(WawtEnv::sPanel)
+                        .lineColor(defaultOptions(WawtEnv::sScreen)
+                                        .d_fillColor);
+    auto screen =
+        panel().addChild(
+                    label({{-1.0, -1.0}, {1.0, -0.9}, 0.1}, S("Labels"))
+                    .options(defaultOptions(WawtEnv::sLabel)
+                             .fillColor(DrawOptions::Color(235,235,255))))
+               .addChild(
+                    pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}}, -1.0, 2_Sz,
+                                   {{OnClickCb(), S("Next")}})
+                                    .border(5).options(lineColor))
+               .addChild(
+                    panelLayout({{-1.0, 1.0, 0_wr}, {1.0, -1.0, 1_wr}}, 0, 1,
+
+// Start Samples:
+label({}, S("The default label has no border,")),
+label({}, S("no fill color,")),
+label({}, S("centered; with font size selected so the label fits.")),
+label({}, S("Labels can be 'left' aligned,"), 1_Sz, TextAlign::eLEFT),
+label({}, S("or 'right' aligned,"), 1_Sz, TextAlign::eRIGHT),
+label({},
+      S("and assigned to a font size group where all share the same size."),
+      1_Sz),
+label({}, S("С поддержкой UTF-8 или широким символом."))));
 
     //*********************************************************************
     // END SCREEN DEFINITION
@@ -121,17 +146,18 @@ int main()
                             sf::ContextSettings());
 
     SfmlDrawAdapter drawAdapter(window, path);
-    Wawt::WawtEnv   wawtEnv(DrawOptions::classDefaults(), &drawAdapter);
+    Wawt::WawtEnv   wawtEnv(DrawOptions::optionDefaults(), &drawAdapter);
 
     ViewScreen screen;
     screen.setup();
-    screen.activate(WIDTH, HEIGHT);
 
     std::cout << "Minimum widget size: " << sizeof(Wawt::panel()) << std::endl;
     std::cout << "\nSerialized screen definition:\n";
     screen.serializeScreen(std::cout);
+    std::cout.flush();
+    screen.activate(WIDTH, HEIGHT);
     std::cout << "\nAdapter view:\n";
-    Wawt::Draw draw;
+    Wawt::DrawStream draw;
     screen.draw(&draw);
 
     screen.draw();

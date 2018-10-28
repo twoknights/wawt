@@ -223,6 +223,7 @@ Widget::LayoutMethod genSpacedLayout(const BoundsPtr&   bounds,
 
             auto& data     = widget->text().d_data;
             auto& settings = widget->settings();
+            auto& layout   = widget->layoutData();
 
             if (!data.d_successfulLayout) {
                 return;
@@ -242,24 +243,21 @@ Widget::LayoutMethod genSpacedLayout(const BoundsPtr&   bounds,
             }
             // 'bounds' gives the text box dimensions. The border thickness
             // is unchanged, so:
-            auto border = std::ceil(widget->layoutData().d_border);
-            auto width  = bounds->d_width  + 2*(border + 1);
+            auto border = layout.d_border;
+            auto width  = bounds->d_width  + 2*(border + 3);
             auto height = bounds->d_height + 2*(border + 1);
 
             // Now placing the widget requires the panels dimensions to
             // calculate the border margin and spacing between buttons.
             auto panelWidth   = parent.layoutData().d_bounds.d_width;
             auto panelHeight  = parent.layoutData().d_bounds.d_height;
-            auto panelBorder  = parent.layoutData().d_border;
 
-            if (panelWidth-2*panelBorder <= width) {
-                assert(!"width bad");
-                width = panelWidth-2*panelBorder;
+            if (layout.d_bounds.d_width <= width) {
+                width = layout.d_bounds.d_width - 2*border - 2;
             }
 
-            if (panelHeight-2*panelBorder <= height) {
-                assert(!"height bad");
-                height = panelHeight-2*panelBorder;
+            if (layout.d_bounds.d_height <= height) {
+                height = layout.d_bounds.d_height - 2*border - 2;
             }
 
             // Calculate separator spacing between buttons:
@@ -337,6 +335,39 @@ Widget checkBox(const Layout&           layout,
             .text(string, group, alignment)
             .textMark(Text::BulletMark::eSQUARE,
                       alignment != TextAlign::eRIGHT);                // RETURN
+}
+
+Widget dialogBox(Trackee&&                     indirect,
+                 const Layout&                 dialogLayout,
+                 Widget&&                      buttons,
+                 LabelDefList                  dialog)
+{
+    auto lineLayout = gridLayoutGenerator(-1.0, dialog.size()+3, 1);
+    auto modal = Widget(WawtEnv::sDialog, std::move(indirect), dialogLayout);
+
+    for (auto& line : dialog) {
+        auto nextChild = label(lineLayout(), line.d_string, line.d_group);
+
+        if (modal.hasChildren()) {
+            modal.addChild(std::move(nextChild));
+        }
+        else {
+            // The first line in the dialog will have twice the height:
+            auto layout = lineLayout();
+            nextChild.layout().d_lowerRight = layout.d_lowerRight;
+            modal.addChild(std::move(nextChild));
+        }
+    }
+    lineLayout(); // skip a line
+    modal.addChild(std::move(buttons).layout(lineLayout()));
+    return modal;                                                     // RETURN
+}
+
+Widget dialogBox(const Layout&                 dialogLayout,
+                 Widget&&                      buttons,
+                 LabelDefList                  dialog)
+{
+    return dialogBox(Trackee(), dialogLayout, std::move(buttons), dialog);
 }
 
 Widget dropDownList(Trackee&&                  indirect,

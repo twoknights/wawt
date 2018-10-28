@@ -1202,8 +1202,25 @@ Widget::draw(DrawProtocol *adapter) noexcept
 {
     if (!isHidden()) {
         if (d_text && d_text->d_layout.d_refreshBounds) { // realign new string
-            // TBF: labelLayout(&d_drawData, false, d_layoutData, adapter);
-            d_text->d_layout.d_refreshBounds = false;
+            auto& data            = d_text->d_data;
+            auto& layout          = d_text->d_layout;
+            auto  charSizeLimit   = layout.upperLimit(d_rectangle);
+
+            if (!layout.resolveSizes(&data.d_charSize,
+                                     &data.d_bounds,
+                                     data.d_string,
+                                     data.d_labelMark
+                                                  != Text::BulletMark::eNONE,
+                                     d_rectangle,
+                                     charSizeLimit,
+                                     adapter,
+                                     d_settings.d_options)) {
+                data.d_successfulLayout = false;
+                return;                                               // RETURN
+            }
+            data.d_upperLeft = layout.position(data.d_bounds, d_rectangle);
+            data.d_successfulLayout        = true;
+            layout.d_refreshBounds = false;
         }
 
         call(&defaultDraw, &Methods::d_drawMethod, this, adapter);
@@ -1260,7 +1277,13 @@ Widget::popDialog()
 {
     if (this == d_root) {
         if (hasChildren()) {
-            if (0 == std::strcmp(children().back().settings().d_optionName,
+            auto& panel = children().back();
+
+            if (0 == std::strcmp(panel.settings().d_optionName,
+                                 WawtEnv::sPanel)
+             && panel.hasChildren()
+             && 0 == std::strcmp(panel.children().front()
+                                      .settings().d_optionName,
                                  WawtEnv::sDialog)) {
                 children().pop_back();
                 d_settings.d_widgetIdValue
