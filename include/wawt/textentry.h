@@ -32,63 +32,59 @@ namespace Wawt {
 
 
 class TextEntry : public Tracker {
-  public:
-    // Return 'true' if focus is to be retained.
-    using EnterCb       = std::function<bool(TextEntry *)>;
-    using VerifierCb    = std::function<bool(TextEntry*,Char_t)>;
 
-    TextEntry(uint16_t          maxInputCharacters,
-              const EnterCb&    enterCb,
-              Char_t            cursor      = '|',
-              Char_t            backspace   = '\b',
-              Char_t            enter       = '\r');
-
-    // PUBLIC MANIPULATORS
-    void            addInputVerifier(const VerifierCb& verify);
-
-    Widget          widget(const Layout&      layout,
-                           StringView_t       prompt,
-                           CharSizeGroup      group     = CharSizeGroup(),
-                           TextAlign          alignment = TextAlign::eLEFT);
-
-    void            draw(Widget *widget, DrawProtocol *adapter);
-
-    //! Return 'true' if 'text' fits within maximum character requirements.
-    bool            entry(StringView_t text);
+    // PRIVATE MANIPULATORS
+    void            update(Widget *widget, Trackee *label) override;
 
     //! Return 'true' if "focus" is retained; 'false' if it is lost.
     bool            input(Widget *widget, Char_t input);
 
-    void            layout(Widget                  *widget,
-                           const Widget&            parent,
-                           const Widget&            root,
-                           bool                     firstPass,
-                           DrawProtocol            *adapter);
+    void            draw(Widget *widget, DrawProtocol *adapter);
 
-    void            serialize(std::ostream&      os,
-                              std::string       *closeTag,
-                              const Widget&      widget,
-                              unsigned int       indent);
+  public:
+    // Return 'true' if focus is to be retained.
+    // PUBLIC TYPES
+    using EndCb         = std::function<bool(TextEntry *, Char_t)>;
+    using EndCharList   = std::initializer_list<Char_t>;
+    using VerifierCb    = std::function<bool(TextEntry*,Char_t)>;
+
+    // PUBLIC CONSTRUCTORS
+    TextEntry(uint16_t          maxInputCharacters,
+              const EndCb&      endCb,
+              Char_t            cursor      = '|',
+              Char_t            backspace   = '\b',
+              Char_t            enter       = '\r');
+
+    TextEntry(uint16_t          maxInputCharacters,
+              const EndCb&      endCb,
+              EndCharList       endList,
+              Char_t            cursor      = '|',
+              Char_t            backspace   = '\b');
+
+    // PUBLIC MANIPULATORS
+    //! Return 'true' if 'text' fits within maximum character requirements.
+    bool            entry(StringView_t text);
+
+    void            setInputVerifier(const VerifierCb& verify);
 
     // PUBLIC ACCESSORS
-    const String_t& entry() const {
-        return d_entry;
+    String_t        entry() const {
+        return toString(d_buffer.get(), d_bufferLng);
     }
 
   private:
-    using Buffer = std::unique_ptr<Char_t[]>;
+    using Buffer     = std::unique_ptr<Char_t[]>;
+    using EndChars   = std::vector<Char_t>;
 
-    DrawData    d_drawData{WawtEnv::sEntry};
     VerifierCb  d_verifier{};
     Buffer      d_buffer{};
-    String_t    d_entry{};
-    bool        d_focus         = false;
     uint16_t    d_bufferLng     = 0u;
+    bool        d_focus         = false;
     uint16_t    d_maxInputCharacters;
-    EnterCb     d_enter;
+    EndCb       d_endCb;
     Char_t      d_cursor;
     Char_t      d_backspace;
-    Char_t      d_enter;
+    EndChars    d_endChars;
 };
 
 } // end Wawt namespace

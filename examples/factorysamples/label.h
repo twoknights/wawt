@@ -54,7 +54,9 @@ inline Wawt::Widget
 Labels::createScreenPanel()
 {
     using namespace Wawt;
-    auto lineColor = defaultOptions(WawtEnv::sPanel)
+    auto yellowText = defaultOptions(WawtEnv::sLabel)
+                        .textColor({255u,255u,0u});
+    auto lineColor  = defaultOptions(WawtEnv::sPanel)
                         .lineColor(defaultOptions(WawtEnv::sScreen)
                                         .d_fillColor);
     auto screen =
@@ -63,7 +65,7 @@ Labels::createScreenPanel()
                     .options(defaultOptions(WawtEnv::sLabel)
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(
-                    pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}}, -1.0, 2_Sz,
+                    pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}}, -1.0, 1_Sz,
                                    {{d_next, S("Next")}})
                                     .border(5).options(lineColor))
                .addChild(
@@ -73,12 +75,17 @@ Labels::createScreenPanel()
 label({}, S("The default label has no border,")),
 label({}, S("no fill color,")),
 label({}, S("centered; with font size selected so the label fits.")),
-label({}, S("Labels can be 'left' aligned,"), 1_Sz, TextAlign::eLEFT),
-label({}, S("or 'right' aligned,"), 1_Sz, TextAlign::eRIGHT),
+label({}, S("Labels can be 'left' aligned,"), 2_Sz, TextAlign::eLEFT),
+label({}, S("or 'right' aligned,"), 2_Sz, TextAlign::eRIGHT),
 label({},
       S("and assigned to a font size group where all share the same size."),
-      1_Sz),
-label({}, S("С поддержкой UTF-8 или широким символом."))));
+      2_Sz),
+concatenateLabels({}, 3_Sz, TextAlign::eCENTER, {
+        { S("С поддержкой "), yellowText},
+        { S("UTF-8"), yellowText.clone().bold(true).font(1)
+                                        .textColor({255u,0u,0u})},
+        { S(" или широким символом."), yellowText}
+    })));
 // End Samples.
 
     return screen;                                                    // RETURN

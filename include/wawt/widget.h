@@ -126,7 +126,7 @@ class  Widget final {
 
     Widget& operator=(const Widget&)        = delete;
 
-    Widget(Widget&& copy)                                            noexcept;
+    Widget(Widget&& move)                                            noexcept;
 
     Widget& operator=(Widget&& rhs)                                  noexcept;
 
@@ -268,6 +268,11 @@ class  Widget final {
                               Widget          *root       = nullptr) noexcept;
 
     Children& children()                                             noexcept;
+
+    void      changeTracker(Trackee&& newTracker)                    noexcept {
+        d_widgetLabel = std::move(newTracker);
+        d_widgetLabel.update(this);
+    }
 
     void      clearTrackingPointer()                                 noexcept {
         d_widgetLabel.clear();

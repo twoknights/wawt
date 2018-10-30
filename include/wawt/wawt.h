@@ -218,6 +218,11 @@ class Trackee;
 class Tracker {
     friend class Trackee;
 
+    virtual void    update(Widget *widget, Trackee *label) {
+        d_widget = widget;
+        d_label  = label;
+    }
+
     Widget          *d_widget           = nullptr;
     Trackee         *d_label            = nullptr;
 
@@ -226,10 +231,10 @@ class Tracker {
     Tracker& operator=(const Tracker&)  = delete;
 
     Tracker()                           = default;
-    Tracker(Tracker&& copy);
+    Tracker(Tracker&& move);
     Tracker& operator=(Tracker&& rhs);
 
-    ~Tracker();
+    virtual ~Tracker();
 
     Widget&  operator*() noexcept {
         return *d_widget;
@@ -269,8 +274,12 @@ class Trackee {
 
     Trackee& operator=(Trackee&& rhs) noexcept {
         if (this != &rhs) {
-            d_backPtr       = rhs.d_backPtr;
-            rhs.d_backPtr   = nullptr;
+            clear();
+
+            if (rhs.d_backPtr) {
+                d_backPtr           = rhs.d_backPtr;
+                rhs.d_backPtr       = nullptr;
+            }
         }
         return *this;
     }
@@ -281,15 +290,14 @@ class Trackee {
 
     void clear() noexcept {
         if (d_backPtr) {
-            d_backPtr->d_widget = nullptr;
-            d_backPtr->d_label  = nullptr;
-            d_backPtr           = nullptr;
+            d_backPtr->update(nullptr, nullptr);
+            d_backPtr = nullptr;
         }
     }
 
     void update(Widget *newValue) noexcept {
         if (d_backPtr) {
-            d_backPtr->d_widget = newValue;
+            d_backPtr->update(newValue, this);
         }
     }
 

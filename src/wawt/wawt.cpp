@@ -334,12 +334,12 @@ String_t toString(Char_t *charArray, std::size_t length)
                                 // Tracker
                                 //--------
 
-Tracker::Tracker(Tracker&& copy)
+Tracker::Tracker(Tracker&& move)
 {
-    d_widget        = copy.d_widget;
-    d_label         = copy.d_label;
-    copy.d_widget   = nullptr;
-    copy.d_label    = nullptr;
+    d_widget        = move.d_widget;
+    d_label         = move.d_label;
+    move.d_widget   = nullptr;
+    move.d_label    = nullptr;
 
     if (d_label) {
         d_label->d_backPtr = this;
@@ -591,7 +591,7 @@ Text::Layout::upperLimit(const Wawt::Layout::Result& container) noexcept
     auto charSizeLimit    = container.d_bounds.d_height;
     auto borderAdjustment = 2*(container.d_border + 1);
 
-    if (charSizeLimit-4 <= borderAdjustment) {
+    if (charSizeLimit < borderAdjustment) {
         return 0;                                                     // RETURN
     }
     charSizeLimit -= borderAdjustment;
@@ -635,7 +635,7 @@ Text::resolveSizes(CharSize                    *size,
                                   options);
 }
 
-void
+bool
 Text::resolveLayout(const Wawt::Layout::Result&  container,
                     DrawProtocol                *adapter,
                     const std::any&              options) noexcept
@@ -645,7 +645,7 @@ Text::resolveLayout(const Wawt::Layout::Result&  container,
     // size is one less then the limit (most likely derived from the
     // character size map), then there is no need to resolve it again.
 
-    if (d_data.d_charSize + 1 != charSizeLimit) {
+    if (d_data.d_charSize + 1 != charSizeLimit || !d_data.d_successfulLayout) {
         if (!resolveSizes(&d_data.d_charSize,
                           &d_data.d_bounds,
                           d_data.d_string,
@@ -655,7 +655,7 @@ Text::resolveLayout(const Wawt::Layout::Result&  container,
                           adapter,
                           options)) {
             d_data.d_successfulLayout = false;
-            return;                                                   // RETURN
+            return false;                                             // RETURN
         }
 
         if (d_layout.d_charSizeGroup) {
@@ -668,7 +668,7 @@ Text::resolveLayout(const Wawt::Layout::Result&  container,
     // Although the size may not have changed, the position might have:
     d_data.d_upperLeft        = d_layout.position(d_data.d_bounds,
                                                   container);
-    return;                                                           // RETURN
+    return d_data.d_successfulLayout;                                 // RETURN
 }
 
 
@@ -1028,23 +1028,23 @@ Widget::textMark(Text::BulletMark  mark,
 }
 
 // PUBLIC MEMBERS
-Widget::Widget(Widget&& copy) noexcept
+Widget::Widget(Widget&& move) noexcept
 {
-    d_widgetLabel   = std::move(copy.d_widgetLabel);
-    d_root          = copy.d_root;
-    d_downMethod    = std::move(copy.d_downMethod);
-    d_methods       = std::move(copy.d_methods);
-    d_layout        = std::move(copy.d_layout);
-    d_rectangle     = std::move(copy.d_rectangle);
-    d_settings      = std::move(copy.d_settings);
-    d_text          = std::move(copy.d_text);
-    d_children      = std::move(copy.d_children);
+    d_widgetLabel   = std::move(move.d_widgetLabel);
+    d_root          = move.d_root;
+    d_downMethod    = std::move(move.d_downMethod);
+    d_methods       = std::move(move.d_methods);
+    d_layout        = std::move(move.d_layout);
+    d_rectangle     = std::move(move.d_rectangle);
+    d_settings      = std::move(move.d_settings);
+    d_text          = std::move(move.d_text);
+    d_children      = std::move(move.d_children);
 
     if (d_widgetLabel) {
         d_widgetLabel.update(this);
     }
 
-    if (d_root == &copy) { // copy after 'assignWidgets' called: redo
+    if (d_root == &move) { // move after 'assignWidgets' called: redo
         d_root = this;
         assert(d_text);
 
@@ -1060,7 +1060,7 @@ Widget::Widget(Widget&& copy) noexcept
             }
         }
     }
-    copy.d_root = nullptr;
+    move.d_root = nullptr;
     return;                                                           // RETURN
 }
 

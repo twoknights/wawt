@@ -19,6 +19,8 @@
 #include "wawt/textentry.h"
 #include "wawt/wawtenv.h"
 
+#include <algorithm>
+
 #ifdef WAWT_WIDECHAR
 #define S(str) String_t(L"" str)  // wide char strings (std::wstring)
 #define C(c) (L ## c)
@@ -40,26 +42,13 @@ namespace {
                             //----------------
 
 
-TextEntry::TextEntry(int                maxInputCharacters,
-                     const EnterCb&     enterCb,
-                     Char_t             cursor,
-                     Char_t             backspace,
-                     Char_t             enter)
-: d_maxInputCharacters(maxInputCharacters)
-, d_enterCb(enterCb)
-, d_cursor(cursor)
-, d_backspace(backspace)
-, d_enter(enter)
+// PRIVATE METHODS
+void
+TextEntry::update(Widget *widget, Trackee *label)
 {
-    d_buffer = std::make_unique<Char_t[]>(maxInputCharacters);
-}
+    Tracker::update(widget, label);
 
-Widget
-TextEntry::widget(const Layout&      layout,
-                  StringView_t       string,
-                  CharSizeGroup      group,
-                  TextAlign          alignment);
-{
+TBD:
     return Widget(WawtEnv::sEntry, Trackee(*this), layout)
             .text(string, group, alignment)
             .method(
@@ -115,6 +104,65 @@ TextEntry::draw(Widget *widget, DrawProtocol *adapter)
 }
 
 bool
+TextEntry::input(Widget *widget, Char_t input)
+{
+    if (input == kFocusChg) {
+        d_focus = !d_focus;
+    }
+    else if (d_endChars.end()
+                    != std::find(endChars.begin(), endChars.end(), input)) {
+        if (!d_endCb || d_endCb(this)) {
+            d_focus = false;
+        }
+    }
+    else if (!d_verifierCb || d_verifierCb(this, input)) {
+        if (!d_focus) {
+            assert(!"Stray input character seen.");
+            return false;                                             // RETURN
+        }
+
+        if (input == d_backspace) {
+            if (d_bufferLng > 0) {
+                d_bufferLng -= 1;
+            }
+        }
+        else if (d_maxInputCharacters > d_bufferLng) {
+            d_buffer[d_bufferLng++] = input;
+        }
+    }
+    return d_focus;                                                   // RETURN
+}
+
+// PUBLIC METHODS
+TextEntry::TextEntry(int                maxInputCharacters,
+                     const EndCb&       endCb,
+                     Char_t             cursor,
+                     Char_t             backspace,
+                     Char_t             enter)
+: d_maxInputCharacters(maxInputCharacters)
+, d_endCb(endCb)
+, d_cursor(cursor)
+, d_backspace(backspace)
+, d_endChars(1, enter)
+{
+    d_buffer = std::make_unique<Char_t[]>(maxInputCharacters);
+}
+
+TextEntry::TextEntry(uint16_t           maxInputCharacters,
+                     const EndCb&       endCb,
+                     EndCharList        endList,
+                     Char_t             cursor,
+                     Char_t             backspace)
+: d_maxInputCharacters(maxInputCharacters)
+, d_endCb(endCb)
+, d_cursor(cursor)
+, d_backspace(backspace)
+, d_endChars(endList.begin(), endList.end())
+{
+    d_buffer = std::make_unique<Char_t[]>(maxInputCharacters);
+}
+
+bool
 TextEntry::entry(StringView_t text)
 {
     auto work = std::make_unique<Char_t[]>(d_maxInputCharacters);
@@ -134,61 +182,8 @@ TextEntry::entry(StringView_t text)
     }
     d_bufferLng = lng;
     d_buffer    = std::move(work);
-    d_entry     = toString(d_buffer.get(), lng);
     return true;                                                      // RETURN
 }
 
-bool
-TextEntry::input(Widget *widget, Char_t input)
-{
-    if (input == kFocusChg) {
-        d_focus = !d_focus;
-    }
-    else if (!d_verifierCb || d_verifierCb(this, input)) {
-        if (!d_focus) {
-            assert(!"Stray input character seen.");
-            return false;                                             // RETURN
-        }
-
-        if (input == d_backspace) {
-            if (d_bufferLng > 1) {
-                d_bufferLng -= 1;
-            }
-        }
-        else if (input == d_enter) {
-            if (d_enterCb) {
-                d_focus = d_entryCb(this);
-            }
-            else {
-                d_focus = false;
-            }
-        }
-        else if (d_maxInputCharacters > d_bufferLng) {
-            d_buffer[d_bufferLng++] = input;
-        }
-        d_entry = toString(d_buffer.get(), d_bufferLng);
-    }
-    return d_focus;                                                   // RETURN
-}
-
-void
-TextEntry::layout(Widget                  *widget,
-                  const Widget&            parent,
-                  const Widget&            root,
-                  bool                     firstPass,
-                  DrawProtocol            *adapter)
-{
-    Widget::defaultLayout(widget, parent, root, firstPass, adapter);
-}
-
-void
-TextEntry::serialize(std::ostream&      os,
-                     std::string       *closeTag,
-                     const Widget&      widget,
-                     unsigned int       indent)
-{
-}
-
-};
 }  // namespace Wawt
 // vim: ts=4:sw=4:et:ai

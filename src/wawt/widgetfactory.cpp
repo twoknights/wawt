@@ -133,6 +133,107 @@ void addDropDown(Widget             *dropDown,
     return;                                                           // RETURN
 }
 
+void adjacentTextLayout(Widget        *widget,
+                        const Widget&  parent,
+                        bool           firstPass,
+                        DrawProtocol  *adapter,
+                        TextAlign      alignment,
+                        std::size_t&   length) noexcept
+{
+    assert(widget->hasChildren());
+    assert(widget->children().front().hasText());
+
+    auto  layout     = firstPass ? widget->layout().resolveLayout(parent)
+                                 : widget->layoutData();
+    auto& text       = widget->children().front().text();
+    auto  adjustment = layout.d_border+1;
+    auto  width      = layout.d_bounds.d_width - 2*adjustment;
+    auto  charSize   = Text::CharSize(text.d_layout.upperLimit(layout) - 1u);
+    auto  bounds     = Bounds{};
+
+    if (firstPass) {
+        auto concat = String_t{};
+        concat.reserve(length + 1);
+        widget->layoutData()      = layout;
+        layout.d_upperLeft.d_x   += adjustment;
+        layout.d_upperLeft.d_y   += adjustment;
+        layout.d_bounds.d_width  -= 2*adjustment;
+        layout.d_bounds.d_height -= 2*adjustment;
+        layout.d_border = 0;
+
+        for (auto& child : widget->children()) {
+            assert(child.hasText());
+            child.layoutData() = layout;
+            concat += child.text().d_data.d_string;
+            child.text().d_data.d_successfulLayout = true;
+        }
+        length = concat.length();
+
+        if (!Text::resolveSizes(&charSize,
+                                &bounds,
+                                concat,
+                                false,
+                                layout,
+                                charSize+1,
+                                adapter,
+                                std::any())) {
+            for (auto& child : widget->children()) {
+                child.text().d_data.d_successfulLayout = false;
+            }
+            return;                                                   // RETURN
+        }
+    }
+
+    if (text.d_data.d_successfulLayout) {
+        // The bounds calculated above is only a lower limit, and on the
+        // second pass 'charSize' may have changed. Compute actual bounds
+        // using the options assigned to each child:
+        auto concatWidth = float{};
+
+        do {
+            (*text.d_layout.d_charSizeMap)[*text.d_layout.d_charSizeGroup]
+                = charSize;
+            concatWidth = 0;
+
+            for (auto& child : widget->children()) {
+                if (child.text().resolveLayout(child.layoutData(),
+                                               adapter,
+                                               child.options())) {
+                    concatWidth += child.text().d_data.d_bounds.d_width;
+                }
+            }
+        } while (concatWidth > width && --charSize > 2);
+
+        if (charSize <= 2) {
+            for (auto& child : widget->children()) {
+                child.text().d_data.d_successfulLayout = false;
+            }
+        }
+        else if (!firstPass) {
+            // Now each child has to be positioned, taking into account the
+            // overall alignment of the concatenated label:
+
+            if (alignment != TextAlign::eLEFT) {
+                auto space = width - 2*adjustment - concatWidth;
+
+                if (alignment == TextAlign::eCENTER) {
+                    space /= 2.0f;
+                }
+                layout.d_upperLeft.d_x += space;
+            }
+         
+            for (auto& child : widget->children()) {
+                auto& childData   = child.text().d_data;
+                auto& childWidth  = childData.d_bounds.d_width;
+                childData.d_upperLeft               = layout.d_upperLeft;
+                child.layoutData().d_bounds.d_width = childWidth;
+                layout.d_upperLeft.d_x             += childWidth;
+            }
+        }
+    }
+    return;                                                           // RETURN
+}
+
 Widget::DownEventMethod createDropDown(GroupClickCb&& selectCb)
 {
     return
@@ -143,63 +244,6 @@ Widget::DownEventMethod createDropDown(GroupClickCb&& selectCb)
                     widget->setSelected(false);
                     if (widget->inside(x, y)) {
                         addDropDown(parent, widget, cb);
-                    }
-                }
-                return;
-            };
-        };                                                            // RETURN
-}
-
-Widget::DownEventMethod makePushButtonDownMethod(OnClickCb && onClick)
-{
-    return
-        [cb=std::move(onClick)] (auto, auto, auto *widget, auto) -> EventUpCb {
-            widget->setSelected(true);
-            return  [cb, widget](double x, double y, bool up) -> void {
-                if (up) {
-                    widget->setSelected(false);
-                    if (cb) {
-                        if (widget->inside(x, y)) {
-                            cb(widget);
-                        }
-                    }
-                }
-                return;
-            };
-        };                                                            // RETURN
-}
-
-Widget::DownEventMethod makeToggleButtonDownMethod(const GroupClickCb& cb)
-{
-    return
-        [cb] (auto, auto, auto *widget, auto *parent) -> EventUpCb {
-            return  [cb, widget, parent](double x, double y, bool up) -> void {
-                if (up && widget->inside(x, y)) {
-                    widget->setSelected(!widget->isSelected());
-                    if (cb) {
-                        cb(parent, widget->relativeId());
-                    }
-                }
-                return;
-            };
-        };                                                            // RETURN
-}
-
-Widget::DownEventMethod makeRadioButtonDownMethod(const GroupClickCb& cb)
-{
-    return
-        [cb] (auto, auto, auto *widget, auto *parent) -> EventUpCb {
-            return  [cb, widget, parent](double x, double y, bool up) -> void {
-                if (up && widget->inside(x, y)) {
-                    if (!widget->isSelected()) {
-                        for (auto& child : parent->children()) {
-                            child.setSelected(false);
-                        }
-                        widget->setSelected(true);
-
-                        if (cb) {
-                            return cb(parent, widget->relativeId());
-                        }
                     }
                 }
                 return;
@@ -308,6 +352,63 @@ Widget::LayoutMethod genSpacedLayout(const BoundsPtr&   bounds,
         };                                                            // RETURN
 }
 
+Widget::DownEventMethod makePushButtonDownMethod(OnClickCb && onClick)
+{
+    return
+        [cb=std::move(onClick)] (auto, auto, auto *widget, auto) -> EventUpCb {
+            widget->setSelected(true);
+            return  [cb, widget](double x, double y, bool up) -> void {
+                if (up) {
+                    widget->setSelected(false);
+                    if (cb) {
+                        if (widget->inside(x, y)) {
+                            cb(widget);
+                        }
+                    }
+                }
+                return;
+            };
+        };                                                            // RETURN
+}
+
+Widget::DownEventMethod makeToggleButtonDownMethod(const GroupClickCb& cb)
+{
+    return
+        [cb] (auto, auto, auto *widget, auto *parent) -> EventUpCb {
+            return  [cb, widget, parent](double x, double y, bool up) -> void {
+                if (up && widget->inside(x, y)) {
+                    widget->setSelected(!widget->isSelected());
+                    if (cb) {
+                        cb(parent, widget->relativeId());
+                    }
+                }
+                return;
+            };
+        };                                                            // RETURN
+}
+
+Widget::DownEventMethod makeRadioButtonDownMethod(const GroupClickCb& cb)
+{
+    return
+        [cb] (auto, auto, auto *widget, auto *parent) -> EventUpCb {
+            return  [cb, widget, parent](double x, double y, bool up) -> void {
+                if (up && widget->inside(x, y)) {
+                    if (!widget->isSelected()) {
+                        for (auto& child : parent->children()) {
+                            child.setSelected(false);
+                        }
+                        widget->setSelected(true);
+
+                        if (cb) {
+                            return cb(parent, widget->relativeId());
+                        }
+                    }
+                }
+                return;
+            };
+        };                                                            // RETURN
+}
+
 } // unnamed namespace
 
 Widget checkBox(Trackee&&               indirect,
@@ -337,10 +438,54 @@ Widget checkBox(const Layout&           layout,
                       alignment != TextAlign::eRIGHT);                // RETURN
 }
 
+
+Widget concatenateLabels(Trackee&&             indirect,
+                         const Layout&         resultLayout,
+                         CharSizeGroup         group,
+                         TextAlign             alignment,
+                         LabelOptionList       labels)
+{
+    auto result      = Widget(WawtEnv::sLabel,
+                              std::move(indirect),
+                              resultLayout);
+    auto noLayout    = [](Widget*,const Widget&,bool,DrawProtocol*) -> void {};
+
+    if (group && labels.size() > 0) {
+        auto length = std::size_t{};
+
+        for (auto& [string, options] : labels) {
+            result.addChild(label(Layout(), string, group, TextAlign::eLEFT)
+                                .method(noLayout).options(options));
+            length += string.length();
+        }
+        result.method(
+            [alignment, length](Widget         *me,
+                                const Widget&   parent,
+                                bool            firstPass,
+                                DrawProtocol   *adapter) mutable -> void {
+                adjacentTextLayout(me,
+                                   parent,
+                                   firstPass,
+                                   adapter,
+                                   alignment,
+                                   length);
+            });
+    }
+    return result;                                                    // RETURN
+}
+
+Widget concatenateLabels(const Layout&         resultLayout,
+                         CharSizeGroup         group,
+                         TextAlign             alignment,
+                         LabelOptionList       labels)
+{
+    return concatenateLabels(Trackee(), resultLayout, group, alignment,labels);
+}
+
 Widget dialogBox(Trackee&&                     indirect,
                  const Layout&                 dialogLayout,
                  Widget&&                      buttons,
-                 LabelDefList                  dialog)
+                 LabelGroupList                dialog)
 {
     auto lineLayout = gridLayoutGenerator(-1.0, dialog.size()+3, 1);
     auto modal = Widget(WawtEnv::sDialog, std::move(indirect), dialogLayout);
@@ -365,7 +510,7 @@ Widget dialogBox(Trackee&&                     indirect,
 
 Widget dialogBox(const Layout&                 dialogLayout,
                  Widget&&                      buttons,
-                 LabelDefList                  dialog)
+                 LabelGroupList                dialog)
 {
     return dialogBox(Trackee(), dialogLayout, std::move(buttons), dialog);
 }

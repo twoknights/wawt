@@ -76,22 +76,23 @@ constexpr double HEIGHT = 720.;
 
 int main()
 {
-    auto path = fontPath("Verdana");
+    auto primary = fontPath("Verdana");
 
-    if (path.empty()) {
-        path  = fontPath("Arial");
+    if (primary.empty()) {
+        primary  = fontPath("Arial");
 
-        if (path.empty()) {
+        if (primary.empty()) {
             std::cerr << "Failed to find Verdana or Arial fonts." << std::endl;
             return 0;                                                 // RETURN
         }
     }
+    auto secondary = fontPath("Times");
     auto window = sf::RenderWindow(sf::VideoMode(float(WIDTH), float(HEIGHT)),
                                    "ViewScreen",
                                    sf::Style::Default,
                                    sf::ContextSettings());
 
-    auto drawAdapter = SfmlDrawAdapter(window, path);
+    auto drawAdapter = SfmlDrawAdapter(window, primary, secondary);
     auto wawtEnv     = Wawt::WawtEnv(DrawOptions::optionDefaults(),
                                      &drawAdapter);
 

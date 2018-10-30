@@ -121,7 +121,7 @@ struct Text {
                              const std::any&             options) noexcept;
 
     // PUBLIC METHODS
-    void resolveLayout(const Wawt::Layout::Result&  container,
+    bool resolveLayout(const Wawt::Layout::Result&  container,
                        DrawProtocol                *adapter,
                        const std::any&              options) noexcept;
 

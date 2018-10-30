@@ -27,7 +27,7 @@
 
 namespace Wawt {
 
-struct LabelDef {
+struct LabelGroup {
     StringView_t    d_string{};
     CharSizeGroup   d_group{};
 };
@@ -36,8 +36,10 @@ using OnClickCb         = std::function<void(Widget *)>;
 using ClickLabelPair    = std::pair<OnClickCb, StringView_t>;
 using ClickLabelList    = std::initializer_list<ClickLabelPair>;
 using GroupClickCb      = std::function<void(Widget *,uint16_t relativeId)>;
+using LabelGroupList    = std::initializer_list<LabelGroup>;
 using LabelList         = std::initializer_list<StringView_t>;
-using LabelDefList      = std::initializer_list<LabelDef>;
+using LabelOptionPair   = std::pair<StringView_t, std::any>;
+using LabelOptionList   = std::initializer_list<LabelOptionPair>;
 using WidgetGenerator   = std::function<Widget(int row, int column)>;
 
 Widget checkBox(Trackee&&                      indirect,
@@ -51,14 +53,25 @@ Widget checkBox(const Layout&                  layout,
                 CharSizeGroup                  group      = CharSizeGroup(),
                 TextAlign                      alignment  = TextAlign::eLEFT);
 
+Widget concatenateLabels(Trackee&&             indirect,
+                         const Layout&         resultLayout,
+                         CharSizeGroup         group,
+                         TextAlign             alignment,
+                         LabelOptionList       labels);
+
+Widget concatenateLabels(const Layout&         resultLayout,
+                         CharSizeGroup         group,
+                         TextAlign             alignment,
+                         LabelOptionList       labels);
+
 Widget dialogBox(Trackee&&                     indirect,
                  const Layout&                 dialogLayout,
                  Widget&&                      buttons,
-                 LabelDefList                  dialog);
+                 LabelGroupList                dialog);
 
 Widget dialogBox(const Layout&                 dialogLayout,
                  Widget&&                      buttons,
-                 LabelDefList                  dialog);
+                 LabelGroupList                dialog);
 
 Widget dropDownList(Trackee&&                  indirect,
                     Layout                     listLayout,
