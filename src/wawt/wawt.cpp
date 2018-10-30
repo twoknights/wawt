@@ -557,29 +557,7 @@ Layout::scale(double sx, double sy)
                                 // class  Text::Layout
                                 //--------------------
 
-bool
-Text::Layout::resolveSizes(CharSize                    *size,
-                           Bounds                      *bounds,
-                           const String_t&              string,
-                           bool                         hasBulletMark,
-                           const Wawt::Layout::Result&  container,
-                           CharSize                     upperLimit,
-                           DrawProtocol                *adapter,
-                           const std::any&              options) noexcept
-{
-    auto constraint       = container.d_bounds;
-    auto borderAdjustment = 2*(container.d_border + 1);
-    constraint.d_width   -= borderAdjustment;
-    constraint.d_height  -= borderAdjustment;
-    return adapter->setTextValues(bounds,
-                                  size,
-                                  constraint,
-                                  hasBulletMark,
-                                  string,
-                                  upperLimit,
-                                  options);
-}
-
+// PUBLIC METHODS
 Coordinates
 Text::Layout::position(const Bounds&                bounds,
                        const Wawt::Layout::Result&  container) noexcept
@@ -633,23 +611,49 @@ Text::Layout::upperLimit(const Wawt::Layout::Result& container) noexcept
                                 // class  Text
                                 //------------
 
+// PUBLIC CLASS METHODS
+bool
+Text::resolveSizes(CharSize                    *size,
+                   Bounds                      *bounds,
+                   const String_t&              string,
+                   bool                         hasBulletMark,
+                   const Wawt::Layout::Result&  container,
+                   CharSize                     upperLimit,
+                   DrawProtocol                *adapter,
+                   const std::any&              options) noexcept
+{
+    auto constraint       = container.d_bounds;
+    auto borderAdjustment = 2*(container.d_border + 1);
+    constraint.d_width   -= borderAdjustment;
+    constraint.d_height  -= borderAdjustment;
+    return adapter->setTextValues(bounds,
+                                  size,
+                                  constraint,
+                                  hasBulletMark,
+                                  string,
+                                  upperLimit,
+                                  options);
+}
+
 void
-Text::resolveLayout(bool                         firstPass,
-                    const Wawt::Layout::Result&  container,
+Text::resolveLayout(const Wawt::Layout::Result&  container,
                     DrawProtocol                *adapter,
                     const std::any&              options) noexcept
 {
     auto charSizeLimit    = d_layout.upperLimit(container);
+    // If this layout was previously "resolved" and the resulting character
+    // size is one less then the limit (most likely derived from the
+    // character size map), then there is no need to resolve it again.
 
-    if (firstPass || d_data.d_charSize + 1 != charSizeLimit) {
-        if (!d_layout.resolveSizes(&d_data.d_charSize,
-                                   &d_data.d_bounds,
-                                   d_data.d_string,
-                                   d_data.d_labelMark != BulletMark::eNONE,
-                                   container,
-                                   charSizeLimit,
-                                   adapter,
-                                   options)) {
+    if (d_data.d_charSize + 1 != charSizeLimit) {
+        if (!resolveSizes(&d_data.d_charSize,
+                          &d_data.d_bounds,
+                          d_data.d_string,
+                          d_data.d_labelMark != BulletMark::eNONE,
+                          container,
+                          charSizeLimit,
+                          adapter,
+                          options)) {
             d_data.d_successfulLayout = false;
             return;                                                   // RETURN
         }
@@ -658,10 +662,12 @@ Text::resolveLayout(bool                         firstPass,
             (*d_layout.d_charSizeMap)[*d_layout.d_charSizeGroup]
                 = d_data.d_charSize;
         }
-    }
 
-    d_data.d_upperLeft        = d_layout.position(d_data.d_bounds, container);
-    d_data.d_successfulLayout = true;
+        d_data.d_successfulLayout = true;
+    }
+    // Although the size may not have changed, the position might have:
+    d_data.d_upperLeft        = d_layout.position(d_data.d_bounds,
+                                                  container);
     return;                                                           // RETURN
 }
 
@@ -761,9 +767,9 @@ Widget::defaultLayout(Widget                  *widget,
         widget->layoutData() = widget->layout().resolveLayout(parent);
     }
 
-    if (widget->hasText()) {
-        widget->text().resolveLayout(firstPass,
-                                     widget->layoutData(),
+    if (widget->hasText()
+     && (firstPass || widget->text().d_layout.d_charSizeGroup)) {
+        widget->text().resolveLayout(widget->layoutData(),
                                      adapter,
                                      widget->options());
     }

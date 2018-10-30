@@ -64,6 +64,7 @@ struct Text {
       , eROUND
       , eUPARROW
       , eDOWNARROW
+      , eOPTIONMARK
     };
 
     struct Data {
@@ -103,23 +104,24 @@ struct Text {
         CharSizeMapPtr      d_charSizeMap{};
         bool                d_refreshBounds = false;
 
-        bool        resolveSizes(CharSize                   *size,
-                                 Bounds                     *bounds,
-                                 const String_t&             string,
-                                 bool                        hasBulletMark,
-                                 const Wawt::Layout::Result& container,
-                                 CharSize                    upperLimit,
-                                 DrawProtocol               *adapter,
-                                 const std::any&             options) noexcept;
-
         CharSize    upperLimit(const Wawt::Layout::Result& container) noexcept;
 
         Coordinates position(const Bounds&                bounds,
                              const Wawt::Layout::Result&  container) noexcept;
     };
 
-    void resolveLayout(bool                         firstPass,
-                       const Wawt::Layout::Result&  container,
+    // PUBLIC CLASS METHODS
+    static bool resolveSizes(CharSize                   *size,
+                             Bounds                     *bounds,
+                             const String_t&             string,
+                             bool                        hasBulletMark,
+                             const Wawt::Layout::Result& container,
+                             CharSize                    upperLimit,
+                             DrawProtocol               *adapter,
+                             const std::any&             options) noexcept;
+
+    // PUBLIC METHODS
+    void resolveLayout(const Wawt::Layout::Result&  container,
                        DrawProtocol                *adapter,
                        const std::any&              options) noexcept;
 

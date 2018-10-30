@@ -415,12 +415,20 @@ SfmlDrawAdapter::setTextValues(Wawt::Bounds          *textBounds,
         }
         *newSize = lowerLimit;
     }
-    textBounds->d_width  = bounds.width;
-    textBounds->d_height = bounds.height;
 
     if (hasBulletMark) {
-        textBounds->d_width += *newSize;
+        bounds.width += *newSize;
     }
+    // There is no guarantee that there is a character size that will permit
+    // the string to fit in the container.  Need to check for this case:
+
+    if (bounds.height >= container.d_height
+     || bounds.width  >= container.d_width) {
+        return false;                                                 // RETURN
+    }
+    // Character size allows string to fit the "container".
+    textBounds->d_width  = bounds.width;
+    textBounds->d_height = bounds.height;
     return true;                                                      // RETURN
 }
 
