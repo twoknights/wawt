@@ -1212,15 +1212,15 @@ Widget::draw(DrawProtocol *adapter) noexcept
             auto& layout          = d_text->d_layout;
             auto  charSizeLimit   = layout.upperLimit(d_rectangle);
 
-            if (!layout.resolveSizes(&data.d_charSize,
-                                     &data.d_bounds,
-                                     data.d_string,
-                                     data.d_labelMark
-                                                  != Text::BulletMark::eNONE,
-                                     d_rectangle,
-                                     charSizeLimit,
-                                     adapter,
-                                     d_settings.d_options)) {
+            if (!Text::resolveSizes(&data.d_charSize,
+                                    &data.d_bounds,
+                                    data.d_string,
+                                    data.d_labelMark
+                                                 != Text::BulletMark::eNONE,
+                                    d_rectangle,
+                                    charSizeLimit,
+                                    adapter,
+                                    d_settings.d_options)) {
                 data.d_successfulLayout = false;
                 return;                                               // RETURN
             }
