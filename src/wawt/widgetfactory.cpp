@@ -143,40 +143,35 @@ void adjacentTextLayout(Widget        *widget,
     assert(widget->hasChildren());
     assert(widget->children().front().hasText());
 
-    auto  layout     = firstPass ? widget->layout().resolveLayout(parent)
-                                 : widget->layoutData();
-    auto& text       = widget->children().front().text();
-    auto  adjustment = layout.d_border+1;
-    auto  width      = layout.d_bounds.d_width - 2*adjustment;
-    auto  charSize   = Text::CharSize(text.d_layout.upperLimit(layout) - 1u);
-    auto  bounds     = Bounds{};
+    auto  layout      = firstPass ? widget->layout().resolveLayout(parent)
+                                  : widget->layoutData();
+    auto& firstChild  = widget->children().front();
+    auto& text        = firstChild.text();
+    auto  adjustment  = layout.d_border+1;
+    auto  width       = layout.d_bounds.d_width - 2*adjustment;
+
+    auto  values      = Text::Data();
+    values.d_charSize = text.d_layout.upperLimit(layout) - 1u;
 
     if (firstPass) {
-        auto concat = String_t{};
-        concat.reserve(length + 1);
+        values.d_string.reserve(length + 1);
         widget->layoutData()      = layout;
         layout.d_upperLeft.d_x   += adjustment;
         layout.d_upperLeft.d_y   += adjustment;
         layout.d_bounds.d_width  -= 2*adjustment;
         layout.d_bounds.d_height -= 2*adjustment;
-        layout.d_border = 0;
+        layout.d_border           = 0;
 
         for (auto& child : widget->children()) {
             assert(child.hasText());
             child.layoutData() = layout;
-            concat += child.text().d_data.d_string;
+            values.d_string += child.text().d_data.d_string;
             child.text().d_data.d_successfulLayout = true;
         }
-        length = concat.length();
+        auto upperLimit = values.d_charSize + 1;
+        length          = values.d_string.length();
 
-        if (!Text::resolveSizes(&charSize,
-                                &bounds,
-                                concat,
-                                false,
-                                layout,
-                                charSize+1,
-                                adapter,
-                                std::any())) {
+        if (!values.resolveSizes(layout, upperLimit, adapter, std::any())) {
             for (auto& child : widget->children()) {
                 child.text().d_data.d_successfulLayout = false;
             }
@@ -189,45 +184,64 @@ void adjacentTextLayout(Widget        *widget,
         // second pass 'charSize' may have changed. Compute actual bounds
         // using the options assigned to each child:
         auto concatWidth = float{};
+        auto minBaseline = 0u;
 
         do {
             (*text.d_layout.d_charSizeMap)[*text.d_layout.d_charSizeGroup]
-                = charSize;
+                = values.d_charSize;
             concatWidth = 0;
+            minBaseline = UINT16_MAX;
 
             for (auto& child : widget->children()) {
                 if (child.text().resolveLayout(child.layoutData(),
                                                adapter,
                                                child.options())) {
-                    concatWidth += child.text().d_data.d_bounds.d_width;
+                    auto& childData = child.text().d_data;
+                    concatWidth += childData.d_bounds.d_width;
+                    minBaseline = std::min(minBaseline,
+                                           childData.d_baselineOffset);
                 }
             }
-        } while (concatWidth > width && --charSize > 2);
+        } while (concatWidth > width && --values.d_charSize > 2);
 
-        if (charSize <= 2) {
+        if (values.d_charSize <= 2) {
             for (auto& child : widget->children()) {
                 child.text().d_data.d_successfulLayout = false;
             }
         }
         else if (!firstPass) {
-            // Now each child has to be positioned, taking into account the
-            // overall alignment of the concatenated label:
+            // Now each child has to be positioned. The text box for each
+            // child is positioned to center it's string in the y direction
+            // relative to the enclosing rectangle.  This has to be corrected
+            // so the labels all share the same baseline.
+
+            // Each child starts with the same layout matching the contained
+            // tex box. Bot will be changed together.
+            auto  xpos    = firstChild.layoutData().d_upperLeft.d_x;
+            auto  ypos    = firstChild.layoutData().d_upperLeft.d_y;
 
             if (alignment != TextAlign::eLEFT) {
-                auto space = width - 2*adjustment - concatWidth;
+                auto space = firstChild.layoutData().d_bounds.d_width
+                                                             - concatWidth;
 
                 if (alignment == TextAlign::eCENTER) {
                     space /= 2.0f;
                 }
-                layout.d_upperLeft.d_x += space;
+                xpos += space;
             }
          
             for (auto& child : widget->children()) {
-                auto& childData   = child.text().d_data;
-                auto& childWidth  = childData.d_bounds.d_width;
-                childData.d_upperLeft               = layout.d_upperLeft;
-                child.layoutData().d_bounds.d_width = childWidth;
-                layout.d_upperLeft.d_x             += childWidth;
+                auto& childLayout          = child.layoutData();
+                auto& childData            = child.text().d_data;
+                auto& childWidth           = childData.d_bounds.d_width;
+                auto  offset               = childData.d_baselineOffset
+                                                            - minBaseline/2;
+                childData.d_upperLeft.d_x  = xpos;
+                childData.d_upperLeft.d_y  = ypos + offset;
+                childData.d_bounds.d_width = childWidth;
+                childLayout.d_upperLeft    = childData.d_upperLeft;
+                childLayout.d_bounds       = childData.d_bounds;
+                xpos                      += childWidth + 1;
             }
         }
     }
@@ -289,7 +303,7 @@ Widget::LayoutMethod genSpacedLayout(const BoundsPtr&   bounds,
             // is unchanged, so:
             auto border = layout.d_border;
             auto width  = bounds->d_width  + 2*(border + 3);
-            auto height = bounds->d_height + 2*(border + 1);
+            auto height = bounds->d_height + 2*(border + 2);
 
             // Now placing the widget requires the panels dimensions to
             // calculate the border margin and spacing between buttons.

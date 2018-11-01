@@ -56,8 +56,6 @@ struct Text {
                             // struct Text::Data
                             //==================
 
-    using CharSize          = uint16_t;
-
     enum BulletMark {
         eNONE
       , eSQUARE
@@ -68,20 +66,23 @@ struct Text {
     };
 
     struct Data {
-        uint16_t            d_leftAlignMark:1, // left or right
+        uint32_t            d_leftAlignMark:1, // left or right
                             d_useTextBounds:1,
-                            d_successfulLayout:1,
-                            d_labelMark:4;
+                            d_successfulLayout:1, :1,
+                            d_labelMark:4,
+                            d_charSize:12,
+                            d_baselineOffset:12;
         Coordinates         d_upperLeft{};
         Bounds              d_bounds{};
-        CharSize            d_charSize = 0;
         String_t            d_string{};
 
         Data()
         : d_leftAlignMark(false)
         , d_useTextBounds(false)
         , d_successfulLayout(false)
-        , d_labelMark(BulletMark::eNONE) { }
+        , d_labelMark(BulletMark::eNONE)
+        , d_charSize(0)
+        , d_baselineOffset(0) { }
 
         bool inside(double x, double y) const noexcept {
             auto dx = float(x) - d_upperLeft.d_x;
@@ -89,6 +90,11 @@ struct Text {
             return dx >= 0               && dy >= 0
                 && dx < d_bounds.d_width && dy < d_bounds.d_height;
         }
+
+        bool resolveSizes(const Wawt::Layout::Result& container,
+                          uint16_t                    upperLimit,
+                          DrawProtocol               *adapter,
+                          const std::any&             options) noexcept;
     };
 
                             //====================
@@ -104,21 +110,11 @@ struct Text {
         CharSizeMapPtr      d_charSizeMap{};
         bool                d_refreshBounds = false;
 
-        CharSize    upperLimit(const Wawt::Layout::Result& container) noexcept;
+        uint16_t    upperLimit(const Wawt::Layout::Result& container) noexcept;
 
         Coordinates position(const Bounds&                bounds,
                              const Wawt::Layout::Result&  container) noexcept;
     };
-
-    // PUBLIC CLASS METHODS
-    static bool resolveSizes(CharSize                   *size,
-                             Bounds                     *bounds,
-                             const String_t&             string,
-                             bool                        hasBulletMark,
-                             const Wawt::Layout::Result& container,
-                             CharSize                    upperLimit,
-                             DrawProtocol               *adapter,
-                             const std::any&             options) noexcept;
 
     // PUBLIC METHODS
     bool resolveLayout(const Wawt::Layout::Result&  container,

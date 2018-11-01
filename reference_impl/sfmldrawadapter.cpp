@@ -282,30 +282,29 @@ SfmlDrawAdapter::draw(const Wawt::Text::Data&        text,
         if (options.d_boldEffect) {
             label.setStyle(sf::Text::Bold);
         }
-        auto offset  = 0;
-        auto centery = text.d_upperLeft.d_y + text.d_bounds.d_height/2.0;
         bounds  = label.getLocalBounds();
+        auto offset  = 0;
 
         if (text.d_labelMark != Wawt::Text::BulletMark::eNONE
          && text.d_leftAlignMark) {
             offset = text.d_charSize;
         }
-        label.setOrigin(bounds.left, bounds.top + bounds.height/2.0f);
-        label.setPosition(text.d_upperLeft.d_x + offset, centery);
+        label.setOrigin(bounds.left, bounds.top);
+        label.setPosition(text.d_upperLeft.d_x + offset,
+                          text.d_upperLeft.d_y);
         d_window.draw(label);
     }
 
     if (text.d_labelMark != Wawt::Text::BulletMark::eNONE) {
         auto size       = float(text.d_charSize); // Bullet size
+        auto height     = bounds.height ? bounds.height : size;
         auto border     = std::ceil(0.05*size);
         auto xcenter    = text.d_upperLeft.d_x + size/2.;
-        auto ycenter    = text.d_upperLeft.d_y + size/2.;
+        auto ycenter    = text.d_upperLeft.d_y + height/2.;
         auto radius     = size/5.0;
 
-        ycenter        += bounds.top/4.;
-
         if (!text.d_leftAlignMark) {
-            xcenter += bounds.left + bounds.width;
+            xcenter += bounds.width;
         }
 
         if (radius-border < 3.0) {
@@ -356,18 +355,15 @@ SfmlDrawAdapter::draw(const Wawt::Text::Data&        text,
 }
 
 bool
-SfmlDrawAdapter::setTextValues(Wawt::Bounds          *textBounds,
-                               Wawt::Text::CharSize  *newSize,
+SfmlDrawAdapter::getTextValues(Wawt::Text::Data&      values,
                                const Wawt::Bounds&    container,
-                               bool                   hasBulletMark,
-                               Wawt::StringView_t     textString,
-                               Wawt::Text::CharSize   upperLimit,
+                               uint16_t               upperLimit,
                                const std::any&        options)      noexcept
 {
-    sf::String    string(toString(textString.data()));
+    sf::String    string(toString(values.d_string.data()));
     DrawOptions   effects;
     sf::FloatRect bounds(0,0,0,0);
-    uint16_t      charSize = uint16_t(std::round(*newSize));
+    uint16_t      charSize = uint16_t(std::round(values.d_charSize));
 
     if (options.has_value()) {
         try {
@@ -397,27 +393,28 @@ SfmlDrawAdapter::setTextValues(Wawt::Bounds          *textBounds,
             auto newBounds   = label.getLocalBounds();
             auto widthLimit  = container.d_width;
 
-            if (hasBulletMark) {
+            if (values.d_labelMark != Wawt::Text::BulletMark::eNONE) {
                 widthLimit -= charSize;
             }
 
-            if (newBounds.height + newBounds.top   >= container.d_height
-             || newBounds.width  + newBounds.left  >= widthLimit) {
+            if (newBounds.height >= container.d_height
+             || newBounds.width  >= widthLimit) {
                 upperLimit = charSize;
             }
             else {
                 lowerLimit = charSize;
 
-                bounds.width  = newBounds.width  + newBounds.left;
-                bounds.height = newBounds.height + newBounds.top;
+                bounds.width            = newBounds.width;
+                bounds.height           = newBounds.height;
+                values.d_baselineOffset = newBounds.top;
             }
             charSize   = (upperLimit + lowerLimit)/2;
         }
-        *newSize = lowerLimit;
+        values.d_charSize = lowerLimit;
     }
 
-    if (hasBulletMark) {
-        bounds.width += *newSize;
+    if (values.d_labelMark != Wawt::Text::BulletMark::eNONE) {
+        bounds.width += values.d_charSize;
     }
     // There is no guarantee that there is a character size that will permit
     // the string to fit in the container.  Need to check for this case:
@@ -427,8 +424,8 @@ SfmlDrawAdapter::setTextValues(Wawt::Bounds          *textBounds,
         return false;                                                 // RETURN
     }
     // Character size allows string to fit the "container".
-    textBounds->d_width  = bounds.width;
-    textBounds->d_height = bounds.height;
+    values.d_bounds.d_width  = bounds.width;
+    values.d_bounds.d_height = bounds.height;
     return true;                                                      // RETURN
 }
 

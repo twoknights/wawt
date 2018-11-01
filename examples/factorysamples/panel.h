@@ -103,9 +103,9 @@ Panels::createScreenPanel()
 
 // Start Samples:
 panel({}).text(S("Default Panel"), 1_Sz), // Default panels have black text
-panel({}).text(S("+ 5% Border"), 1_Sz),
+panel({}).text(S("+ 0.5% Border"), 1_Sz),
 panel({}, panelFill).text(S("+ Fill Option"), 1_Sz),
-panel({}, panelFill).text(S("+ 5% & Fill Option"), 1_Sz)));
+panel({}, panelFill).text(S("+ 0.5% & Fill Option"), 1_Sz)));
 // End Samples.
 
     return screen;                                                    // RETURN

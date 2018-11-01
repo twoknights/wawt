@@ -48,12 +48,9 @@ class  DrawProtocol {
     virtual bool  draw(const Text::Data&        text,
                        const Widget::Settings&  settings)           noexcept=0;
 
-    virtual bool  setTextValues(Bounds          *textBounds,
-                                Text::CharSize  *charSize,
+    virtual bool  getTextValues(Text::Data&      values,
                                 const Bounds&    container,
-                                bool             hasBulletMark,
-                                StringView_t     string,
-                                Text::CharSize   upperLimit,
+                                uint16_t         upperLimit,
                                 const std::any&  options)           noexcept=0;
 };
 
@@ -71,18 +68,15 @@ class  DrawStream : public DrawProtocol {
     ~DrawStream() { }
 
     bool  draw(const Layout::Result&     box,
-               const Widget::Settings&   settings)       noexcept override;
+               const Widget::Settings&   settings)           noexcept override;
 
     bool  draw(const Text::Data&         text,
-               const Widget::Settings&   settings)       noexcept override;
+               const Widget::Settings&   settings)           noexcept override;
 
-    bool  setTextValues(Bounds          *textBounds,
-                        Text::CharSize  *charSize,
+    bool  getTextValues(Text::Data&      values,
                         const Bounds&    container,
-                        bool             hasBulletMark,
-                        StringView_t     string,
-                        Text::CharSize   upperLimit,
-                        const std::any&  options)        noexcept override;
+                        uint16_t         upperLimit,
+                        const std::any&  options)            noexcept override;
 };
 
 } // end Wawt namespace

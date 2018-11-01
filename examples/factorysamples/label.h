@@ -78,7 +78,7 @@ label({}, S("centered; with font size selected so the label fits.")),
 label({}, S("Labels can be 'left' aligned,"), 2_Sz, TextAlign::eLEFT),
 label({}, S("or 'right' aligned,"), 2_Sz, TextAlign::eRIGHT),
 label({},
-      S("and assigned to a font size group where all share the same size."),
+  S("and assigned to a character size group where all share the same size."),
       2_Sz),
 concatenateLabels({}, 3_Sz, TextAlign::eCENTER, {
         { S("С поддержкой "), yellowText},

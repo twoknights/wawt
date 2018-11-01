@@ -136,7 +136,7 @@ int main()
     auto shutdown = []() { return true; };
 
     try {
-        SfmlEventLoop::run(window, router, shutdown, 5ms, WIDTH/10, HEIGHT/10);
+        SfmlEventLoop::run(window, router, shutdown, 5ms, 0, 0);
     }
     catch (Wawt::WawtException& e) {
         std::cout << e.what() << std::endl;

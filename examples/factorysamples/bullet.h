@@ -67,6 +67,9 @@ Bullets::createScreenPanel()
             return layoutGrid().scale(0.8, 0.8);
         };
 
+    auto rightBox = 
+checkBox({}, S("Right alignment."), 5_Sz, TextAlign::eRIGHT)
+        .options(defaultOptions(WawtEnv::sButton)).border(2.0);
     auto screen =
         panel().addChild(
                     label({{-1.0, -1.0}, {1.0, -0.9}, 0.1},
@@ -83,10 +86,10 @@ Bullets::createScreenPanel()
 
 // Start Samples:
 checkBox({}, S("Left alignment."), 1_Sz),
-checkBox({}, S("Right alignment."), 1_Sz, TextAlign::eRIGHT),
+std::move(rightBox),
 radioButtonPanel({}, GroupClickCb(), 1_Sz, { S("A"), S("B"), S("C") }),
 radioButtonPanel({}, GroupClickCb(), 1_Sz, TextAlign::eRIGHT,
-                 { S("A"), S("B"), S("C"), S("D") }, 2)));
+                 { S("A"), S("c"), S("g"), S("D") }, 2)));
 // End Samples.
 
     return screen;                                                    // RETURN

@@ -44,9 +44,9 @@ class SfmlDrawAdapter : public Wawt::DrawProtocol {
     static std::string toAnsiString(const std::string& string); // utf8?
 
     // PUBLIC CREATORS
-    SfmlDrawAdapter(sf::RenderWindow&   window,
-                    const std::string&  defaultFontPath,
-                    const std::string&  otherFontPath = "");
+    SfmlDrawAdapter(sf::RenderWindow&         window,
+                    const std::string&        defaultFontPath,
+                    const std::string&        otherFontPath = "");
 
     // PUBLIC Wawt::DrawAdapter INTERFACE
     bool  draw(const Wawt::Layout::Result&    box,
@@ -55,20 +55,17 @@ class SfmlDrawAdapter : public Wawt::DrawProtocol {
     bool  draw(const Wawt::Text::Data&        text,
                const Wawt::Widget::Settings&  settings)      noexcept override;
 
-    bool  setTextValues(Wawt::Bounds          *textBounds,
-                        Wawt::Text::CharSize  *charSize,
-                        const Wawt::Bounds&    container,
-                        bool                   hasBulletMark,
-                        Wawt::StringView_t     string,
-                        Wawt::Text::CharSize   upperLimit,
-                        const std::any&        options)      noexcept override;
+    bool  getTextValues(Wawt::Text::Data&     values,
+                        const Wawt::Bounds&   container,
+                        uint16_t              upperLimit,
+                        const std::any&       options)       noexcept override;
 
     // PUBLIC ACCESSORS
-    bool   isGood()                                          const noexcept {
+    bool   isGood()                                            const noexcept {
         return d_defaultOk;
     }
 
-    bool   otherFontAvailable()                              const noexcept {
+    bool   otherFontAvailable()                                const noexcept {
         return d_otherOk;
     }
 
