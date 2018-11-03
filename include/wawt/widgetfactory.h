@@ -32,17 +32,21 @@ struct LabelGroup {
     CharSizeGroup   d_group{};
 };
 
+struct LabelOption {
+    StringView_t    d_string{};
+    std::any        d_options{};
+};
+
 using OnClickCb         = std::function<void(Widget *)>;
 using ClickLabelPair    = std::pair<OnClickCb, StringView_t>;
 using ClickLabelList    = std::initializer_list<ClickLabelPair>;
 using GroupClickCb      = std::function<void(Widget *,uint16_t relativeId)>;
 using LabelGroupList    = std::initializer_list<LabelGroup>;
 using LabelList         = std::initializer_list<StringView_t>;
-using LabelOptionPair   = std::pair<StringView_t, std::any>;
-using LabelOptionList   = std::initializer_list<LabelOptionPair>;
+using LabelOptionList   = std::initializer_list<LabelOption>;
 using WidgetGenerator   = std::function<Widget(int row, int column)>;
 
-Widget checkBox(Trackee&&                      indirect,
+Widget checkBox(Trackee&&                      tracker,
                 const Layout&                  layout,
                 StringView_t                   string,
                 CharSizeGroup                  group     = CharSizeGroup(),
@@ -53,7 +57,7 @@ Widget checkBox(const Layout&                  layout,
                 CharSizeGroup                  group      = CharSizeGroup(),
                 TextAlign                      alignment  = TextAlign::eLEFT);
 
-Widget concatenateLabels(Trackee&&             indirect,
+Widget concatenateLabels(Trackee&&             tracker,
                          const Layout&         resultLayout,
                          CharSizeGroup         group,
                          TextAlign             alignment,
@@ -64,7 +68,7 @@ Widget concatenateLabels(const Layout&         resultLayout,
                          TextAlign             alignment,
                          LabelOptionList       labels);
 
-Widget dialogBox(Trackee&&                     indirect,
+Widget dialogBox(Trackee&&                     tracker,
                  const Layout&                 dialogLayout,
                  Widget&&                      buttons,
                  LabelGroupList                dialog);
@@ -73,7 +77,7 @@ Widget dialogBox(const Layout&                 dialogLayout,
                  Widget&&                      buttons,
                  LabelGroupList                dialog);
 
-Widget dropDownList(Trackee&&                  indirect,
+Widget dropDownList(Trackee&&                  tracker,
                     Layout                     listLayout,
                     GroupClickCb&&             selectCb,
                     CharSizeGroup              group,
@@ -84,7 +88,7 @@ Widget dropDownList(const Layout&              listLayout,
                     CharSizeGroup              group,
                     LabelList                  labels);
 
-Widget fixedSizeList(Trackee&&                 indirect,
+Widget fixedSizeList(Trackee&&                 tracker,
                      const Layout&             listLayout,
                      bool                      singleSelect,
                      const GroupClickCb&       selectCb,
@@ -97,7 +101,7 @@ Widget fixedSizeList(const Layout&             listLayout,
                      CharSizeGroup             group,
                      LabelList                 labels);
 
-Widget label(Trackee&&                         indirect,
+Widget label(Trackee&&                         tracker,
              const Layout&                     layout,
              StringView_t                      string,
              CharSizeGroup                     group     = CharSizeGroup(),
@@ -108,7 +112,7 @@ Widget label(const Layout&                     layout,
              CharSizeGroup                     group     = CharSizeGroup(),
              TextAlign                         alignment = TextAlign::eCENTER);
 
-Widget label(Trackee&&                         indirect,
+Widget label(Trackee&&                         tracker,
              const Layout&                     layout,
              StringView_t                      string,
              TextAlign                         alignment);
@@ -117,7 +121,7 @@ Widget label(const Layout&                     layout,
              StringView_t                      string,
              TextAlign                         alignment);
 
-Widget panel(Trackee&&                         indirect,
+Widget panel(Trackee&&                         tracker,
              const Layout&                     layout,
              std::any                          options = std::any());
 
@@ -130,12 +134,12 @@ Widget panel() {
 }
 
 template<typename... WIDGET>
-Widget panelLayout(Trackee&&                   indirect,
+Widget panelLayout(Trackee&&                   tracker,
                    const Layout&               layoutPanel,
                    const LayoutGenerator&      generator,
                    WIDGET&&...                 widgets)
 {
-    auto container = panel(std::move(indirect), layoutPanel);
+    auto container = panel(std::move(tracker), layoutPanel);
     (container.addChild(std::move(widgets).layout(generator())),...);
     return container;                                                 // RETURN
 }
@@ -150,7 +154,7 @@ Widget panelLayout(const Layout&               layoutPanel,
 }
 
 template<typename... WIDGET>
-Widget panelLayout(Trackee&&                    indirect,
+Widget panelLayout(Trackee&&                    tracker,
                    const Layout&                layoutPanel,
                    double                       widgetBorder,
                    int                          columns,
@@ -159,7 +163,7 @@ Widget panelLayout(Trackee&&                    indirect,
     auto layoutFn  = gridLayoutGenerator(widgetBorder,
                                          sizeof...(widgets),
                                          columns);
-    auto grid = panel(std::move(indirect), layoutPanel);
+    auto grid = panel(std::move(tracker), layoutPanel);
     (grid.addChild(std::move(widgets).layout(layoutFn())),...);
     return grid;                                                      // RETURN
 }
@@ -174,7 +178,7 @@ Widget panelLayout(const Layout&                layoutPanel,
                       std::forward<WIDGET>(widgets)...);               // RETURN
 }
 
-Widget pushButton(Trackee&&                    indirect,
+Widget pushButton(Trackee&&                    tracker,
                   const Layout&                buttonLayout,
                   OnClickCb                    clicked,
                   StringView_t                 string,
@@ -187,7 +191,7 @@ Widget pushButton(const Layout&                buttonLayout,
                   CharSizeGroup                group     = CharSizeGroup(),
                   TextAlign                    alignment = TextAlign::eCENTER);
 
-Widget pushButton(Trackee&&                    indirect,
+Widget pushButton(Trackee&&                    tracker,
                   const Layout&                buttonLayout,
                   OnClickCb                    clicked,
                   StringView_t                 string,
@@ -198,7 +202,7 @@ Widget pushButton(const Layout&                buttonLayout,
                   StringView_t                 string,
                   TextAlign                    alignment);
 
-Widget pushButtonGrid(Trackee&&                indirect,
+Widget pushButtonGrid(Trackee&&                tracker,
                       Layout                   gridLayout,
                       int                      columns,
                       double                   borderThickness,
@@ -215,7 +219,7 @@ Widget pushButtonGrid(const Layout&            gridLayout,
                       ClickLabelList           buttonDefs,
                       bool                     spaced    = true);
 
-Widget pushButtonGrid(Trackee&&                indirect,
+Widget pushButtonGrid(Trackee&&                tracker,
                       const Layout&            gridLayout,
                       int                      columns,
                       double                   borderThickness,
@@ -230,7 +234,7 @@ Widget pushButtonGrid(const Layout&            gridLayout,
                       ClickLabelList           buttonDefs,
                       bool                     spaced    = true);
 
-Widget pushButtonGrid(Trackee&&                indirect,
+Widget pushButtonGrid(Trackee&&                tracker,
                       const Layout&            gridLayout,
                       double                   borderThickness,
                       CharSizeGroup            group,
@@ -243,7 +247,7 @@ Widget pushButtonGrid(const Layout&            gridLayout,
                       ClickLabelList           buttonDefs,
                       bool                     spaced    = true);
 
-Widget radioButtonPanel(Trackee&&              indirect,
+Widget radioButtonPanel(Trackee&&              tracker,
                         const Layout&          panelLayout,
                         const GroupClickCb&    gridCb,
                         CharSizeGroup          group,
@@ -258,7 +262,7 @@ Widget radioButtonPanel(const Layout&          panelLayout,
                         LabelList              labels,
                         int                    columns   = 1);
 
-Widget radioButtonPanel(Trackee&&              indirect,
+Widget radioButtonPanel(Trackee&&              tracker,
                         const Layout&          panelLayout,
                         const GroupClickCb&    gridCb,
                         CharSizeGroup          group,
@@ -271,7 +275,7 @@ Widget radioButtonPanel(const Layout&          panelLayout,
                         LabelList              labels,
                         int                    columns   = 1);
 
-Widget widgetGrid(Trackee&&                    indirect,
+Widget widgetGrid(Trackee&&                    tracker,
                   const Layout&                layoutPanel,
                   int                          rows,
                   int                          columns,

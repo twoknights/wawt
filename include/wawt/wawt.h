@@ -218,13 +218,14 @@ class Trackee;
 class Tracker {
     friend class Trackee;
 
+  protected:
+    Widget          *d_widget           = nullptr;
+    Trackee         *d_label            = nullptr;
+
     virtual void    update(Widget *widget, Trackee *label) {
         d_widget = widget;
         d_label  = label;
     }
-
-    Widget          *d_widget           = nullptr;
-    Trackee         *d_label            = nullptr;
 
   public:
     Tracker(const Tracker&)             = delete;

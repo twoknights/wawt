@@ -69,7 +69,42 @@ ViewScreen::createScreenPanel()
     //*********************************************************************
     // START SCREEN DEFINITION
     //*********************************************************************
+#if 0
+    auto yellowFill = defaultOptions(WawtEnv::sLabel)
+                        .fillColor({255u,255u,0u});
+    auto redFill    = defaultOptions(WawtEnv::sLabel)
+                        .fillColor({255u,0u,0u});
     auto screen = 
+        panel().addChild(
+concatenateLabels({{-1.0,-1.0},{1.0,-.8}}, 3_Sz, TextAlign::eCENTER, {
+        { S("A"), yellowFill},
+        { S("c"), yellowFill},
+        { S("g"), yellowFill}
+    }).options(redFill));
+#endif
+    auto layoutGrid = gridLayoutGenerator(-1.0, 6, 1);
+    auto layoutFn   =
+        [layoutGrid]() mutable -> Layout {
+            return layoutGrid().scale(1.0, 0.8);
+        };
+    auto widgetFn   =
+        [childLayout = gridLayoutGenerator(-1.0, 10, 3)] (int r,
+                                                          int c) -> Widget {
+            return pushButton(childLayout(),
+                              OnClickCb(),
+                              toString((7-r*3)+c),
+                              3_Sz);
+        };
+
+    auto screen =
+        panel()
+               .addChild(
+                    panelLayout(Layout(), layoutFn,
+pushButtonGrid({}, 2, -1.0, 3_Sz,
+               { {OnClickCb(),S("Spaced Grid Choice 1 (3_Sz)")},
+                 {OnClickCb(),S("Spaced Grid Choice 2 (3_Sz)")}
+                  }, true),
+widgetGrid({}, 3, 3, widgetFn, true)));
     //*********************************************************************
     // END SCREEN DEFINITION
     //*********************************************************************
@@ -137,6 +172,9 @@ int main()
     screen.draw();
     window.display();
 
+    auto width  = float{WIDTH};
+    auto height = float{HEIGHT};
+
     while (window.isOpen()) {
         sf::Event event;
 
@@ -146,15 +184,20 @@ int main()
             }
         }
         else if (event.type == sf::Event::Resized) {
-            float width  = static_cast<float>(event.size.width); 
-            float height = static_cast<float>(event.size.height); 
-            sf::View view(sf::FloatRect(0, 0, width, height));
-            screen.resize(width, height);
+            float nwidth  = static_cast<float>(event.size.width); 
+            float nheight = static_cast<float>(event.size.height); 
+            if (width != nwidth || height != nheight) {
+                width = nwidth; height = nheight;
+                sf::View view(sf::FloatRect(0, 0, width, height));
+                screen.resize(width, height);
+//        std::cout << "draw: " << std::endl;
+//        screen.draw(&draw);
 
-            window.clear();
-            window.setView(view);
-            screen.draw();
-            window.display();
+                window.clear();
+                window.setView(view);
+                screen.draw();
+                window.display();
+            }
         }
     }
     return 0;

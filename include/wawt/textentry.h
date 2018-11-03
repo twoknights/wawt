@@ -50,7 +50,7 @@ class TextEntry : public Tracker {
 
     // PUBLIC CONSTRUCTORS
     TextEntry(uint16_t          maxInputCharacters,
-              const EndCb&      endCb,
+              const EndCb&      endCb       = EndCb(),
               Char_t            cursor      = '|',
               Char_t            backspace   = '\b',
               Char_t            enter       = '\r');
@@ -59,32 +59,53 @@ class TextEntry : public Tracker {
               const EndCb&      endCb,
               EndCharList       endList,
               Char_t            cursor      = '|',
-              Char_t            backspace   = '\b');
+              Char_t            backspace   = '\b',
+              Char_t            enter       = '\r');
 
     // PUBLIC MANIPULATORS
     //! Return 'true' if 'text' fits within maximum character requirements.
-    bool            entry(StringView_t text);
+    bool                entry(StringView_t text);
 
-    void            setInputVerifier(const VerifierCb& verify);
+    void                inputVerifier(const VerifierCb& verify) {
+        d_verifierCb = verify;
+    }
 
     // PUBLIC ACCESSORS
-    String_t        entry() const {
+    String_t            entry() const {
         return toString(d_buffer.get(), d_bufferLng);
+    }
+
+    Char_t              enterChar() const {
+        return d_enter;
+    }
+
+    bool                focus() const {
+        return d_focus;
+    }
+
+    const VerifierCb&   inputVerifier() const {
+        return d_verifierCb;
+    }
+
+    const String_t&     layoutString() const {
+        return d_string;
     }
 
   private:
     using Buffer     = std::unique_ptr<Char_t[]>;
     using EndChars   = std::vector<Char_t>;
 
-    VerifierCb  d_verifier{};
+    VerifierCb  d_verifierCb{};
     Buffer      d_buffer{};
     uint16_t    d_bufferLng     = 0u;
     bool        d_focus         = false;
     uint16_t    d_maxInputCharacters;
     EndCb       d_endCb;
-    Char_t      d_cursor;
+    String_t    d_cursor;
     Char_t      d_backspace;
+    Char_t      d_enter;
     EndChars    d_endChars;
+    String_t    d_string;
 };
 
 } // end Wawt namespace

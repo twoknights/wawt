@@ -197,7 +197,7 @@ EventRouter::create(std::string_view name, Args&&... args)
                   "'Screen' must be derived from ScreenImpl");
     auto ptr  = std::make_unique<Scrn>(std::forward<Args>(args)...);
     auto hash = typeid(*ptr).hash_code();
-    ptr->wawtScreenSetup(name, d_setTimedEvent);
+    ptr->screenSetup(name, d_setTimedEvent);
     ptr->setup();
 
     return install(static_cast<Screen*>(ptr.release()), hash);

@@ -167,6 +167,11 @@ class  Widget final {
         return std::move(*this);
     }
 
+    Widget& optionName(char const * const optionName) &              noexcept {
+        d_settings.d_optionName = optionName;
+        return *this;
+    }
+
     Widget  disabled(bool setting) &&                                noexcept {
         d_settings.d_disabled = setting;
         return std::move(*this);
@@ -176,6 +181,14 @@ class  Widget final {
         d_settings.d_disabled = setting;
         return *this;
     }
+
+    Widget  downEventMethod(DownEventMethod&& newMethod) &&          noexcept;
+
+    Widget& downEventMethod(DownEventMethod&& newMethod) &           noexcept;
+
+    Widget  drawMethod(DrawMethod&&           newMethod) &&          noexcept;
+
+    Widget& drawMethod(DrawMethod&&           newMethod) &           noexcept;
 
     Widget  hidden(bool setting) &&                                  noexcept {
         d_settings.d_hidden = setting;
@@ -187,6 +200,10 @@ class  Widget final {
         return *this;
     }
 
+    Widget  inputMethod(InputMethod&&         newMethod) &&          noexcept;
+
+    Widget& inputMethod(InputMethod&&         newMethod) &           noexcept;
+
     Widget  layout(const Layout& newLayout) &&                       noexcept {
         d_layout = newLayout;
         return std::move(*this);
@@ -197,19 +214,13 @@ class  Widget final {
         return *this;
     }
 
-    Widget  method(DownEventMethod&& newMethod) &&                    noexcept;
-    Widget  method(DrawMethod&&      newMethod) &&                    noexcept;
-    Widget  method(InputMethod&&     newMethod) &&                    noexcept;
-    Widget  method(LayoutMethod&&    newMethod) &&                    noexcept;
-    Widget  method(NewChildMethod&&  newMethod) &&                    noexcept;
-    Widget  method(SerializeMethod&& newMethod) &&                    noexcept;
+    Widget  layoutMethod(LayoutMethod&&       newMethod) &&          noexcept;
 
-    Widget& method(DownEventMethod&& newMethod) &                     noexcept;
-    Widget& method(DrawMethod&&      newMethod) &                     noexcept;
-    Widget& method(InputMethod&&     newMethod) &                     noexcept;
-    Widget& method(LayoutMethod&&    newMethod) &                     noexcept;
-    Widget& method(NewChildMethod&&  newMethod) &                     noexcept;
-    Widget& method(SerializeMethod&& newMethod) &                     noexcept;
+    Widget& layoutMethod(LayoutMethod&&       newMethod) &           noexcept;
+
+    Widget  newChildMethod(NewChildMethod&&   newMethod) &&          noexcept;
+
+    Widget& newChildMethod(NewChildMethod&&   newMethod) &           noexcept;
 
     Widget  options(std::any options) &&                             noexcept {
         d_settings.d_options = std::move(options);
@@ -220,6 +231,10 @@ class  Widget final {
         d_settings.d_options = std::move(options);
         return *this;
     }
+
+    Widget  serializeMethod(SerializeMethod&& newMethod) &&          noexcept;
+
+    Widget& serializeMethod(SerializeMethod&& newMethod) &           noexcept;
 
     Widget  useTextBounds(bool setting) &&                           noexcept {
         text().d_data.d_useTextBounds = setting;
@@ -282,7 +297,9 @@ class  Widget final {
 
     void      draw(DrawProtocol *adapter = WawtEnv::drawAdapter())   noexcept;
 
-    bool inputEvent(Char_t input)                                    noexcept;
+    void      focus(Widget* target = nullptr)                        noexcept;
+
+    bool      inputEvent(Char_t input)                               noexcept;
 
     Layout&   layout()                                               noexcept {
         return d_layout;
@@ -307,9 +324,7 @@ class  Widget final {
         return d_root;                    
     }
 
-    void      setFocus(Widget* target = nullptr)                     noexcept;
-
-    void      setSelected(bool setting)                              noexcept {
+    void      selected(bool setting)                                 noexcept {
         d_settings.d_selected = setting;
     }
 
@@ -334,8 +349,9 @@ class  Widget final {
 
     Widget          clone()                                    const;
 
-    template<class Method>
-    Method          getInstalled()                             const noexcept;
+    DownEventMethod downEventMethod()                          const noexcept;
+
+    DrawMethod      drawMethod()                               const noexcept;
 
     bool            hasChildren()                              const noexcept {
         return d_children && !d_children->empty();
@@ -344,6 +360,8 @@ class  Widget final {
     bool            hasText()                                  const noexcept {
         return bool(d_text);
     }
+
+    InputMethod     inputMethod()                              const noexcept;
 
     bool            inside(double x, double y)                 const noexcept {
         return testTextBounds() ? d_text->d_data.inside(x, y)
@@ -370,9 +388,13 @@ class  Widget final {
         return d_rectangle;
     }
 
+    LayoutMethod    layoutMethod()                             const noexcept;
+
+    NewChildMethod  newChildMethod()                           const noexcept;
+
     const Text&     text()                                     const noexcept;
 
-    const Widget   *lookup(WidgetId id)                        const noexcept;
+    Widget         *lookup(WidgetId id)                        const noexcept;
 
     const std::any& options()                                  const noexcept {
         return d_settings.d_options;
@@ -385,6 +407,8 @@ class  Widget final {
     const Widget   *screen()                                   const noexcept {
         return d_root;                    
     }
+
+    SerializeMethod serializeMethod()                          const noexcept;
 
     const Settings& settings()                                 const noexcept {
         return d_settings;  

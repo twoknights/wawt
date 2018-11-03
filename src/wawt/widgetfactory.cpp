@@ -50,7 +50,7 @@ void addDropDown(Widget             *dropDown,
     // First push a transparent panel which, when clicked on, discards
     // the drop-down widget.
     auto soak = panel(Layout(root->layout()))
-                 .method([root, id](auto, auto, auto, auto) {
+                 .downEventMethod([root, id](auto, auto, auto, auto) {
                              return
                                  [root, id](double, double, bool up) {
                                      if (up) {
@@ -63,7 +63,7 @@ void addDropDown(Widget             *dropDown,
     auto screenBox       = root->layoutData();
     soak.layoutData()    = screenBox;
     auto& screen         = root->children().emplace_back(std::move(soak));
-    auto  newChildMethod = root->getInstalled<Widget::NewChildMethod>();
+    auto  newChildMethod = root->newChildMethod();
     
     if (newChildMethod) {
         newChildMethod(root, &screen);
@@ -92,15 +92,15 @@ void addDropDown(Widget             *dropDown,
 
     for (auto& item : list.children()) {
         // item layout is relative to list so they require no adjustments.
-        item.method( // on click copy label to drop-down etc. and clean up.
+        item.downEventMethod( // on click copy label to drop-down etc. and clean up.
             [cb=selectCb,select,id,root](auto, auto, Widget *widget, auto)
             {
-                widget->setSelected(true);
+                widget->selected(true);
                 return
                     [cb,select,widget,id,root](double x, double y, bool up)
                     {
                         if (up) {
-                            widget->setSelected(false);
+                            widget->selected(false);
 
                             if (widget->inside(x, y)) {
                                 select->resetLabel(widget->text()
@@ -252,10 +252,10 @@ Widget::DownEventMethod createDropDown(GroupClickCb&& selectCb)
 {
     return
         [cb=std::move(selectCb)] (auto, auto, auto *widget, auto *parent) {
-            widget->setSelected(true);
+            widget->selected(true);
             return  [cb, widget, parent](double x, double y, bool up) {
                 if (up) {
-                    widget->setSelected(false);
+                    widget->selected(false);
                     if (widget->inside(x, y)) {
                         addDropDown(parent, widget, cb);
                     }
@@ -370,10 +370,10 @@ Widget::DownEventMethod makePushButtonDownMethod(OnClickCb && onClick)
 {
     return
         [cb=std::move(onClick)] (auto, auto, auto *widget, auto) -> EventUpCb {
-            widget->setSelected(true);
+            widget->selected(true);
             return  [cb, widget](double x, double y, bool up) -> void {
                 if (up) {
-                    widget->setSelected(false);
+                    widget->selected(false);
                     if (cb) {
                         if (widget->inside(x, y)) {
                             cb(widget);
@@ -391,7 +391,7 @@ Widget::DownEventMethod makeToggleButtonDownMethod(const GroupClickCb& cb)
         [cb] (auto, auto, auto *widget, auto *parent) -> EventUpCb {
             return  [cb, widget, parent](double x, double y, bool up) -> void {
                 if (up && widget->inside(x, y)) {
-                    widget->setSelected(!widget->isSelected());
+                    widget->selected(!widget->isSelected());
                     if (cb) {
                         cb(parent, widget->relativeId());
                     }
@@ -409,9 +409,9 @@ Widget::DownEventMethod makeRadioButtonDownMethod(const GroupClickCb& cb)
                 if (up && widget->inside(x, y)) {
                     if (!widget->isSelected()) {
                         for (auto& child : parent->children()) {
-                            child.setSelected(false);
+                            child.selected(false);
                         }
-                        widget->setSelected(true);
+                        widget->selected(true);
 
                         if (cb) {
                             return cb(parent, widget->relativeId());
@@ -425,14 +425,14 @@ Widget::DownEventMethod makeRadioButtonDownMethod(const GroupClickCb& cb)
 
 } // unnamed namespace
 
-Widget checkBox(Trackee&&               indirect,
+Widget checkBox(Trackee&&               tracker,
                 const Layout&           layout,
                 StringView_t            string,
                 CharSizeGroup           group,
                 TextAlign               alignment)
 {
-    return  Widget(WawtEnv::sItem, std::move(indirect), layout)
-            .method(makeToggleButtonDownMethod(GroupClickCb()))
+    return  Widget(WawtEnv::sItem, std::move(tracker), layout)
+            .downEventMethod(makeToggleButtonDownMethod(GroupClickCb()))
             .useTextBounds(layout.d_thickness <= 0.0)
             .text(string, group, alignment)
             .textMark(Text::BulletMark::eSQUARE,
@@ -445,7 +445,7 @@ Widget checkBox(const Layout&           layout,
                 TextAlign               alignment)
 {
     return  Widget(WawtEnv::sItem, layout)
-            .method(makeToggleButtonDownMethod(GroupClickCb()))
+            .downEventMethod(makeToggleButtonDownMethod(GroupClickCb()))
             .useTextBounds(layout.d_thickness <= 0.0)
             .text(string, group, alignment)
             .textMark(Text::BulletMark::eSQUARE,
@@ -453,14 +453,14 @@ Widget checkBox(const Layout&           layout,
 }
 
 
-Widget concatenateLabels(Trackee&&             indirect,
+Widget concatenateLabels(Trackee&&             tracker,
                          const Layout&         resultLayout,
                          CharSizeGroup         group,
                          TextAlign             alignment,
                          LabelOptionList       labels)
 {
     auto result      = Widget(WawtEnv::sLabel,
-                              std::move(indirect),
+                              std::move(tracker),
                               resultLayout);
     auto noLayout    = [](Widget*,const Widget&,bool,DrawProtocol*) -> void {};
 
@@ -469,10 +469,10 @@ Widget concatenateLabels(Trackee&&             indirect,
 
         for (auto& [string, options] : labels) {
             result.addChild(label(Layout(), string, group, TextAlign::eLEFT)
-                                .method(noLayout).options(options));
+                                .layoutMethod(noLayout).options(options));
             length += string.length();
         }
-        result.method(
+        result.layoutMethod(
             [alignment, length](Widget         *me,
                                 const Widget&   parent,
                                 bool            firstPass,
@@ -496,13 +496,13 @@ Widget concatenateLabels(const Layout&         resultLayout,
     return concatenateLabels(Trackee(), resultLayout, group, alignment,labels);
 }
 
-Widget dialogBox(Trackee&&                     indirect,
+Widget dialogBox(Trackee&&                     tracker,
                  const Layout&                 dialogLayout,
                  Widget&&                      buttons,
                  LabelGroupList                dialog)
 {
     auto lineLayout = gridLayoutGenerator(-1.0, dialog.size()+3, 1);
-    auto modal = Widget(WawtEnv::sDialog, std::move(indirect), dialogLayout);
+    auto modal = Widget(WawtEnv::sDialog, std::move(tracker), dialogLayout);
 
     for (auto& line : dialog) {
         auto nextChild = label(lineLayout(), line.d_string, line.d_group);
@@ -529,7 +529,7 @@ Widget dialogBox(const Layout&                 dialogLayout,
     return dialogBox(Trackee(), dialogLayout, std::move(buttons), dialog);
 }
 
-Widget dropDownList(Trackee&&                  indirect,
+Widget dropDownList(Trackee&&                  tracker,
                     Layout                     layout,
                     GroupClickCb&&             selectCb,
                     CharSizeGroup              group,
@@ -544,9 +544,9 @@ Widget dropDownList(Trackee&&                  indirect,
     // [and its parent] are removed).
     auto selectLayout = gridLayoutGenerator(-1.0, labels.size()+1, 1);
     auto parent
-        = panel(std::move(indirect), layout.border(0.0))
+        = panel(std::move(tracker), layout.border(0.0))
             .addChild(Widget(WawtEnv::sList, selectLayout())
-                        .method(createDropDown(std::move(selectCb)))
+                        .downEventMethod(createDropDown(std::move(selectCb)))
                         .text(S(""), group, TextAlign::eLEFT)
                         .textMark(Text::BulletMark::eDOWNARROW))
             .addChild(fixedSizeList({{-1.0,1.0,0_wr},{1.0,1.0}},
@@ -566,7 +566,7 @@ Widget dropDownList(const Layout&              listLayout,
                         group, labels);
 }
 
-Widget fixedSizeList(Trackee&&               indirect,
+Widget fixedSizeList(Trackee&&               tracker,
                      const Layout&           listLayout,
                      bool                    singleSelect,
                      const GroupClickCb&     selectCb,
@@ -574,12 +574,12 @@ Widget fixedSizeList(Trackee&&               indirect,
                      LabelList               labels)
 {
     auto childLayout = gridLayoutGenerator(-1.0, labels.size(), 1);
-    auto list        = Widget(WawtEnv::sList, std::move(indirect), listLayout);
+    auto list        = Widget(WawtEnv::sList, std::move(tracker), listLayout);
 
     for (auto& label : labels) {
         list.addChild(
-            Widget(WawtEnv::sItem, std::move(indirect), childLayout())
-                .method(singleSelect
+            Widget(WawtEnv::sItem, std::move(tracker), childLayout())
+                .downEventMethod(singleSelect
                     ? makeRadioButtonDownMethod(selectCb)
                     : makeToggleButtonDownMethod(selectCb))
                 .text(label, group, TextAlign::eCENTER));
@@ -598,13 +598,13 @@ Widget fixedSizeList(const Layout&           listLayout,
                          selectCb, group, labels);
 }
 
-Widget label(Trackee&&                  indirect,
+Widget label(Trackee&&                  tracker,
              const Layout&              layout,
              StringView_t               string,
              CharSizeGroup              group,
              TextAlign                  alignment)
 {
-    return  Widget(WawtEnv::sLabel, std::move(indirect), layout)
+    return  Widget(WawtEnv::sLabel, std::move(tracker), layout)
             .text(string, group, alignment);                          // RETURN
 }
 
@@ -617,12 +617,12 @@ Widget label(const Layout&              layout,
             .text(string, group, alignment);                          // RETURN
 }
 
-Widget label(Trackee&&                  indirect,
+Widget label(Trackee&&                  tracker,
              const Layout&              layout,
              StringView_t               string,
              TextAlign                  alignment)
 {
-    return  Widget(WawtEnv::sLabel, std::move(indirect), layout)
+    return  Widget(WawtEnv::sLabel, std::move(tracker), layout)
             .text(string, alignment);                                 // RETURN
 }
 
@@ -632,9 +632,9 @@ Widget label(const Layout& layout, StringView_t string, TextAlign alignment)
             .text(string, alignment);                                 // RETURN
 }
 
-Widget panel(Trackee&& indirect, const Layout& layout, std::any options)
+Widget panel(Trackee&& tracker, const Layout& layout, std::any options)
 {
-    return Widget(WawtEnv::sPanel, std::move(indirect), layout)
+    return Widget(WawtEnv::sPanel, std::move(tracker), layout)
             .options(std::move(options));                             // RETURN
 }
 
@@ -644,15 +644,15 @@ Widget panel(const Layout& layout, std::any options)
             .options(std::move(options));                             // RETURN
 }
 
-Widget pushButton(Trackee&&             indirect,
+Widget pushButton(Trackee&&             tracker,
                   const Layout&         layout,
                   OnClickCb             clicked,
                   StringView_t          string,
                   CharSizeGroup         group,
                   TextAlign             alignment)
 {
-    return  Widget(WawtEnv::sButton, std::move(indirect), layout)
-            .method(makePushButtonDownMethod(std::move(clicked)))
+    return  Widget(WawtEnv::sButton, std::move(tracker), layout)
+            .downEventMethod(makePushButtonDownMethod(std::move(clicked)))
             .text(string, group, alignment);                          // RETURN
 }
 
@@ -675,17 +675,17 @@ Widget pushButton(const Layout&         layout,
                       string, CharSizeGroup(), alignment);            // RETURN
 }
 
-Widget pushButton(Trackee&&             indirect,
+Widget pushButton(Trackee&&             tracker,
                   const Layout&         layout,
                   OnClickCb             clicked,
                   StringView_t          string,
                   TextAlign             alignment)
 {
-    return pushButton(std::move(indirect), layout, clicked,
+    return pushButton(std::move(tracker), layout, clicked,
                       string, CharSizeGroup(), alignment);            // RETURN
 }
 
-Widget pushButtonGrid(Trackee&&               indirect,
+Widget pushButtonGrid(Trackee&&               tracker,
                       Layout                  gridLayout,
                       int                     columns,
                       double                  borderThickness,
@@ -694,7 +694,7 @@ Widget pushButtonGrid(Trackee&&               indirect,
                       ClickLabelList          buttonDefs,
                       bool                    spaced)
 {
-    auto gridPanel   = panel(std::move(indirect), gridLayout);
+    auto gridPanel   = panel(std::move(tracker), gridLayout);
     auto rows        = std::size_t{};
     auto childLayout = gridLayoutGenerator(borderThickness,
                                            buttonDefs.size(),
@@ -703,7 +703,7 @@ Widget pushButtonGrid(Trackee&&               indirect,
     auto bounds      = std::make_shared<Bounds>();
 
     if (spaced) {
-        gridPanel.method(
+        gridPanel.layoutMethod(
             [] (Widget                 *widget,
                 const Widget&           parent,
                 bool                    firstPass,
@@ -714,7 +714,7 @@ Widget pushButtonGrid(Trackee&&               indirect,
                 }
                 else if (widget->hasChildren()) {
                     for (auto& child : widget->children()) {
-                        auto fn = child.getInstalled<Widget::LayoutMethod>();
+                        auto fn = child.layoutMethod();
                         fn(&child, *widget, true, adapter);
                     }
                 }
@@ -730,10 +730,10 @@ Widget pushButtonGrid(Trackee&&               indirect,
         if (spaced) {
             gridPanel.children()
                      .back()
-                     .method(genSpacedLayout(bounds,
-                                             rows,
-                                             columns,
-                                             alignment));
+                     .layoutMethod(genSpacedLayout(bounds,
+                                                   rows,
+                                                   columns,
+                                                   alignment));
         }
     }
     return gridPanel;                                                 // RETURN
@@ -751,7 +751,7 @@ Widget pushButtonGrid(const Layout&           gridLayout,
                           group, alignment, buttonDefs, spaced);      // RETURN
 }
 
-Widget pushButtonGrid(Trackee&&               indirect,
+Widget pushButtonGrid(Trackee&&               tracker,
                       const Layout&           gridLayout,
                       int                     columns,
                       double                  borderThickness,
@@ -759,7 +759,7 @@ Widget pushButtonGrid(Trackee&&               indirect,
                       ClickLabelList          buttonDefs,
                       bool                    spaced)
 {
-    return pushButtonGrid(std::move(indirect), gridLayout, columns,
+    return pushButtonGrid(std::move(tracker), gridLayout, columns,
                           borderThickness, group, TextAlign::eCENTER,
                           buttonDefs, spaced);                        // RETURN
 }
@@ -776,14 +776,14 @@ Widget pushButtonGrid(const Layout&           gridLayout,
                           spaced);                                    // RETURN
 }
 
-Widget pushButtonGrid(Trackee&&               indirect,
+Widget pushButtonGrid(Trackee&&               tracker,
                       const Layout&           gridLayout,
                       double                  borderThickness,
                       CharSizeGroup           group,
                       ClickLabelList          buttonDefs,
                       bool                    spaced)
 {
-    return pushButtonGrid(std::move(indirect), gridLayout, buttonDefs.size(),
+    return pushButtonGrid(std::move(tracker), gridLayout, buttonDefs.size(),
                           borderThickness, group, TextAlign::eCENTER,
                           buttonDefs, spaced);                        // RETURN
 }
@@ -799,7 +799,7 @@ Widget pushButtonGrid(const Layout&           gridLayout,
                           buttonDefs, spaced);    // RETURN
 }
 
-Widget radioButtonPanel(Trackee&&               indirect,
+Widget radioButtonPanel(Trackee&&               tracker,
                         const Layout&           panelLayout,
                         const GroupClickCb&     gridCb,
                         CharSizeGroup           group,
@@ -809,13 +809,13 @@ Widget radioButtonPanel(Trackee&&               indirect,
 {
     auto childLayout = gridLayoutGenerator(0.0, labels.size(), columns);
     auto gridPanel   = Widget(WawtEnv::sPanel,
-                              std::move(indirect),
+                              std::move(tracker),
                               panelLayout);
 
     for (auto& label : labels) {
         gridPanel.addChild(
-            Widget(WawtEnv::sItem, std::move(indirect), childLayout())
-                .method(makeRadioButtonDownMethod(gridCb))
+            Widget(WawtEnv::sItem, std::move(tracker), childLayout())
+                .downEventMethod(makeRadioButtonDownMethod(gridCb))
                 .useTextBounds(true)
                 .text(label, group, alignment)
                 .textMark(Text::BulletMark::eROUND,
@@ -836,14 +836,14 @@ Widget radioButtonPanel(const Layout&           panelLayout,
                             gridCb, group, alignment, labels, columns);
 }
 
-Widget radioButtonPanel(Trackee&&               indirect,
+Widget radioButtonPanel(Trackee&&               tracker,
                         const Layout&           panelLayout,
                         const GroupClickCb&     gridCb,
                         CharSizeGroup           group,
                         LabelList               labels,
                         int                     columns)
 {
-    return radioButtonPanel(std::move(indirect), panelLayout,
+    return radioButtonPanel(std::move(tracker), panelLayout,
                             gridCb, group, TextAlign::eLEFT, labels, columns);
 }
 
@@ -857,14 +857,14 @@ Widget radioButtonPanel(const Layout&           panelLayout,
                             gridCb, group, TextAlign::eLEFT, labels, columns);
 }
 
-Widget widgetGrid(Trackee&&                    indirect,
+Widget widgetGrid(Trackee&&                    tracker,
                   const Layout&                layoutPanel,
                   int                          rows,
                   int                          columns,
                   const WidgetGenerator&       generator,
                   bool                         spaced)
 {
-    auto grid   = panel(std::move(indirect), layoutPanel);
+    auto grid   = panel(std::move(tracker), layoutPanel);
     auto bounds = std::make_shared<Bounds>();
 
     for (auto r = 0; r < rows; ++r) {
@@ -872,17 +872,18 @@ Widget widgetGrid(Trackee&&                    indirect,
             auto next = generator(r, c);
 
             if (spaced && next.hasText()) {
-                next.method(genSpacedLayout(bounds,
-                                            rows,
-                                            columns,
-                                            next.text().d_layout.d_textAlign));
+                next.layoutMethod(genSpacedLayout(bounds,
+                                                  rows,
+                                                  columns,
+                                                  next.text().d_layout
+                                                             .d_textAlign));
             }
             grid.addChild(std::move(next));
         }
     }
 
     if (spaced && bounds.use_count() > 1) {
-        grid.method(
+        grid.layoutMethod(
             [] (Widget                 *widget,
                 const Widget&           parent,
                 bool                    firstPass,
@@ -893,7 +894,7 @@ Widget widgetGrid(Trackee&&                    indirect,
                 }
                 else if (widget->hasChildren()) {
                     for (auto& child : widget->children()) {
-                        auto fn = child.getInstalled<Widget::LayoutMethod>();
+                        auto fn = child.layoutMethod();
                         fn(&child, *widget, true, adapter);
                     }
                 }

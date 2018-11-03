@@ -334,6 +334,7 @@ Char_t popFrontChar(StringView_t& view)
 String_t toString(Char_t *charArray, std::size_t length)
 {
     auto result = String_t{};
+    result.reserve(length);
 
     for (auto i = 0u; i < length; ++i) {
         auto ch = charArray[i];
@@ -673,49 +674,6 @@ Text::resolveLayout(const Wawt::Layout::Result&  container,
                                 // class  Widget
                                 //-------------
 
-// SPECIALIZATIONS
-template<class Method>
-Method
-Widget::getInstalled() const noexcept
-{
-    return Method();
-}
-
-template<>
-Widget::DownEventMethod
-Widget::getInstalled() const noexcept
-{
-    return d_downMethod;
-}
-
-template<>
-Widget::DrawMethod
-Widget::getInstalled() const noexcept
-{
-    return d_methods ? d_methods->d_drawMethod : DrawMethod();
-}
-
-template<>
-Widget::LayoutMethod
-Widget::getInstalled() const noexcept
-{
-    return d_methods ? d_methods->d_layoutMethod : LayoutMethod();
-}
-
-template<>
-Widget::NewChildMethod
-Widget::getInstalled() const noexcept
-{
-    return d_methods ? d_methods->d_newChildMethod : NewChildMethod();
-}
-
-template<>
-Widget::SerializeMethod
-Widget::getInstalled() const noexcept
-{
-    return d_methods ? d_methods->d_serializeMethod : SerializeMethod();
-}
-
 // PRIVATE MEMBERS
 void
 Widget::layout(DrawProtocol       *adapter,
@@ -845,23 +803,23 @@ Widget::defaultSerialize(std::ostream&      os,
     std::stringstream im;
     spaces += 2;
 
-    if (widget.getInstalled<Widget::DownEventMethod>()) {
+    if (widget.downEventMethod()) {
         im << spaces << "<downMethod type='functor'/>\n";
     }
     
-    if (widget.getInstalled<Widget::DrawMethod>()) {
+    if (widget.drawMethod()) {
         im << spaces << "<drawMethod type='functor'/>\n";
     }
 
-    if (widget.getInstalled<Widget::LayoutMethod>()) {
+    if (widget.layoutMethod()) {
         im << spaces << "<layoutMethod type='functor'/>\n";
     }
     
-    if (widget.getInstalled<Widget::NewChildMethod>()) {
+    if (widget.newChildMethod()) {
         im << spaces << "<newChildMethod type='functor'/>\n";
     }
     
-    if (widget.getInstalled<Widget::SerializeMethod>()) {
+    if (widget.serializeMethod()) {
         im << spaces << "<serializeMethod type='functor'/>\n";
     }
     spaces -= 2;
@@ -891,14 +849,14 @@ Widget::addChild(Widget&& child) &&
 }
 
 Widget
-Widget::method(DownEventMethod&& newMethod) && noexcept
+Widget::downEventMethod(DownEventMethod&& newMethod) && noexcept
 {
     d_downMethod = std::move(newMethod);
     return std::move(*this);                                          // RETURN
 }
 
 Widget
-Widget::method(DrawMethod&& newMethod) && noexcept
+Widget::drawMethod(DrawMethod&& newMethod) && noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
@@ -908,7 +866,7 @@ Widget::method(DrawMethod&& newMethod) && noexcept
 }
 
 Widget
-Widget::method(InputMethod&& newMethod) && noexcept
+Widget::inputMethod(InputMethod&& newMethod) && noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
@@ -918,7 +876,7 @@ Widget::method(InputMethod&& newMethod) && noexcept
 }
 
 Widget
-Widget::method(LayoutMethod&& newMethod) && noexcept
+Widget::layoutMethod(LayoutMethod&& newMethod) && noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
@@ -928,7 +886,7 @@ Widget::method(LayoutMethod&& newMethod) && noexcept
 }
 
 Widget
-Widget::method(NewChildMethod&& newMethod) && noexcept
+Widget::newChildMethod(NewChildMethod&& newMethod) && noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
@@ -938,7 +896,7 @@ Widget::method(NewChildMethod&& newMethod) && noexcept
 }
 
 Widget
-Widget::method(SerializeMethod&& newMethod) && noexcept
+Widget::serializeMethod(SerializeMethod&& newMethod) && noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
@@ -948,14 +906,14 @@ Widget::method(SerializeMethod&& newMethod) && noexcept
 }
 
 Widget&
-Widget::method(DownEventMethod&& newMethod) & noexcept
+Widget::downEventMethod(DownEventMethod&& newMethod) & noexcept
 {
     d_downMethod = std::move(newMethod);
     return *this;                                                     // RETURN
 }
 
 Widget&
-Widget::method(DrawMethod&& newMethod) & noexcept
+Widget::drawMethod(DrawMethod&& newMethod) & noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
@@ -965,7 +923,7 @@ Widget::method(DrawMethod&& newMethod) & noexcept
 }
 
 Widget&
-Widget::method(InputMethod&& newMethod) & noexcept
+Widget::inputMethod(InputMethod&& newMethod) & noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
@@ -975,7 +933,7 @@ Widget::method(InputMethod&& newMethod) & noexcept
 }
 
 Widget&
-Widget::method(LayoutMethod&& newMethod) & noexcept
+Widget::layoutMethod(LayoutMethod&& newMethod) & noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
@@ -985,7 +943,7 @@ Widget::method(LayoutMethod&& newMethod) & noexcept
 }
 
 Widget&
-Widget::method(NewChildMethod&& newMethod) & noexcept
+Widget::newChildMethod(NewChildMethod&& newMethod) & noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
@@ -995,7 +953,7 @@ Widget::method(NewChildMethod&& newMethod) & noexcept
 }
 
 Widget&
-Widget::method(SerializeMethod&& newMethod) & noexcept
+Widget::serializeMethod(SerializeMethod&& newMethod) & noexcept
 {
     if (!d_methods) {
         d_methods = std::make_unique<Methods>();
@@ -1175,11 +1133,11 @@ EventUpCb
 Widget::downEvent(double x, double y, Widget *parent)
 {
     if (d_root == this && d_methods) {
-        auto input = getInstalled<InputMethod>();
+        auto input = inputMethod();
 
         if (input) {
+            inputMethod(InputMethod()); // lose focus
             input(this, WawtEnv::kFocusChg); // hide cursor
-            method(InputMethod()); // lose focus
         }
     }
     auto upCb = EventUpCb();
@@ -1198,6 +1156,12 @@ Widget::downEvent(double x, double y, Widget *parent)
         upCb = d_downMethod(x, y, this, parent);
     }
     return upCb;                                                      // RETURN
+}
+
+Widget::DownEventMethod
+Widget::downEventMethod() const noexcept
+{
+    return d_downMethod;
 }
 
 void
@@ -1230,24 +1194,66 @@ Widget::draw(DrawProtocol *adapter) noexcept
     return;                                                           // RETURN
 }
 
+Widget::DrawMethod
+Widget::drawMethod() const noexcept
+{
+    return d_methods ? d_methods->d_drawMethod : DrawMethod();
+}
+
+void
+Widget::focus(Widget *target)  noexcept
+{
+    if (d_root) {
+        if (d_root != this) {
+            d_root->focus(target);
+            return;                                                   // RETURN
+        }
+
+        if (target == nullptr) {
+            if (d_methods) {
+                inputMethod(InputMethod());
+            }
+            return;                                                   // RETURN
+        }
+        auto handler =  [target](Widget*, Char_t input) -> bool {
+                            return target->inputEvent(input);
+                        };
+        inputMethod(handler);
+        handler(target, WawtEnv::kFocusChg); // show cursor
+    }
+}
+
 bool
 Widget::inputEvent(Char_t input) noexcept
 {
-    auto handler = getInstalled<InputMethod>();
+    auto handler = inputMethod();
 
     if (handler) {
-        if (handler(this, input)) {
-            return true;                                              // RETURN
+        if (this == d_root) {
+            inputMethod(InputMethod());
         }
 
-        if (this == d_root) {
-            method(InputMethod());
+        if (handler(this, input)) {
+            inputMethod(std::move(handler));
+            return true;                                              // RETURN
         }
     }
     return false;                                                     // RETURN
 }
 
-const Widget*
+Widget::InputMethod
+Widget::inputMethod() const noexcept
+{
+    return d_methods ? d_methods->d_inputMethod : InputMethod();
+}
+
+Widget::LayoutMethod
+Widget::layoutMethod() const noexcept
+{
+    return d_methods ? d_methods->d_layoutMethod : LayoutMethod();
+}
+
+Widget*
 Widget::lookup(WidgetId id) const noexcept
 {
     const Widget *widget = nullptr;
@@ -1265,7 +1271,13 @@ Widget::lookup(WidgetId id) const noexcept
             findWidget(&widget, *this, id.value());
         }
     }
-    return widget;                                                    // RETURN
+    return const_cast<Widget*>(widget);                               // RETURN
+}
+
+Widget::NewChildMethod
+Widget::newChildMethod() const noexcept
+{
+    return d_methods ? d_methods->d_newChildMethod : NewChildMethod();
 }
 
 void
@@ -1312,7 +1324,7 @@ Widget::pushDialog(Widget&& child, DrawProtocol *adapter)
                 // First push a transparent panel to soak up stray down
                 // events:
                 auto  panel  = Widget(WawtEnv::sPanel, Layout()) // full screen
-                                .method(eatDownEvents());
+                                .downEventMethod(eatDownEvents());
                 auto& screen = children().emplace_back(std::move(panel));
                 
                 if (d_methods && d_methods->d_newChildMethod) {
@@ -1412,27 +1424,10 @@ Widget::serialize(std::ostream&     os,
     return;                                                           // RETURN
 }
 
-void
-Widget::setFocus(Widget *target)  noexcept
+Widget::SerializeMethod
+Widget::serializeMethod() const noexcept
 {
-    if (d_root) {
-        if (d_root != this) {
-            d_root->setFocus(target);
-            return;                                                   // RETURN
-        }
-
-        if (target == nullptr) {
-            if (d_methods) {
-                method(InputMethod());
-            }
-            return;                                                   // RETURN
-        }
-        auto handler =  [target](Widget*, Char_t input) -> bool {
-                            return target->inputEvent(input);
-                        };
-        method(handler);
-        handler(target, WawtEnv::kFocusChg); // show cursor
-    }
+    return d_methods ? d_methods->d_serializeMethod : SerializeMethod();
 }
 
 const Text&

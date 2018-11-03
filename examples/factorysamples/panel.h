@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef FACTORYSAMPLES_PANELS_H
-#define FACTORYSAMPLES_PANELS_H
+#ifndef FACTORYSAMPLES_PANEL_H
+#define FACTORYSAMPLES_PANEL_H
 
 #include <drawoptions.h>
 #include <wawt/layout.h>
@@ -80,17 +80,18 @@ Panels::createScreenPanel()
                     Layout().scale(0.33, 0.33),
                     std::move(buttons),
                     { // Note: the 2_Sz here is not the same as the one below
-                        {S("Pop-up dialogs...")},
-                        {S("... are panels too! Only the 'Close'"), 2_Sz},
+                        {S("Pop-up dialogs are...")},
+                        {S("... another container. Only the 'Close'"), 2_Sz},
                         {S("button is active on the screen."), 2_Sz}
                     });
             me->addModalDialogBox(std::move(dialog));
         };
+    auto titleBar = S("Panels - the standard widget container.");
     auto screen =
         panel().addChild(
-                    label({{-1.0, -1.0}, {1.0, -0.9}, 0.1}, S("Panels"))
+                    label({{-1.0, -1.0}, {1.0, -0.9}, 0.1}, titleBar)
                     .options(defaultOptions(WawtEnv::sLabel)
-                             .fillColor(DrawOptions::Color(235,235,255))))
+                             .fillColor({235,235,255})))
                .addChild(
                     pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}}, -1.0, 2_Sz,
                                    {{d_prev,    S("Prev")},

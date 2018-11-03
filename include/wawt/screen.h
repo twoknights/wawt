@@ -141,7 +141,7 @@ class Screen {
      * @brief Clear any exising widget "focus" on screen.
      */
     void clearFocus() {
-        d_screen.setFocus();
+        d_screen.focus();
     }
 
     /**
@@ -219,7 +219,7 @@ class Screen {
      * @return Return 'true' if input was processed, 'false' otherwise.
      */
     bool inputEvent(Char_t input) {
-        if (d_screen.getInstalled<Widget::InputMethod>()) {
+        if (d_screen.inputMethod()) {
             d_screen.inputEvent(input);
             return true;
         }
@@ -253,7 +253,7 @@ class Screen {
      *
      * This method should be called immediately after the screen is created.
      */
-    void wawtScreenSetup(std::string_view name, const SetTimerCb& setTimer) {
+    void screenSetup(std::string_view name, const SetTimerCb& setTimer) {
         d_setTimer  = setTimer;
         d_name.assign(name.data(), name.length());
     }

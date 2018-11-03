@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef FACTORYSAMPLES_LABELS_H
-#define FACTORYSAMPLES_LABELS_H
+#ifndef FACTORYSAMPLES_LABEL_H
+#define FACTORYSAMPLES_LABEL_H
 
 #include <drawoptions.h>
 #include <wawt/layout.h>

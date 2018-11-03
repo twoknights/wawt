@@ -40,6 +40,7 @@
 #define C(c) (U ## c)
 #endif
 
+#include "addon.h"
 #include "label.h"
 #include "panel.h"
 #include "bullet.h"
@@ -96,37 +97,44 @@ int main()
     auto wawtEnv     = Wawt::WawtEnv(DrawOptions::optionDefaults(),
                                      &drawAdapter);
 
-    Wawt::EventRouter::Handle panels, labels, bullets, lists, buttons;
+    Wawt::EventRouter::Handle panels, labels, bullets, lists, buttons, addons;
     auto router  = Wawt::EventRouter();
 
-    labels  = router.create<Labels>("Label Samples",
+    labels  = router.create<Labels>("Labels",
                                     [&router,&panels](auto) {
                                        router.activate<Panels>(panels);
                                     });
-    panels  = router.create<Panels>("Panel Samples",
+    panels  = router.create<Panels>("Panels",
                                     [&router,&labels](auto) {
                                        router.activate<Labels>(labels);
                                     },
                                     [&router,&bullets](auto) {
                                        router.activate<Bullets>(bullets);
                                     });
-    bullets = router.create<Bullets>("Bullet Button Samples",
+    bullets = router.create<Bullets>("Bullets",
                                     [&router,&panels](auto) {
                                        router.activate<Panels>(panels);
                                     },
                                     [&router,&lists](auto) {
                                        router.activate<Lists>(lists);
                                     });
-    lists   = router.create<Lists>("Fixed Size Lists",
+    lists   = router.create<Lists>("Lists",
                                     [&router,&bullets](auto) {
                                        router.activate<Bullets>(bullets);
                                     },
                                     [&router,&buttons](auto) {
                                        router.activate<Buttons>(buttons);
                                     });
-    buttons = router.create<Buttons>("Push Buttons & Grids",
+    buttons = router.create<Buttons>("Buttons",
                                     [&router,&lists](auto) {
                                        router.activate<Lists>(lists);
+                                    },
+                                    [&router,&addons](auto) {
+                                       router.activate<Addons>(addons);
+                                    });
+    addons  = router.create<Addons>("Addons",
+                                    [&router,&buttons](auto) {
+                                       router.activate<Buttons>(buttons);
                                     },
                                     [](auto) {
                                     });

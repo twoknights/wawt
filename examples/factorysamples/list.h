@@ -53,7 +53,7 @@ class Lists : public Wawt::ScreenImpl<Lists,DrawOptions> {
 
         if (d_multiSelect) {
             for (auto& child : d_multiSelect->children()) {
-                child.setSelected(false); // ... and not the mult-select list.
+                child.selected(false); // ... and not the mult-select list.
             }
         }
     }

@@ -16,10 +16,15 @@
  * limitations under the License.
  */
 
+#include "wawt/drawprotocol.h"
 #include "wawt/textentry.h"
 #include "wawt/wawtenv.h"
 
 #include <algorithm>
+#include <memory>
+#include <ostream>
+#include <string>
+#include <utility>
 
 #ifdef WAWT_WIDECHAR
 #define S(str) String_t(L"" str)  // wide char strings (std::wstring)
@@ -46,104 +51,129 @@ namespace {
 void
 TextEntry::update(Widget *widget, Trackee *label)
 {
-    Tracker::update(widget, label);
+    if (d_label == nullptr && widget) {
+        widget->optionName(WawtEnv::sEntry);
 
-TBD:
-    return Widget(WawtEnv::sEntry, Trackee(*this), layout)
-            .text(string, group, alignment)
-            .method(
-                [](double x, double y, Widget *widget, Widget *parent) {
-                    if (widget->tracker()) {
-                        return
-                            [widget](double x, double y, bool up) -> void {
-                                if (up
-                                 && widget->inside(x, y)
-                                 && widget->tracker()) {
-                                    widget->setFocus(widget);
-                                }
-                            };
-                    }
-                    return EventUpCb();
-                })
-            .method(
-                [](Widget *widget, DrawProtocol *adapter) {
-                    auto *entry = static_cast<TextEntry*>(widget->tracker());
-                    if (entry) {
-                        entry->draw(widget, adapter);
-                    }
-                })
-            .method(
-                [](Widget *widget, Char_t input) {
-                    auto *entry = static_cast<TextEntry*>(widget->tracker());
-                    if (entry) {
-                        return entry->input(widget, input);
-                    }
-                    return false;
-                })
-            .method(
-                [](Widget *widget, const Widget& parent, const Widget& root,
-                   bool    firstPass, DrawProtocol *adapter) {
-                    auto *entry = static_cast<TextEntry*>(widget->tracker());
-                    if (entry) {
-                       entry->layout(widget, parent, root, firstPass, adapter);
-                    }
-                })
+        widget->downEventMethod(
+                    [](double, double, Widget *me, Widget*) {
+                        auto cb = EventUpCb();
+                        if (me->tracker()) {
+                            cb= [me](double x, double y, bool up) -> void {
+                                    if (up && me->inside(x, y)
+                                           && me->tracker()) {
+                                        me->focus(me);
+                                    }
+                                };
+                        }
+                        return cb;
+                    })
+               .drawMethod(
+                    [](Widget *me, DrawProtocol *adapter) {
+                        auto *entry = static_cast<TextEntry*>(me->tracker());
+                        if (entry) {
+                            entry->draw(me, adapter);
+                        }
+                    })
+               .inputMethod(
+                    [](Widget *me, Char_t input) {
+                        auto *entry = static_cast<TextEntry*>(me->tracker());
+                        if (entry) {
+                            return entry->input(me, input);
+                        }
+                        return false;
+                    });
+    }
+    Tracker::update(widget, label);
+    return;                                                           // RETURN
+#if 0
             .method(
                 [](std::ostream& os, std::string *closeTag,
-                   const Widget& widget, unsigned int indent) {
-                    auto *entry = static_cast<TextEntry*>(widget->tracker());
+                   const Widget& me, unsigned int indent) {
+                    auto *entry = static_cast<TextEntry*>(me.tracker());
                     if (entry) {
-                        entry->serialize(os, closeTag, widget, indent);
+                        entry->serialize(os, closeTag, me, indent);
                     }
                 });                                                   // RETURN
+#endif
 }
 
 void
 TextEntry::draw(Widget *widget, DrawProtocol *adapter)
 {
+    auto& box    = widget->layoutData();
+    auto  text   = widget->text().d_data;
+    auto& layout = widget->text().d_layout;
+    auto  label  = entry();
+
+    adapter->draw(box, widget->settings());
+
+    text.d_string = label;
+
+    if (d_focus && d_bufferLng < d_maxInputCharacters-1) {
+        label.append(d_cursor);
+    }
+
+    if (!label.empty()) {
+        if (!text.resolveSizes(box,
+                               layout.upperLimit(box),
+                               adapter,
+                               widget->settings().d_options)) {
+            return;                                               // RETURN
+        }
+    }
+    text.d_upperLeft = layout.position(text.d_bounds, box);
+
+    adapter->draw(text, widget->settings());
 }
 
 bool
 TextEntry::input(Widget *widget, Char_t input)
 {
-    if (input == kFocusChg) {
+    if (input == WawtEnv::kFocusChg) {
         d_focus = !d_focus;
+        widget->selected(d_focus);
+
+        if (!d_focus && d_endCb) {
+            d_endCb(this, '\0');
+        }
+    }
+    else if (input == d_backspace) {
+        if (d_bufferLng > 0) {
+            d_bufferLng -= 1;
+        }
     }
     else if (d_endChars.end()
-                    != std::find(endChars.begin(), endChars.end(), input)) {
-        if (!d_endCb || d_endCb(this)) {
-            d_focus = false;
+                   != std::find(d_endChars.begin(), d_endChars.end(), input)) {
+        if (!d_endCb || !d_endCb(this, input)) {
+            widget->selected(d_focus = false);
         }
     }
     else if (!d_verifierCb || d_verifierCb(this, input)) {
-        if (!d_focus) {
-            assert(!"Stray input character seen.");
-            return false;                                             // RETURN
-        }
-
-        if (input == d_backspace) {
-            if (d_bufferLng > 0) {
-                d_bufferLng -= 1;
-            }
-        }
-        else if (d_maxInputCharacters > d_bufferLng) {
+        if (d_maxInputCharacters > d_bufferLng) {
             d_buffer[d_bufferLng++] = input;
+
+            if (d_maxInputCharacters == d_bufferLng
+             && (d_endCb && !d_endCb(this, d_enter))) {
+                widget->selected(d_focus = false);
+            }
         }
     }
     return d_focus;                                                   // RETURN
 }
 
 // PUBLIC METHODS
-TextEntry::TextEntry(int                maxInputCharacters,
+TextEntry::TextEntry(uint16_t           maxInputCharacters,
                      const EndCb&       endCb,
                      Char_t             cursor,
                      Char_t             backspace,
                      Char_t             enter)
 : d_maxInputCharacters(maxInputCharacters)
 , d_endCb(endCb)
-, d_cursor(cursor)
+, d_cursor(toString(&cursor,1))
 , d_backspace(backspace)
+, d_enter(enter)
 , d_endChars(1, enter)
+, d_string(String_t(maxInputCharacters-1, C('X')) + S("g"))
 {
     d_buffer = std::make_unique<Char_t[]>(maxInputCharacters);
 }
@@ -152,13 +182,17 @@ TextEntry::TextEntry(uint16_t           maxInputCharacters,
                      const EndCb&       endCb,
                      EndCharList        endList,
                      Char_t             cursor,
-                     Char_t             backspace)
+                     Char_t             backspace,
+                     Char_t             enter)
 : d_maxInputCharacters(maxInputCharacters)
 , d_endCb(endCb)
-, d_cursor(cursor)
+, d_cursor(toString(&cursor,1))
 , d_backspace(backspace)
+, d_enter(enter)
 , d_endChars(endList.begin(), endList.end())
+, d_string(String_t(maxInputCharacters-1, C('X')) + S("g"))
 {
+    d_endChars.push_back(enter);
     d_buffer = std::make_unique<Char_t[]>(maxInputCharacters);
 }
 
@@ -171,7 +205,7 @@ TextEntry::entry(StringView_t text)
     while (lng < d_maxInputCharacters && !text.empty()) {
         auto next = popFrontChar(text);
 
-        if (next == '\0' || (d_verifyCb && !d_verifyCb(next))) {
+        if (next == '\0' || (d_verifierCb && !d_verifierCb(this, next))) {
             return false;                                             // RETURN
         }
         work[lng++] = next;
