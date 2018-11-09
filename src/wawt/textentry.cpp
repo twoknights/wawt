@@ -27,12 +27,12 @@
 #include <utility>
 
 #ifdef WAWT_WIDECHAR
-#define S(str) String_t(L"" str)  // wide char strings (std::wstring)
+#define S(str) (L"" str)  // wide char strings (std::wstring)
 #define C(c) (L ## c)
 #else
 #undef  S
 #undef  C
-#define S(str) String_t(u8"" str)      // UTF8 strings  (std::string)
+#define S(str) (u8"" str)      // UTF8 strings  (std::string)
 #define C(c) (U ## c)
 #endif
 
@@ -81,37 +81,35 @@ TextEntry::update(Widget *widget, Trackee *label)
                             return entry->input(me, input);
                         }
                         return false;
+                    })
+               .serializeMethod(
+                    [](std::ostream& os, std::string *closeTag,
+                       const Widget& me, unsigned int indent) {
+                        auto *entry = static_cast<TextEntry*>(me.tracker());
+                        if (entry) {
+                            entry->serialize(os, closeTag, me, indent);
+                        }
                     });
     }
     Tracker::update(widget, label);
     return;                                                           // RETURN
-#if 0
-            .method(
-                [](std::ostream& os, std::string *closeTag,
-                   const Widget& me, unsigned int indent) {
-                    auto *entry = static_cast<TextEntry*>(me.tracker());
-                    if (entry) {
-                        entry->serialize(os, closeTag, me, indent);
-                    }
-                });                                                   // RETURN
-#endif
 }
 
 void
 TextEntry::draw(Widget *widget, DrawProtocol *adapter)
 {
+    auto  label  = entry();
     auto& box    = widget->layoutData();
     auto  text   = widget->text().d_data;
     auto& layout = widget->text().d_layout;
-    auto  label  = entry();
 
     adapter->draw(box, widget->settings());
 
-    text.d_string = label;
-
-    if (d_focus && d_bufferLng < d_maxInputCharacters-1) {
+    if (d_focus && d_bufferLng < d_maxInputCharacters) {
         label.append(d_cursor);
     }
+
+    text.d_view = StringView_t(label);
 
     if (!label.empty()) {
         if (!text.resolveSizes(box,
@@ -161,6 +159,29 @@ TextEntry::input(Widget *widget, Char_t input)
     return d_focus;                                                   // RETURN
 }
 
+void
+TextEntry::serialize(std::ostream&  os,
+                     std::string   *closeTag,
+                     const Widget&  entry,
+                     unsigned int   indent)
+{
+    Widget::defaultSerialize(os, closeTag, entry, indent);
+    std::string spaces(indent+2, ' ');
+    os << spaces
+       << "<maxInputCharacters count='" << d_maxInputCharacters << "'/>\n" 
+       << spaces
+       << "<chars cursor='";
+    outputXMLescapedString(os, d_cursor)    << "' backspace='";
+    outputXMLescapedChar(os, d_backspace) << "' enter='";
+    outputXMLescapedChar(os, d_backspace) << "'>";
+
+    for (auto ch : d_endChars) {
+        outputXMLescapedChar(os, ch);
+    }
+    os << "</chars>\n";
+    return;                                                           // RETURN
+}
+
 // PUBLIC METHODS
 TextEntry::TextEntry(uint16_t           maxInputCharacters,
                      const EndCb&       endCb,
@@ -173,7 +194,7 @@ TextEntry::TextEntry(uint16_t           maxInputCharacters,
 , d_backspace(backspace)
 , d_enter(enter)
 , d_endChars(1, enter)
-, d_string(String_t(maxInputCharacters-1, C('X')) + S("g"))
+, d_layoutString(String_t(maxInputCharacters-2, C('X')) + S("g"))
 {
     d_buffer = std::make_unique<Char_t[]>(maxInputCharacters);
 }
@@ -190,7 +211,7 @@ TextEntry::TextEntry(uint16_t           maxInputCharacters,
 , d_backspace(backspace)
 , d_enter(enter)
 , d_endChars(endList.begin(), endList.end())
-, d_string(String_t(maxInputCharacters-1, C('X')) + S("g"))
+, d_layoutString(String_t(maxInputCharacters-1, C('X')) + S("g"))
 {
     d_endChars.push_back(enter);
     d_buffer = std::make_unique<Char_t[]>(maxInputCharacters);

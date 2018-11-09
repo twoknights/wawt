@@ -55,6 +55,7 @@ class SfmlDrawAdapter : public Wawt::DrawProtocol {
     bool  draw(const Wawt::Text::Data&        text,
                const Wawt::Widget::Settings&  settings)      noexcept override;
 
+    //! 'upperLimit' of zero returns the bounding box at specified char size.
     bool  getTextValues(Wawt::Text::Data&     values,
                         const Wawt::Bounds&   container,
                         uint16_t              upperLimit,

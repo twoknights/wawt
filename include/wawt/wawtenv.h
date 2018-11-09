@@ -75,7 +75,7 @@ class WawtEnv {
     }
 
     // PUBLIC CLASS DATA
-    static Char_t   kFocusChg;
+    static Char_t  kFocusChg;
 
     static char    sButton[];
     static char    sDialog[];
@@ -85,6 +85,7 @@ class WawtEnv {
     static char    sList[];
     static char    sPanel[];
     static char    sScreen[];
+    static char    sScrollbox[];
 
     // PUBLIC CONSTRUCTOR
     WawtEnv() : d_optionDefaults{}, d_strings{}, d_drawAdapter(nullptr) {

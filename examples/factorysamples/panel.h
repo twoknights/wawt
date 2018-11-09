@@ -90,6 +90,7 @@ Panels::createScreenPanel()
     auto screen =
         panel().addChild(
                     label({{-1.0, -1.0}, {1.0, -0.9}, 0.1}, titleBar)
+                    .downEventMethod(&dumpScreen)
                     .options(defaultOptions(WawtEnv::sLabel)
                              .fillColor({235,235,255})))
                .addChild(

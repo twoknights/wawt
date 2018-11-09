@@ -35,16 +35,6 @@
 
 #include <iostream>
 
-#ifdef WAWT_WIDECHAR
-#define S(str) Wawt::String_t(L"" str)  // wide char strings (std::wstring)
-#define C(c) (L ## c)
-#else
-#undef  S
-#undef  C
-#define S(str) Wawt::String_t(u8"" str)      // UTF8 strings  (std::string)
-#define C(c) (U ## c)
-#endif
-
 namespace {
 
 void drawBox(sf::RenderWindow  *window,
@@ -71,16 +61,14 @@ void drawArrow(sf::RenderWindow  *window,
                float              centery,
                float              radius,
                sf::Color          fillColor,
-               bool               up) {
+               float              degrees) {
     sf::CircleShape triangle(radius, 3);
     triangle.setOrigin(radius, radius);
 
     triangle.setFillColor(fillColor);
     triangle.setPosition(centerx, centery);
 
-    if (!up) {
-        triangle.setRotation(180.f);
-    }
+    triangle.setRotation(degrees);
     window->draw(triangle);
 }
 
@@ -104,7 +92,7 @@ void drawCircle(sf::RenderWindow  *window,
 }
 
 inline
-sf::String toString(const Wawt::String_t& str) {
+sf::String toString(const Wawt::StringView_t& str) {
     if constexpr(std::is_same_v<Wawt::String_t, std::u32string>) {
         return sf::String(reinterpret_cast<const sf::Uint32*>(str.data()));
     }
@@ -232,7 +220,7 @@ SfmlDrawAdapter::draw(const Wawt::Layout::Result&    box,
             lineColor,
             (settings.d_selected && !settings.d_hideSelect) ? selectColor
                                                             : fillColor,
-            float(std::ceil(box.d_border)));
+            float(std::floor(box.d_border)));
     return true;                                                      // RETURN
 }
 
@@ -273,9 +261,9 @@ SfmlDrawAdapter::draw(const Wawt::Text::Data&        text,
     }
     auto bounds = sf::FloatRect{};
 
-    if (!text.d_string.empty()) {
+    if (!text.view().empty()) {
         sf::Font& font = getFont(options.d_fontIndex);
-        sf::Text  label{toString(text.d_string.data()), font, text.d_charSize};
+        sf::Text  label{toString(text.view().data()), font, text.d_charSize};
 
         label.setFillColor(textColor);
 
@@ -311,45 +299,62 @@ SfmlDrawAdapter::draw(const Wawt::Text::Data&        text,
             border = 1;
         }
 
-        if (text.d_labelMark == Wawt::Text::BulletMark::eROUND) {
-            drawCircle(&d_window,
-                       xcenter,
-                       ycenter,
-                       radius,
-                       textColor, // used as line color
-                       settings.d_selected ? textColor : fillColor,
-                       border);
-        }
-        else if (text.d_labelMark == Wawt::Text::BulletMark::eDOWNARROW) {
-            drawArrow(&d_window,
-                      xcenter,
-                      ycenter,
-                      radius,
-                      textColor,
-                      false);
-        }
-        else if (text.d_labelMark == Wawt::Text::BulletMark::eUPARROW) {
-            drawArrow(&d_window,
-                      xcenter,
-                      ycenter,
-                      radius,
-                      textColor,
-                      true);
-        }
-        else if (text.d_labelMark == Wawt::Text::BulletMark::eSQUARE){
-            auto ul_x  = xcenter - radius;
-            auto ul_y  = ycenter - radius;
+        switch (text.d_labelMark) {
+            case Wawt::Text::BulletMark::eROUND: {
+                drawCircle(&d_window,
+                           xcenter,
+                           ycenter,
+                           radius,
+                           textColor, // used as line color
+                           settings.d_selected ? textColor : fillColor,
+                           border);
+            } break;                                                   // BREAK
+            case Wawt::Text::BulletMark::eSQUARE: {
+                auto ul_x  = xcenter - radius;
+                auto ul_y  = ycenter - radius;
 
-            drawBox(&d_window,
-                    ul_x,
-                    ul_y,
-                    2*radius,
-                    2*radius,
-                    textColor,
-                    settings.d_selected ? textColor : fillColor,
-                    border);
+                drawBox(&d_window,
+                        ul_x,
+                        ul_y,
+                        2*radius,
+                        2*radius,
+                        textColor,
+                        settings.d_selected ? textColor : fillColor,
+                        border);
+            } break;                                                   // BREAK
+            case Wawt::Text::BulletMark::eUPARROW: {
+                drawArrow(&d_window,
+                          xcenter,
+                          ycenter,
+                          radius,
+                          textColor,
+                          0);
+            } break;                                                   // BREAK
+            case Wawt::Text::BulletMark::eRIGHTARROW: {
+                drawArrow(&d_window,
+                          xcenter,
+                          ycenter,
+                          radius,
+                          textColor,
+                          90);
+            } break;                                                   // BREAK
+            case Wawt::Text::BulletMark::eDOWNARROW: {
+                drawArrow(&d_window,
+                          xcenter,
+                          ycenter,
+                          radius,
+                          textColor,
+                          180);
+            } break;                                                   // BREAK
+            case Wawt::Text::BulletMark::eLEFTARROW: {
+                drawArrow(&d_window,
+                          xcenter,
+                          ycenter,
+                          radius,
+                          textColor,
+                          270);
+            } break;                                                   // BREAK
         }
-
     }
     return true;                                                      // RETURN
 }
@@ -360,7 +365,7 @@ SfmlDrawAdapter::getTextValues(Wawt::Text::Data&      values,
                                uint16_t               upperLimit,
                                const std::any&        options)      noexcept
 {
-    sf::String    string(toString(values.d_string.data()));
+    sf::String    string(toString(values.view().data()));
     DrawOptions   effects;
     sf::FloatRect bounds(0,0,0,0);
     uint16_t      charSize = uint16_t(std::round(values.d_charSize));
@@ -380,8 +385,9 @@ SfmlDrawAdapter::getTextValues(Wawt::Text::Data&      values,
     if (effects.d_boldEffect) {
         label.setStyle(sf::Text::Bold);
     }
+    bool noFitRequested = upperLimit == 0;
 
-    if (upperLimit == 0) {
+    if (noFitRequested) {
         bounds = label.getLocalBounds();
     }
     else {
@@ -415,13 +421,19 @@ SfmlDrawAdapter::getTextValues(Wawt::Text::Data&      values,
 
     if (values.d_labelMark != Wawt::Text::BulletMark::eNONE) {
         bounds.width += values.d_charSize;
+
+        if (bounds.height < values.d_charSize) {
+            bounds.height = values.d_charSize;
+        }
     }
     // There is no guarantee that there is a character size that will permit
     // the string to fit in the container.  Need to check for this case:
 
-    if (bounds.height >= container.d_height
-     || bounds.width  >= container.d_width) {
-        return false;                                                 // RETURN
+    if (!noFitRequested) {
+        if (bounds.height >= container.d_height
+         || bounds.width  >= container.d_width) {
+            return false;                                             // RETURN
+        }
     }
     // Character size allows string to fit the "container".
     values.d_bounds.d_width  = bounds.width;

@@ -31,14 +31,21 @@
 #include <chrono>
 
 #ifdef WAWT_WIDECHAR
-#define S(str) String_t(L"" str)  // wide char strings (std::wstring)
+#define S(str) (L"" str)  // wide char strings (std::wstring)
 #define C(c) (L ## c)
 #else
 #undef  S
 #undef  C
-#define S(str) String_t(u8"" str)      // UTF8 strings  (std::string)
+#define S(str) (u8"" str)      // UTF8 strings  (std::string)
 #define C(c) (U ## c)
 #endif
+
+Wawt::EventUpCb
+dumpScreen(double, double, Wawt::Widget *widget, Wawt::Widget*) {
+    auto out = Wawt::DrawStream();
+    widget->screen()->draw(&out);
+    return Wawt::EventUpCb();
+}
 
 #include "addon.h"
 #include "label.h"

@@ -74,6 +74,7 @@ checkBox({}, S("Right alignment."), 5_Sz, TextAlign::eRIGHT)
         panel().addChild(
                     label({{-1.0, -1.0}, {1.0, -0.9}, 0.1},
                           S("Check Boxes & Radio Button Groups"))
+                    .downEventMethod(&dumpScreen)
                     .options(defaultOptions(WawtEnv::sLabel)
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(

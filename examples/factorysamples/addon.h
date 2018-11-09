@@ -22,6 +22,7 @@
 #include <drawoptions.h>
 #include <wawt/layout.h>
 #include <wawt/screen.h>
+#include <wawt/scrolledlist.h>
 #include <wawt/textentry.h>
 #include <wawt/wawtenv.h>
 #include <wawt/widgetfactory.h>
@@ -71,92 +72,112 @@ class Addons : public Wawt::ScreenImpl<Addons,DrawOptions> {
     Addons(Wawt::OnClickCb&& prev, Wawt::OnClickCb&& next)
         : d_next(std::move(next))
         , d_prev(std::move(prev))
-        , d_sample(25)
+        , d_buttons()
+        , d_list(7)
+        , d_enterRow(25)
         , d_month(2, Range{   1,   12, &d_day  }, {'\t'})
         , d_day(  2, Range{   1,   31, &d_year }, {'\t'})
-        , d_year( 4, Range{2018, 2199, &d_month}, {'\t'}) { }
+        , d_year( 4, Range{2018, 2199, &d_month}, {'\t'}) {
+            d_month.inputVerifier(&Range::isDigit);
+              d_day.inputVerifier(&Range::isDigit);
+             d_year.inputVerifier(&Range::isDigit);
+    }
 
     // PUBLIC MANIPULATORS
     // Called by 'WawtScreenImpl::setup()':
     Wawt::Widget createScreenPanel();
 
-    // Called by 'WawtScreenImpl::setup()':
-    void initialize() {
-        using namespace Wawt;
-        auto& container = lookup(4_wr);
-        auto *month     = container.lookup(1_wr);
-
-        if (!month) {
-            throw WawtException("Month entry has invalid widget ID.");
-        }
-        auto *day       = container.lookup(3_wr);
-
-        if (!day) {
-            throw WawtException("Day entry has invalid widget ID.");
-        }
-        auto *year      = container.lookup(5_wr);
-
-        if (!year) {
-            throw WawtException("Year entry has invalid widget ID.");
-        }
-        month->changeTracker(d_month); // This updates widget's methods too.
-          day->changeTracker(d_day);
-         year->changeTracker(d_year);
-
-        d_month.inputVerifier(&Range::isDigit);
-          d_day.inputVerifier(&Range::isDigit);
-         d_year.inputVerifier(&Range::isDigit);
-    }
-
     // Called by 'WawtScreenImpl::activate()':
-    void resetWidgets() { }
+    void resetWidgets() {
+        d_buttons->children()[2].disabled(true);
+        d_list.clear();
+        d_enterRow.entry("");
+        d_month.entry("");
+        d_day.entry("");
+        d_year.entry("");
+    }
 
 private:
     // PRIVATE DATA MEMBERS
-    Wawt::OnClickCb d_next;
-    Wawt::OnClickCb d_prev;
-    Wawt::TextEntry d_sample;
-    Wawt::TextEntry d_month;
-    Wawt::TextEntry d_day;
-    Wawt::TextEntry d_year;
+    Wawt::OnClickCb     d_next;
+    Wawt::OnClickCb     d_prev;
+    Wawt::Tracker       d_buttons;
+    Wawt::ScrolledList  d_list;
+    Wawt::TextEntry     d_enterRow;
+    Wawt::TextEntry     d_month;
+    Wawt::TextEntry     d_day;
+    Wawt::TextEntry     d_year;
 };
 
 inline Wawt::Widget
 Addons::createScreenPanel()
 {
     using namespace Wawt;
+    auto addTop =
+        [this](Widget *) -> void {
+            auto string = d_enterRow.entry();
+            if (!string.empty()) {
+                d_list.rows().emplace_front(string, false);
+                d_list.synchronizeView();
+            }
+        };
+    auto addBot = 
+        [this](Widget *) -> void {
+            auto string = d_enterRow.entry();
+            if (!string.empty()) {
+                d_list.rows().emplace_back(string, false);
+                d_list.synchronizeView();
+            }
+        };
+    auto delSel = Wawt::OnClickCb();
+
     auto lineColor   = defaultOptions(WawtEnv::sPanel)
                           .lineColor(defaultOptions(WawtEnv::sScreen)
                                           .d_fillColor);
     auto entryOptions = defaultOptions(WawtEnv::sEntry);
     auto titleBar = S("Text Entry and Variable Sized Lists.");
     auto screen =
-        panel().addChild( // RID: 0
+        panel().addChild(
                     label({{-1.0, -1.0}, {1.0, -0.9}, 0.1}, titleBar)
+                    .downEventMethod(&dumpScreen)
                     .options(defaultOptions(WawtEnv::sLabel)
                              .fillColor({235,235,255})))
-               .addChild( // RID: 1
+               .addChild(
                     pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}}, -1.0, 1_Sz,
                                    {{d_prev,    S("Prev")},
                                     {d_next,    S("Next")}})
                                     .border(5).options(lineColor))
-               .addChild( // RID: 2
-                    label(d_sample, {{-1.0, -0.9}, {0.0, -0.8}, 0.1},
-                               d_sample.layoutString(),
-                               2_Sz, TextAlign::eRIGHT))
-               .addChild( // RID: 3
-                    label({{ 0.0, -0.9}, {1.0, -0.8}, 0.1},
-                                S("<-Click and type."), TextAlign::eLEFT))
-               .addChild( // RID: 4
-                    concatenateLabels({{-0.5, -0.8}, {0.5, -0.7}}, 3_Sz,
+               .addChild(
+                    concatenateLabels({{-0.7, -0.85}, {0.7, -0.75}}, 2_Sz,
                                       TextAlign::eCENTER, {
-                            { S("Enter today's date: ") },            // RID 0
-                            { d_month.layoutString(), entryOptions }, // RID 1*
-                            { S("/") },                               // RID 2
-                            { d_day.layoutString(), entryOptions },   // RID 3*
-                            { S("/") },                               // RID 4
-                            { d_year.layoutString(), entryOptions }   // RID 5*
-                        }));
+                            { S("Enter today's date: ") },
+                            { &d_month, entryOptions },
+                            { S("/") },
+                            { &d_day, entryOptions },
+                            { S("/") },
+                            { &d_year, entryOptions },
+                            { S(" (TextEntry & concatenated labels)") },
+                        }))
+               .addChild(
+                    label({{-1.0,-0.65},{1.0,-0.55}},
+                           S("Variable List with Scrolling")))
+               .addChild(
+                    d_list.list({{-0.2,-0.5},{ 0.2, 0.0}}))
+               .addChild(
+                    label(d_enterRow,
+                          {{-0.25, 0.05}, {0.25, 0.13}},
+                          d_enterRow.layoutString(),
+                          3_Sz, TextAlign::eRIGHT))
+               .addChild(
+                    label({{ 0.27, 0.05}, {1.0, 0.13}},
+                          S(" (Text to add)"), 3_Sz, TextAlign::eLEFT))
+               .addChild(
+                    pushButtonGrid(d_buttons,
+                                   {{-0.2, 0.2}, { 0.2, .3}}, -1.0, 1_Sz,
+                                   {{addTop,  S("AddTop")},
+                                    {addBot,  S("AddBot")},
+                                    {delSel,  S("DelSel")}}));
+
 
     return screen;                                                    // RETURN
 }

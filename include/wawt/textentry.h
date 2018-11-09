@@ -41,6 +41,11 @@ class TextEntry : public Tracker {
 
     void            draw(Widget *widget, DrawProtocol *adapter);
 
+    void            serialize(std::ostream&  os,
+                              std::string   *closeTag,
+                              const Widget&  entry,
+                              unsigned int   indent);
+
   public:
     // Return 'true' if focus is to be retained.
     // PUBLIC TYPES
@@ -88,7 +93,7 @@ class TextEntry : public Tracker {
     }
 
     const String_t&     layoutString() const {
-        return d_string;
+        return d_layoutString;
     }
 
   private:
@@ -105,7 +110,7 @@ class TextEntry : public Tracker {
     Char_t      d_backspace;
     Char_t      d_enter;
     EndChars    d_endChars;
-    String_t    d_string;
+    String_t    d_layoutString;
 };
 
 } // end Wawt namespace

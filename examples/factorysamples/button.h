@@ -50,8 +50,9 @@ class Buttons : public Wawt::ScreenImpl<Buttons,DrawOptions> {
 
 private:
     // PRIVATE DATA MEMBERS
-    Wawt::OnClickCb d_next;
-    Wawt::OnClickCb d_prev;
+    Wawt::OnClickCb             d_next;
+    Wawt::OnClickCb             d_prev;
+    std::vector<Wawt::String_t> d_buttons;
 };
 
 inline Wawt::Widget
@@ -66,12 +67,13 @@ Buttons::createScreenPanel()
         [layoutGrid]() mutable -> Layout {
             return layoutGrid().scale(1.0, 0.8);
         };
+    d_buttons.reserve(10);
     auto widgetFn   =
-        [childLayout = gridLayoutGenerator(-1.0, 10, 3)] (int r,
-                                                          int c) -> Widget {
+        [childLayout = gridLayoutGenerator(-1.0, 10, 3),
+         this] (int r, int c) -> Widget {
             return pushButton(childLayout(),
                               OnClickCb(),
-                              toString((7-r*3)+c),
+                              d_buttons.emplace_back(toString((7-r*3)+c)),
                               3_Sz);
         };
 
@@ -79,6 +81,7 @@ Buttons::createScreenPanel()
         panel().addChild(
                     label({{-1.0, -1.0}, {1.0, -0.9}, 0.1},
                           S("Push Buttons & Grids"))
+                    .downEventMethod(&dumpScreen)
                     .options(defaultOptions(WawtEnv::sLabel)
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(

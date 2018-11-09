@@ -83,6 +83,7 @@ Lists::createScreenPanel()
         panel().addChild(
                     label({{-1.0, -1.0}, {1.0, -0.9}, 0.1},
                           S("Fixed Sized Lists"))
+                    .downEventMethod(&dumpScreen)
                     .options(defaultOptions(WawtEnv::sLabel)
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(

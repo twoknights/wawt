@@ -104,7 +104,7 @@ void addDropDown(Widget             *dropDown,
 
                             if (widget->inside(x, y)) {
                                 select->resetLabel(widget->text()
-                                                         .d_data.d_string);
+                                                         .d_data.view());
                                 auto lclselect = select;
                                 auto lclcb     = std::move(cb);
                                 auto rid       = widget->settings()
@@ -150,11 +150,12 @@ void adjacentTextLayout(Widget        *widget,
     auto  adjustment  = layout.d_border+1;
     auto  width       = layout.d_bounds.d_width - 2*adjustment;
 
+    auto  concat      = String_t{};
     auto  values      = Text::Data();
     values.d_charSize = text.d_layout.upperLimit(layout) - 1u;
 
     if (firstPass) {
-        values.d_string.reserve(length + 1);
+        concat.reserve(length + 1);
         widget->layoutData()      = layout;
         layout.d_upperLeft.d_x   += adjustment;
         layout.d_upperLeft.d_y   += adjustment;
@@ -165,21 +166,22 @@ void adjacentTextLayout(Widget        *widget,
         for (auto& child : widget->children()) {
             assert(child.hasText());
             child.layoutData() = layout;
-            values.d_string += child.text().d_data.d_string;
-            child.text().d_data.d_successfulLayout = true;
+            concat += child.text().d_data.view();
+            child.settings().d_successfulLayout = true;
         }
         auto upperLimit = values.d_charSize + 1;
-        length          = values.d_string.length();
+        length          = values.view().length();
+        values.d_view   = StringView_t(concat);
 
         if (!values.resolveSizes(layout, upperLimit, adapter, std::any())) {
             for (auto& child : widget->children()) {
-                child.text().d_data.d_successfulLayout = false;
+                child.settings().d_successfulLayout = false;
             }
             return;                                                   // RETURN
         }
     }
 
-    if (text.d_data.d_successfulLayout) {
+    if (firstChild.settings().d_successfulLayout) {
         // The bounds calculated above is only a lower limit, and on the
         // second pass 'charSize' may have changed. Compute actual bounds
         // using the options assigned to each child:
@@ -206,7 +208,7 @@ void adjacentTextLayout(Widget        *widget,
 
         if (values.d_charSize <= 2) {
             for (auto& child : widget->children()) {
-                child.text().d_data.d_successfulLayout = false;
+                child.settings().d_successfulLayout = false;
             }
         }
         else if (!firstPass) {
@@ -283,7 +285,7 @@ Widget::LayoutMethod genSpacedLayout(const BoundsPtr&   bounds,
             auto& settings = widget->settings();
             auto& layout   = widget->layoutData();
 
-            if (!data.d_successfulLayout) {
+            if (!settings.d_successfulLayout) {
                 return;
             }
 
@@ -467,10 +469,24 @@ Widget concatenateLabels(Trackee&&             tracker,
     if (group && labels.size() > 0) {
         auto length = std::size_t{};
 
-        for (auto& [string, options] : labels) {
-            result.addChild(label(Layout(), string, group, TextAlign::eLEFT)
+        for (auto [string, options] : labels) {
+            if (auto p1 = std::get_if<TextEntry*>(&string)) {
+                result.addChild(label(**p1,
+                                      Layout(),
+                                      (*p1)->layoutString(),
+                                      group,
+                                      TextAlign::eLEFT)
                                 .layoutMethod(noLayout).options(options));
-            length += string.length();
+                length += (*p1)->layoutString().length();
+            }
+            else if (auto p2 = std::get_if<StringView_t>(&string)) {
+                result.addChild(label(Layout(), *p2, group, TextAlign::eLEFT)
+                                    .layoutMethod(noLayout).options(options));
+                length += p2->length();
+            }
+            else {
+                assert(0);
+            }
         }
         result.layoutMethod(
             [alignment, length](Widget         *me,
@@ -505,7 +521,7 @@ Widget dialogBox(Trackee&&                     tracker,
     auto modal = Widget(WawtEnv::sDialog, std::move(tracker), dialogLayout);
 
     for (auto& line : dialog) {
-        auto nextChild = label(lineLayout(), line.d_string, line.d_group);
+        auto nextChild = label(lineLayout(), line.d_view, line.d_group);
 
         if (modal.hasChildren()) {
             modal.addChild(std::move(nextChild));

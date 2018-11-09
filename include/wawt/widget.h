@@ -59,7 +59,8 @@ class  Widget final {
                             d_disabled:1,
                             d_hidden:1,
                             d_hideSelect:1,
-                            d_relativeId:12;
+                            d_successfulLayout:1,
+                            d_relativeId:11;
 
         Settings()              = default;
 
@@ -69,6 +70,7 @@ class  Widget final {
             , d_disabled(false)
             , d_hidden(false)
             , d_hideSelect(false)
+            , d_successfulLayout(false)
             , d_relativeId(0) { }
     };
 
@@ -326,6 +328,10 @@ class  Widget final {
 
     void      selected(bool setting)                                 noexcept {
         d_settings.d_selected = setting;
+    }
+
+    Settings& settings()                                             noexcept {
+        return d_settings;  
     }
 
     Text&     text()                                                 noexcept {

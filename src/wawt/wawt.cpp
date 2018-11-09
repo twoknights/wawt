@@ -238,6 +238,7 @@ char     WawtEnv::sLabel[]    = "label";
 char     WawtEnv::sList[]     = "list";
 char     WawtEnv::sPanel[]    = "panel";
 char     WawtEnv::sScreen[]   = "screen";
+char     WawtEnv::sScrollbox[]= "scrollbox";
 
 LayoutGenerator gridLayoutGenerator(double       borderThickness,
                                     std::size_t  widgetCount,
@@ -277,7 +278,33 @@ LayoutGenerator gridLayoutGenerator(double       borderThickness,
         };                                                            // RETURN
 }
 
-void outputXMLString(std::ostream& os, StringView_t text)
+std::ostream& outputXMLescapedChar(std::ostream& os, Char_t ch)
+{
+    if (ch == C('"')) {
+        os << "&quot;";
+    }
+    else if (ch == C('\'')) {
+        os << "&apos;";
+    }
+    else if (ch == C('<')) {
+        os << "&lt;";
+    }
+    else if (ch == C('>')) {
+        os << "&gt;";
+    }
+    else if (ch == C('&')) {
+        os << "&amp;";
+    }
+    else if (static_cast<int>(ch) > 0x1f && static_cast<int>(ch) < 0x7f) {
+        os.put(ch);
+    }
+    else {
+        os << "&#" << static_cast<int>(ch) << ';';
+    }
+    return os;                                                        // RETURN
+}
+
+std::ostream& outputXMLescapedString(std::ostream& os, StringView_t text)
 {
     // NOTE: std::codecvt is deprecated. So, to avoid compiler warnings,
     // and until this is sorted out, lets roll our own. Avoid multibyte
@@ -291,30 +318,9 @@ void outputXMLString(std::ostream& os, StringView_t text)
         if (ch == '\0') { // Invalid  string
             break;
         }
-
-        if (ch == C('"')) {
-            os << "&quot;";
-        }
-        else if (ch == C('\'')) {
-            os << "&apos;";
-        }
-        else if (ch == C('<')) {
-            os << "&lt;";
-        }
-        else if (ch == C('>')) {
-            os << "&gt;";
-        }
-        else if (ch == C('&')) {
-            os << "&amp;";
-        }
-        else if (static_cast<int>(ch) > 0x1f && static_cast<int>(ch) < 0x7f) {
-            os.put(ch);
-        }
-        else {
-            os << "&#" << static_cast<int>(ch) << ';';
-        }
+        outputXMLescapedChar(os, ch);
     }
-    return;                                                           // RETURN
+    return os;                                                        // RETURN
 }
 
 Char_t popFrontChar(StringView_t& view)
@@ -584,10 +590,7 @@ Text::Data::resolveSizes(const Wawt::Layout::Result&  container,
     auto borderAdjustment = 2*(container.d_border + 1);
     constraint.d_width   -= borderAdjustment;
     constraint.d_height  -= borderAdjustment;
-    return (d_successfulLayout = adapter->getTextValues(*this,
-                                                        constraint,
-                                                        upperLimit,
-                                                        options));
+    return adapter->getTextValues(*this, constraint, upperLimit, options);
 }
 
                             //--------------------
@@ -666,7 +669,7 @@ Text::resolveLayout(const Wawt::Layout::Result&  container,
     // Although the size may not have changed, the position might have:
     d_data.d_upperLeft        = d_layout.position(d_data.d_bounds,
                                                   container);
-    return d_data.d_successfulLayout;                                 // RETURN
+    return true;                                                      // RETURN
 }
 
 
@@ -680,6 +683,8 @@ Widget::layout(DrawProtocol       *adapter,
                bool                firstPass,
                const Widget&       parent)
 {
+    d_settings.d_successfulLayout = true;
+
     call(&defaultLayout,
          &Methods::d_layoutMethod,
          this,
@@ -707,7 +712,7 @@ Widget::defaultDraw(Widget *widget, DrawProtocol *adapter)
 {
     adapter->draw(widget->layoutData(), widget->settings());
 
-    if (widget->hasText() && widget->text().d_data.d_successfulLayout) {
+    if (widget->hasText() && widget->settings().d_successfulLayout) {
         adapter->draw(widget->text().d_data, widget->settings());
     }
 }
@@ -724,9 +729,10 @@ Widget::defaultLayout(Widget                  *widget,
 
     if (widget->hasText()
      && (firstPass || widget->text().d_layout.d_charSizeGroup)) {
-        widget->text().resolveLayout(widget->layoutData(),
-                                     adapter,
-                                     widget->options());
+        widget->d_settings.d_successfulLayout =
+            widget->text().resolveLayout(widget->layoutData(),
+                                         adapter,
+                                         widget->options());
     }
     return;                                                           // RETURN
 }
@@ -794,7 +800,7 @@ Widget::defaultSerialize(std::ostream&      os,
                << "' left='"    << bool(textData.d_leftAlignMark);
         }
         os << "'>";
-        outputXMLString(os, textData.d_string);
+        outputXMLescapedString(os, textData.view());
         os << "</text>\n";
     }
     else {
@@ -968,7 +974,7 @@ Widget::text(StringView_t string, CharSizeGroup group, TextAlign alignment) &
 {
     text().d_layout.d_charSizeGroup    = group;
     text().d_layout.d_textAlign        = alignment;
-    text().d_data.d_string             = string;
+    text().d_data.d_view               = string;
     return *this;                                                     // RETURN
 }
 
@@ -1177,8 +1183,10 @@ Widget::draw(DrawProtocol *adapter) noexcept
                                    charSizeLimit,
                                    adapter,
                                    d_settings.d_options)) {
+                d_settings.d_successfulLayout = false;
                 return;                                               // RETURN
             }
+            d_settings.d_successfulLayout = true;
             data.d_upperLeft = layout.position(data.d_bounds, d_rectangle);
             layout.d_refreshBounds = false;
         }
@@ -1356,7 +1364,7 @@ bool
 Widget::resetLabel(StringView_t newLabel)
 {
     if (d_text) {
-        d_text->d_data.d_string = newLabel;
+        d_text->d_data.d_view   = newLabel;
         d_text->d_layout.d_refreshBounds = true;
     }
     return bool(d_text);                                              // RETURN
@@ -1472,7 +1480,7 @@ DrawStream::draw(const Wawt::Layout::Result& box,
          <<     "' y='"       << std::floor(box.d_upperLeft.d_y)
          <<     "' width='"   << std::ceil(box.d_bounds.d_width)
          <<     "' height='"  << std::ceil(box.d_bounds.d_height)
-         <<     "' border='"  << std::ceil(box.d_border)
+         <<     "' border='"  << std::floor(box.d_border)
          << "'/>\n";
     spaces -= 2;
     d_os << spaces << "</" << widgetName << ">\n";
@@ -1509,7 +1517,7 @@ DrawStream::draw(const Text::Data&        text,
     d_os << "'/>\n";
     spaces += 2;
     d_os << spaces << "<string>";
-    outputXMLString(d_os, text.d_string);
+    outputXMLescapedString(d_os, text.view());
     d_os << "</string>\n";
     spaces -= 2;
     d_os << spaces << "</text>\n";
@@ -1525,7 +1533,7 @@ DrawStream::getTextValues(Text::Data&      values,
                           uint16_t         upperLimit,
                           const std::any&)    noexcept
 {
-    auto  count     = values.d_string.length();
+    auto  count     = values.view().length();
 
     if (values.d_labelMark != Text::BulletMark::eNONE) {
         count += 1;

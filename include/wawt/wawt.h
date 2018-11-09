@@ -68,9 +68,11 @@ constexpr std::size_t sizeOfChar(const Char_t ch) {
     }
 }
 
-Char_t popFrontChar(StringView_t& view);
+std::ostream& outputXMLescapedChar(std::ostream& os, Char_t ch);
 
-void outputXMLString(std::ostream& os, StringView_t text);
+std::ostream& outputXMLescapedString(std::ostream& os, StringView_t string);
+
+Char_t popFrontChar(StringView_t& view);
 
 //
 //! Callback methods used in application's "event loops":
@@ -87,9 +89,9 @@ struct  Coordinates {
     float           d_y                 = 0;
 };
 
-                                //==============
-                                // struct Bounds
-                                //==============
+                              //==============
+                              // struct Bounds
+                              //==============
 
 struct  Bounds {
     float           d_width             = 0;
