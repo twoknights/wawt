@@ -74,13 +74,22 @@ class Addons : public Wawt::ScreenImpl<Addons,DrawOptions> {
         , d_prev(std::move(prev))
         , d_buttons()
         , d_list(7)
-        , d_enterRow(25)
+        , d_enterRow(25,
+                [this](auto text, auto ch) -> bool {
+                    auto string = text->entry();
+                    if (ch && !string.empty()) {
+                        d_list.rows().emplace_front(string, false);
+                        d_list.synchronizeView();
+                        text->entry(S(""));
+                    }
+                    return true;
+                })
         , d_month(2, Range{   1,   12, &d_day  }, {'\t'})
         , d_day(  2, Range{   1,   31, &d_year }, {'\t'})
         , d_year( 4, Range{2018, 2199, &d_month}, {'\t'}) {
-            d_month.inputVerifier(&Range::isDigit);
-              d_day.inputVerifier(&Range::isDigit);
-             d_year.inputVerifier(&Range::isDigit);
+            d_month.inputVerifier(&Range::isDigit).autoEnter(true);
+              d_day.inputVerifier(&Range::isDigit).autoEnter(true);
+             d_year.inputVerifier(&Range::isDigit).autoEnter(true);
     }
 
     // PUBLIC MANIPULATORS
@@ -119,6 +128,8 @@ Addons::createScreenPanel()
             if (!string.empty()) {
                 d_list.rows().emplace_front(string, false);
                 d_list.synchronizeView();
+                d_enterRow.entry(S(""));
+                d_enterRow->focus(&*d_enterRow);
             }
         };
     auto addBot = 
@@ -127,6 +138,8 @@ Addons::createScreenPanel()
             if (!string.empty()) {
                 d_list.rows().emplace_back(string, false);
                 d_list.synchronizeView();
+                d_enterRow.entry(S(""));
+                d_enterRow->focus(&*d_enterRow);
             }
         };
     auto delSel = Wawt::OnClickCb();

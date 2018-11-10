@@ -20,6 +20,7 @@
 #include "wawt/scrolledlist.h"
 #include "wawt/wawtenv.h"
 #include "wawt/widget.h"
+#include <iostream>
 
 #ifdef WAWT_WIDECHAR
 #define S(str) String_t(L"" str)  // wide char strings (std::wstring)
@@ -62,11 +63,12 @@ bool adjustView(Text::Data&         view,
             attempt.d_view = tmp;
             adapter->getTextValues(attempt, bounds, 0, options);
 
-            if (bounds.d_width < view.d_bounds.d_width) {
+            if (bounds.d_width < attempt.d_bounds.d_width) {
                 tryCount = (tryCount + fitCount) / 2;
             }
             else {
                 view.d_baselineOffset = attempt.d_baselineOffset;
+                view.d_bounds         = attempt.d_bounds;
                 fitCount = tryCount;
                 tryCount = (length + fitCount) / 2;
             }
@@ -74,7 +76,6 @@ bool adjustView(Text::Data&         view,
         auto tmp = view.view();
         tmp.remove_suffix(length - fitCount);
         view.d_view   = tmp;
-        view.d_bounds = attempt.d_bounds;
     }
     return true;
 }
@@ -318,16 +319,21 @@ ScrolledList::list(const Layout&          layout,
 void
 ScrolledList::synchronizeView(DrawProtocol *adapter) noexcept
 {
+    assert(d_widget);
     assert(d_widget->screen() != nullptr);
+    assert(d_widget->children().size() == 5);
 
     if (d_top >= d_rows.size()) {
         d_top = 0;
     }
-    // TBD: adjust scrollbox
+
     d_windowView.clear();
 
-    if (d_charSize > 0 && adapter != nullptr) {
-        assert(d_widget->children().size() == 5);
+    if (adapter == nullptr) {
+        return;                                                       // RETURN
+    }
+
+    if (d_charSize > 0) {
         auto hide = (d_rows.size() <= d_windowSize) && !d_alwaysShowScrollbars;
 
         for (auto& child : d_widget->children()) {
@@ -350,7 +356,7 @@ ScrolledList::synchronizeView(DrawProtocol *adapter) noexcept
                       row < d_rows.size() && row - d_top < d_windowSize;
                     ++row) {
                 auto& item          = d_rows[row];
-                text.d_view         = item.first;
+                text.d_view         = StringView_t(item.first);
                 text.d_charSize     = d_charSize;
 
                 if (!text.view().empty()) {
@@ -363,6 +369,32 @@ ScrolledList::synchronizeView(DrawProtocol *adapter) noexcept
             }
         }
     }
+    auto& upOneRow   = d_widget->children()[0];
+    auto& downOneRow = d_widget->children()[1];
+    auto& upOnePg    = d_widget->children()[2];
+    auto& downOnePg  = d_widget->children()[3];
+    auto& scrollBox  = d_widget->children()[4];
+
+    if (d_rows.size() <= d_windowSize) {
+        upOnePg.layout().d_lowerRight.d_sY   = 1.0;
+        downOnePg.layout().d_lowerRight.d_sY = -1.0;
+    }
+    else {
+        auto  height     = downOneRow.layoutData().d_upperLeft.d_y
+                         - upOnePg.layoutData().d_upperLeft.d_y;
+        auto  fullBar    = 2*height / upOneRow.layoutData().d_bounds.d_height;
+
+        upOnePg.layout().d_lowerRight.d_sY
+            = 1.0 + double(d_top)/d_rows.size() * fullBar;
+        downOnePg.layout().d_upperLeft.d_sY
+            = -1.0
+            - (1.0-double(d_top+d_windowView.size())/d_rows.size()) * fullBar;
+    }
+    // Re-layout the scrollbar with new layout values.
+    Widget::defaultLayout(&upOnePg, *d_widget, true, adapter);
+    Widget::defaultLayout(&downOnePg, *d_widget, true, adapter);
+    Widget::defaultLayout(&scrollBox, *d_widget, true, adapter);
+    return;                                                           // RETURN
 }
 
 }  // namespace Wawt

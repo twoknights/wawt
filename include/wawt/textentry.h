@@ -34,17 +34,17 @@ namespace Wawt {
 class TextEntry : public Tracker {
 
     // PRIVATE MANIPULATORS
-    void            update(Widget *widget, Trackee *label) override;
+    void            update(Widget *widget, Trackee *label)   noexcept override;
 
     //! Return 'true' if "focus" is retained; 'false' if it is lost.
-    bool            input(Widget *widget, Char_t input);
+    bool            input(Widget *widget, Char_t input)               noexcept;
 
-    void            draw(Widget *widget, DrawProtocol *adapter);
+    void            draw(Widget *widget, DrawProtocol *adapter)       noexcept;
 
     void            serialize(std::ostream&  os,
                               std::string   *closeTag,
                               const Widget&  entry,
-                              unsigned int   indent);
+                              unsigned int   indent)                  noexcept;
 
   public:
     // Return 'true' if focus is to be retained.
@@ -58,41 +58,51 @@ class TextEntry : public Tracker {
               const EndCb&      endCb       = EndCb(),
               Char_t            cursor      = '|',
               Char_t            backspace   = '\b',
-              Char_t            enter       = '\r');
+              Char_t            enter       = '\r')                   noexcept;
 
     TextEntry(uint16_t          maxInputCharacters,
               const EndCb&      endCb,
               EndCharList       endList,
               Char_t            cursor      = '|',
               Char_t            backspace   = '\b',
-              Char_t            enter       = '\r');
+              Char_t            enter       = '\r')                   noexcept;
 
     // PUBLIC MANIPULATORS
-    //! Return 'true' if 'text' fits within maximum character requirements.
-    bool                entry(StringView_t text);
+    TextEntry&          autoEnter(bool value)                         noexcept{
+        d_autoEnter = value;
+        return *this;
+    }
 
-    void                inputVerifier(const VerifierCb& verify) {
+    //! Return 'true' if 'text' fits within maximum character requirements.
+    bool                entry(StringView_t text)                      noexcept;
+
+    TextEntry&          inputVerifier(const VerifierCb& verify)       noexcept{
         d_verifierCb = verify;
+        return *this;
     }
 
     // PUBLIC ACCESSORS
-    String_t            entry() const {
+    bool                autoEnter()                             const noexcept{
+        return d_autoEnter;
+    }
+
+    String_t            entry()                                 const noexcept{
         return toString(d_buffer.get(), d_bufferLng);
     }
 
-    Char_t              enterChar() const {
+    Char_t              enterChar()                             const noexcept{
         return d_enter;
     }
 
-    bool                focus() const {
+    bool                focus()                                 const noexcept{
         return d_focus;
     }
 
-    const VerifierCb&   inputVerifier() const {
+    const VerifierCb&   inputVerifier()                         const noexcept{
         return d_verifierCb;
     }
 
-    const String_t&     layoutString() const {
+    const String_t&     layoutString()                          const noexcept{
         return d_layoutString;
     }
 
@@ -102,6 +112,7 @@ class TextEntry : public Tracker {
 
     VerifierCb  d_verifierCb{};
     Buffer      d_buffer{};
+    bool        d_autoEnter     = false;
     uint16_t    d_bufferLng     = 0u;
     bool        d_focus         = false;
     uint16_t    d_maxInputCharacters;

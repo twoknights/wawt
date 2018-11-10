@@ -93,11 +93,9 @@ void drawCircle(sf::RenderWindow  *window,
 
 inline
 sf::String toString(const Wawt::StringView_t& str) {
-    if constexpr(std::is_same_v<Wawt::String_t, std::u32string>) {
-        return sf::String(reinterpret_cast<const sf::Uint32*>(str.data()));
-    }
-    else if constexpr(std::is_same_v<Wawt::String_t, std::wstring>) {
-        return sf::String(reinterpret_cast<const wchar_t*>(str.data()));
+    if constexpr(std::is_same_v<Wawt::String_t, std::wstring>) {
+        return sf::String(std::wstring(
+                reinterpret_cast<const wchar_t*>(str.data()), str.length()));
     }
     else if constexpr(std::is_same_v<Wawt::String_t, std::string>) {
         std::basic_string<sf::Uint32> to;
@@ -263,7 +261,7 @@ SfmlDrawAdapter::draw(const Wawt::Text::Data&        text,
 
     if (!text.view().empty()) {
         sf::Font& font = getFont(options.d_fontIndex);
-        sf::Text  label{toString(text.view().data()), font, text.d_charSize};
+        sf::Text  label{toString(text.view()), font, text.d_charSize};
 
         label.setFillColor(textColor);
 
@@ -365,7 +363,7 @@ SfmlDrawAdapter::getTextValues(Wawt::Text::Data&      values,
                                uint16_t               upperLimit,
                                const std::any&        options)      noexcept
 {
-    sf::String    string(toString(values.view().data()));
+    sf::String    string(toString(values.view()));
     DrawOptions   effects;
     sf::FloatRect bounds(0,0,0,0);
     uint16_t      charSize = uint16_t(std::round(values.d_charSize));
@@ -389,6 +387,7 @@ SfmlDrawAdapter::getTextValues(Wawt::Text::Data&      values,
 
     if (noFitRequested) {
         bounds = label.getLocalBounds();
+        values.d_baselineOffset = bounds.top;
     }
     else {
         auto lowerLimit = 1u;

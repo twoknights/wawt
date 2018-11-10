@@ -49,7 +49,7 @@ namespace {
 
 // PRIVATE METHODS
 void
-TextEntry::update(Widget *widget, Trackee *label)
+TextEntry::update(Widget *widget, Trackee *label) noexcept
 {
     if (d_label == nullptr && widget) {
         widget->optionName(WawtEnv::sEntry);
@@ -96,7 +96,7 @@ TextEntry::update(Widget *widget, Trackee *label)
 }
 
 void
-TextEntry::draw(Widget *widget, DrawProtocol *adapter)
+TextEntry::draw(Widget *widget, DrawProtocol *adapter) noexcept
 {
     auto  label  = entry();
     auto& box    = widget->layoutData();
@@ -125,7 +125,7 @@ TextEntry::draw(Widget *widget, DrawProtocol *adapter)
 }
 
 bool
-TextEntry::input(Widget *widget, Char_t input)
+TextEntry::input(Widget *widget, Char_t input) noexcept
 {
     if (input == WawtEnv::kFocusChg) {
         d_focus = !d_focus;
@@ -151,7 +151,7 @@ TextEntry::input(Widget *widget, Char_t input)
             d_buffer[d_bufferLng++] = input;
 
             if (d_maxInputCharacters == d_bufferLng
-             && (d_endCb && !d_endCb(this, d_enter))) {
+             && d_autoEnter && (d_endCb && !d_endCb(this, d_enter))) {
                 widget->selected(d_focus = false);
             }
         }
@@ -163,7 +163,7 @@ void
 TextEntry::serialize(std::ostream&  os,
                      std::string   *closeTag,
                      const Widget&  entry,
-                     unsigned int   indent)
+                     unsigned int   indent) noexcept
 {
     Widget::defaultSerialize(os, closeTag, entry, indent);
     std::string spaces(indent+2, ' ');
@@ -187,7 +187,7 @@ TextEntry::TextEntry(uint16_t           maxInputCharacters,
                      const EndCb&       endCb,
                      Char_t             cursor,
                      Char_t             backspace,
-                     Char_t             enter)
+                     Char_t             enter) noexcept
 : d_maxInputCharacters(maxInputCharacters)
 , d_endCb(endCb)
 , d_cursor(toString(&cursor,1))
@@ -204,7 +204,7 @@ TextEntry::TextEntry(uint16_t           maxInputCharacters,
                      EndCharList        endList,
                      Char_t             cursor,
                      Char_t             backspace,
-                     Char_t             enter)
+                     Char_t             enter) noexcept
 : d_maxInputCharacters(maxInputCharacters)
 , d_endCb(endCb)
 , d_cursor(toString(&cursor,1))
@@ -218,7 +218,7 @@ TextEntry::TextEntry(uint16_t           maxInputCharacters,
 }
 
 bool
-TextEntry::entry(StringView_t text)
+TextEntry::entry(StringView_t text) noexcept
 {
     auto work = std::make_unique<Char_t[]>(d_maxInputCharacters);
     auto lng  = 0u;

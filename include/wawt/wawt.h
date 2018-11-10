@@ -224,7 +224,7 @@ class Tracker {
     Widget          *d_widget           = nullptr;
     Trackee         *d_label            = nullptr;
 
-    virtual void    update(Widget *widget, Trackee *label) {
+    virtual void    update(Widget *widget, Trackee *label)            noexcept{
         d_widget = widget;
         d_label  = label;
     }
@@ -239,19 +239,20 @@ class Tracker {
 
     virtual ~Tracker();
 
-    Widget&  operator*() noexcept {
+    Widget&  operator*()                                              noexcept{
         return *d_widget;
     }
 
-    Widget*  operator->() noexcept {
+    Widget*  operator->()                                             noexcept{
         return d_widget;
     }
 
-    operator bool() const noexcept {
+    //! Throws WawtException if already tracking a widget.
+    operator Trackee();
+
+    operator bool()                                             const noexcept{
         return d_widget != nullptr;
     }
-
-    operator Trackee();
 };
 
                                 //==============
