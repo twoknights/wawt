@@ -78,8 +78,9 @@ class Addons : public Wawt::ScreenImpl<Addons,DrawOptions> {
                 [this](auto text, auto ch) -> bool {
                     auto string = text->entry();
                     if (ch && !string.empty()) {
-                        d_list.rows().emplace_front(string, false);
-                        d_list.synchronizeView();
+                        auto it = d_list.top();
+                        d_list.rows().emplace_back(string, false);
+                        d_list.top(it);
                         text->entry(S(""));
                     }
                     return true;
@@ -88,7 +89,7 @@ class Addons : public Wawt::ScreenImpl<Addons,DrawOptions> {
         , d_day(  2, Range{   1,   31, &d_year }, {'\t'})
         , d_year( 4, Range{2018, 2199, &d_month}, {'\t'}) {
             d_list.onItemClick(
-                [this](auto,auto) {
+                [this](auto) {
                     d_buttons->children()[2]
                               .disabled(d_list.selectCount() == 0);
                 });
@@ -131,8 +132,9 @@ Addons::createScreenPanel()
         [this](Widget *) -> void {
             auto string = d_enterRow.entry();
             if (!string.empty()) {
+                auto it = d_list.top();
                 d_list.rows().emplace_front(string, false);
-                d_list.synchronizeView();
+                d_list.top(it);
                 d_enterRow.entry(S(""));
                 d_enterRow->focus(&*d_enterRow);
             }
@@ -141,14 +143,31 @@ Addons::createScreenPanel()
         [this](Widget *) -> void {
             auto string = d_enterRow.entry();
             if (!string.empty()) {
+                auto it = d_list.top();
                 d_list.rows().emplace_back(string, false);
-                d_list.synchronizeView();
+                d_list.top(it);
                 d_enterRow.entry(S(""));
                 d_enterRow->focus(&*d_enterRow);
             }
         };
     auto delSel = 
-        [this](Widget *) -> void {
+        [this](Widget *me) -> void {
+            for (auto it  = d_list.rows().begin();
+                      it != d_list.rows().end(); ) {
+                auto top = d_list.top();
+                if (it->second) {
+                    bool newTop = it == top;
+                    it = d_list.rows().erase(it);
+                    if (newTop) {
+                        top = it;
+                    }
+                }
+                else {
+                    ++it;
+                }
+                d_list.top(top);
+                me->disabled(true);
+            }
         };
 
     auto lineColor   = defaultOptions(WawtEnv::sPanel)
@@ -190,7 +209,8 @@ Addons::createScreenPanel()
                           3_Sz, TextAlign::eRIGHT))
                .addChild(
                     label({{ 0.27, 0.05}, {1.0, 0.13}},
-                          S(" (Text to add)"), 3_Sz, TextAlign::eLEFT))
+                          S(" (Press 'Enter' to add to list)"),
+                          3_Sz, TextAlign::eLEFT))
                .addChild(
                     pushButtonGrid(d_buttons,
                                    {{-0.2, 0.2}, { 0.2, .3}}, -1.0, 1_Sz,

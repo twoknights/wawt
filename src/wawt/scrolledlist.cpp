@@ -20,7 +20,8 @@
 #include "wawt/scrolledlist.h"
 #include "wawt/wawtenv.h"
 #include "wawt/widget.h"
-#include <iostream>
+
+#include <iterator>
 
 #ifdef WAWT_WIDECHAR
 #define S(str) String_t(L"" str)  // wide char strings (std::wstring)
@@ -90,38 +91,6 @@ bool adjustView(Text::Data&         view,
     return true;                                                      // RETURN
 }
 
-Widget::DownEventMethod makeScroll(int delta) {
-    return
-        [delta] (double, double, Widget *, Widget *list) -> EventUpCb {
-            auto cb = EventUpCb();
-
-            if (list->tracker()) {
-                cb= [list, delta](double x, double y, bool up) -> void {
-                        if (up && list->inside(x, y)) {
-                            auto me = static_cast<ScrolledList*>(
-                                                            list->tracker());
-
-                            if (me) {
-                                auto iTop = me->top() + delta;
-
-                                if (iTop < 0) {
-                                    me->top(0);
-                                }
-                                else if (uint16_t(iTop) >= me->rows().size()) {
-                                    me->top(me->rows().size()-1);
-                                }
-                                else {
-                                    me->top(uint16_t(iTop));
-                                }
-                                me->synchronizeView();
-                            }
-                        }
-                    };
-            }
-            return cb;
-        };                                                            // RETURN
-}
-
 inline float yorigin(const Layout::Result& layout) {
     return layout.d_upperLeft.d_y + layout.d_border + kSPACING/2.0 + 1;
 }
@@ -144,10 +113,10 @@ ScrolledList::draw(Widget *widget, DrawProtocol *adapter) noexcept
             synchronizeView(adapter);
         }
         auto& layout   = widget->layoutData();
-        auto  row      = Text::Data{};
         auto& button   = widget->children()[0];
         auto  settings = widget->settings();
         auto  bounds   = layout.d_bounds.d_width - 2*(layout.d_border+1);
+        auto  row      = Text::Data{};
 
         settings.d_optionName = WawtEnv::sItem;
         settings.d_options    = d_itemOptions;
@@ -206,6 +175,29 @@ ScrolledList::draw(Widget *widget, DrawProtocol *adapter) noexcept
     return;                                                           // RETURN
 }
 
+Widget::DownEventMethod
+ScrolledList::makeScroll(int delta) noexcept
+{
+    return
+        [delta] (double, double, Widget *, Widget *list) -> EventUpCb {
+            auto cb = EventUpCb();
+
+            if (list->tracker()) {
+                cb= [list, delta](double x, double y, bool up) -> void {
+                        if (up && list->inside(x, y)) {
+                            auto me = static_cast<ScrolledList*>(
+                                                            list->tracker());
+
+                            if (me) {
+                                me->scroll(delta);
+                            }
+                        }
+                    };
+            }
+            return cb;
+        };                                                            // RETURN
+}
+
 void
 ScrolledList::upEvent(double, double y, Widget *widget) noexcept
 {
@@ -214,16 +206,16 @@ ScrolledList::upEvent(double, double y, Widget *widget) noexcept
     auto  row      = uint16_t((y - ul_y) / (d_charSize + kSPACING));
 
     if (row < d_windowView.size()) {
-        auto index = uint16_t(row + d_top);
-
         if (d_singleSelect) {
             clearSelection();
         }
-        d_lastRowClicked                = index;
-        std::get<2>(d_windowView[row]) ^= true;
-        d_rows[index].second           ^= true; // non-single select: toggle
+        d_lastRowClicked = d_top;
+        std::advance(d_lastRowClicked.value(), row);
 
-        if (d_rows[index].second) {
+        std::get<2>(d_windowView[row])   ^= true;
+        d_lastRowClicked.value()->second ^= true; // non-single select: toggle
+
+        if (d_lastRowClicked.value()->second) {
             d_selectedSet.insert(row);
             d_selectCount += 1;
         }
@@ -233,7 +225,7 @@ ScrolledList::upEvent(double, double y, Widget *widget) noexcept
         }
 
         if (d_clickCb) {
-            d_clickCb(index, d_rows[index]);
+            d_clickCb(d_lastRowClicked.value());
         }
     }
     return;                                                           // RETURN
@@ -253,23 +245,36 @@ ScrolledList::ScrolledList(uint16_t       visibleRowCount,
 }
 
 void
+ScrolledList::clear() noexcept
+{
+    d_rows.clear();
+    d_windowView.clear();
+    d_selectedSet.clear();
+    d_top    = d_rows.begin();
+    d_topPos = 0;
+    d_lastRowClicked.reset();
+}
+
+void
 ScrolledList::clearSelection() noexcept
 {
     if (d_singleSelect) {
         if (d_lastRowClicked.has_value()) {
-            d_rows[*d_lastRowClicked].second = false;
+            d_lastRowClicked.value()->second = false;
         }
     }
     else {
         for (auto& item : d_rows) {
-            item.second = false;
+            if (item.second) {
+                item.second = false;
+            }
         }
     }
-    d_lastRowClicked.reset();
 
     for (auto& item : d_windowView) {
         std::get<2>(item) = false;
     }
+    d_lastRowClicked.reset();
     d_selectedSet.clear();
     d_selectCount = 0;
     return;                                                           // RETURN
@@ -402,16 +407,18 @@ ScrolledList::singleSelectList(bool value) noexcept
     if (value != d_singleSelect) {
         if (!d_singleSelect) { // from multi-select to single select
             if (d_lastRowClicked.has_value()
-             && !d_rows[*d_lastRowClicked].second) { // was toggled off
+             && !d_lastRowClicked.value()->second) { // was toggled off
                 d_lastRowClicked.reset();
             }
 
             for (auto& item : d_rows) {
-                item.second = false;
+                if (item.second) {
+                    item.second = false;
+                }
             }
 
             if (d_lastRowClicked.has_value()) {
-                d_rows[*d_lastRowClicked].second = true;
+                d_lastRowClicked.value()->second = true;
                 d_selectCount = 1;
             }
             else {
@@ -424,61 +431,81 @@ ScrolledList::singleSelectList(bool value) noexcept
 }
 
 void
+ScrolledList::scroll(int delta) noexcept
+{
+    while (delta < 0) {
+        if (d_top == d_rows.begin()) {
+            break;
+        }
+        d_topPos -= 1;
+        --d_top;
+        ++delta;
+    }
+
+    while (delta > 0) {
+        if (d_top == d_rows.end()) {
+            --d_top;
+            d_topPos -= 1;
+            break;
+        }
+        d_topPos += 1;
+        ++d_top;
+        --delta;
+    }
+
+    d_windowView.clear();
+    d_selectedSet.clear();
+}
+
+void
 ScrolledList::synchronizeView(DrawProtocol *adapter) noexcept
 {
     assert(d_widget);
     assert(d_widget->screen() != nullptr);
     assert(d_widget->children().size() == 5);
 
-    if (d_top >= d_rows.size()) {
-        d_top = 0;
-    }
-
     d_windowView.clear();
     d_selectedSet.clear();
 
-    if (adapter == nullptr) {
-        return;                                                       // RETURN
+    auto hide = (d_rows.size() <= d_windowSize) && !d_alwaysShowScrollbars;
+
+    for (auto& child : d_widget->children()) {
+        child.hidden(hide);
+    }
+    auto& layout     = d_widget->layoutData();
+    auto& button     = d_widget->children()[0];
+    auto  text       = Text::Data();
+    auto  margin     = 2*(layout.d_border + 1);
+
+    if (hide) {
+        d_top    = d_rows.begin();
+        d_topPos = 0;
+    }
+    else {
+        margin += button.layoutData().d_bounds.d_width;
     }
 
-    if (d_charSize > 0) {
-        auto hide = (d_rows.size() <= d_windowSize) && !d_alwaysShowScrollbars;
+    if (d_charSize > 0 && layout.d_bounds.d_width > margin+2*d_charSize) {
+        auto  height = float(d_charSize + 2);
+        auto  bounds = Bounds{layout.d_bounds.d_width - margin, height};
 
-        for (auto& child : d_widget->children()) {
-            child.hidden(hide);
-        }
-        auto& layout     = d_widget->layoutData();
-        auto& button     = d_widget->children()[0];
-        auto  text       = Text::Data();
-        auto  margin     = 2*(layout.d_border + 1);
+        for (auto row  = d_top;
+                  row != d_rows.end() && d_windowView.size()<d_windowSize;
+                ++row) {
+            text.d_view         = StringView_t(row->first);
+            text.d_charSize     = uint16_t(d_charSize);
 
-        if (!hide) {
-            margin += button.layoutData().d_bounds.d_width;
-        }
-
-        if (layout.d_bounds.d_width > margin+2*d_charSize) {
-            auto  height = float(d_charSize + 2);
-            auto  bounds = Bounds{layout.d_bounds.d_width - margin, height};
-
-            for (auto row = d_top;
-                      row < d_rows.size() && row - d_top < d_windowSize;
-                    ++row) {
-                auto& item          = d_rows[row];
-                text.d_view         = StringView_t(item.first);
-                text.d_charSize     = uint16_t(d_charSize);
-
-                if (!text.view().empty()) {
-                    adjustView(text, adapter, bounds, d_itemOptions);
-                }
-
-                if (item.second) {
-                    d_selectedSet.insert(d_windowView.size());
-                }
-                d_windowView.emplace_back(text.view(),
-                                          uint16_t(text.d_baselineOffset),
-                                          item.second,
-                                          text.d_bounds.d_width);
+            if (!text.view().empty()) {
+                adjustView(text, adapter, bounds, d_itemOptions);
             }
+
+            if (row->second) {
+                d_selectedSet.insert(d_windowView.size());
+            }
+            d_windowView.emplace_back(text.view(),
+                                      uint16_t(text.d_baselineOffset),
+                                      row->second,
+                                      text.d_bounds.d_width);
         }
     }
     auto& upOneRow   = d_widget->children()[0];
@@ -497,16 +524,41 @@ ScrolledList::synchronizeView(DrawProtocol *adapter) noexcept
         auto  fullBar    = 2*height / upOneRow.layoutData().d_bounds.d_height;
 
         upOnePg.layout().d_lowerRight.d_sY
-            = 1.0 + double(d_top)/d_rows.size() * fullBar;
+            =  1.0 + double(d_topPos)/d_rows.size() * fullBar;
         downOnePg.layout().d_upperLeft.d_sY
-            = -1.0
-            - (1.0-double(d_top+d_windowView.size())/d_rows.size()) * fullBar;
+            = -1.0 - (1.0 - double(d_topPos+d_windowView.size())/d_rows.size())
+                                                    * fullBar;
     }
     // Re-layout the scrollbar with new layout values.
     Widget::defaultLayout(&upOnePg, *d_widget, true, adapter);
     Widget::defaultLayout(&downOnePg, *d_widget, true, adapter);
     Widget::defaultLayout(&scrollBox, *d_widget, true, adapter);
     return;                                                           // RETURN
+}
+
+ScrolledList::ItemIter
+ScrolledList::top() const noexcept
+{
+    return d_top;
+}
+
+void
+ScrolledList::top(ItemIter topItem) noexcept
+{
+    if (d_rows.empty()) {
+        d_topPos = 0;
+        d_top    = d_rows.begin();
+    }
+    else if (topItem == d_rows.end()) {
+        d_top    = --topItem;
+        d_topPos = std::distance(d_rows.begin(), d_top);
+    }
+    else {
+        d_top    = topItem;
+        d_topPos = std::distance(d_rows.begin(), d_top);
+    }
+    d_windowView.clear();
+    d_selectedSet.clear();
 }
 
 }  // namespace Wawt

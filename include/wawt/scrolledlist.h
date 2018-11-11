@@ -23,12 +23,13 @@
 
 #include <any>
 #include <cstdint>
-#include <deque>
+#include <list>
 #include <optional>
 #include <set>
 #include <string>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 namespace Wawt {
 
@@ -42,9 +43,10 @@ class ScrolledList : public Tracker {
     // Return 'true' if focus is to be retained.
     // PUBLIC TYPES
     using Item          = std::pair<String_t, bool>;
-    using Items         = std::deque<Item>;
-    using OnItemClick   = std::function<void(uint16_t, const Item&)>;
-    using OptionalRow   = std::optional<uint16_t>;
+    using Items         = std::list<Item>;
+    using ItemIter      = Items::iterator;
+    using OnItemClick   = std::function<void(ItemIter)>;
+    using OptionalRow   = std::optional<ItemIter>;
 
     // PUBLIC CONSTRUCTORS
     ScrolledList(uint16_t       visibleRowCount,
@@ -53,11 +55,7 @@ class ScrolledList : public Tracker {
                  bool           alwaysShowScrollbars = false)         noexcept;
 
     // PUBLIC MANIPULATORS
-    void            clear()                                           noexcept{
-        d_rows.clear();
-        d_top = 0;
-        synchronizeView();
-    }
+    void            clear()                                           noexcept;
 
     void            clearSelection()                                  noexcept;
 
@@ -80,14 +78,10 @@ class ScrolledList : public Tracker {
 
     ScrolledList&   singleSelectList(bool value)                      noexcept;
 
-    void            synchronizeView(DrawProtocol *adapter = nullptr)  noexcept;
+    void            synchronizeView(DrawProtocol *adapter)            noexcept;
 
     //! Row at top of viewed area.
-    void            top(uint16_t row)                                 noexcept{
-        if (row < d_rows.size()) {
-            d_top = row;
-        }
-    }
+    void            top(ItemIter topItem)                             noexcept;
 
     // PUBLIC ACCESSORS
     const std::any& itemOptions()                               const noexcept{
@@ -111,20 +105,15 @@ class ScrolledList : public Tracker {
     }
 
     //! Row at top of viewed area.
-    uint16_t        top()                                       const noexcept{
-        return d_top < d_rows.size() ? d_top : 0;
-    }
+    ItemIter        top()                                       const noexcept;
 
     //! Number of rows being shown in viewed area.
-    uint16_t        viewedRows()                                const noexcept{
-        if (top() + d_windowSize < d_rows.size()) {
-            return d_windowSize;
-        }
-        return d_rows.size() - top();
+    std::size_t     viewedRows()                                const noexcept{
+        return d_windowView.size();
     }
 
     //! Number of rows that can be shown in viewed area.
-    unsigned int    viewSize()                                  const noexcept{
+    std::size_t     viewSize()                                  const noexcept{
         return d_windowSize;
     }
 
@@ -135,19 +124,25 @@ class ScrolledList : public Tracker {
     // PRIVATE MANIPULATORS
     void            draw(Widget *widget, DrawProtocol *adapter)       noexcept;
 
+    void            scroll(int delta)                                 noexcept;
+
     void            upEvent(double x, double y, Widget *widget)       noexcept;
+
+    Widget::DownEventMethod makeScroll(int delta)                     noexcept;
 
     // PRIVATE DATA
     Items                   d_rows{};
+    std::set<std::size_t>   d_selectedSet{};
+    std::vector<RowInfo>    d_windowView{};
     OnItemClick             d_clickCb{};
     OptionalRow             d_lastRowClicked{};
-    std::set<uint16_t>      d_selectedSet{};
-    std::vector<RowInfo>    d_windowView{};
-    uint16_t                d_selectCount       = 0;
+    ItemIter                d_top               = d_rows.begin();
+    int                     d_topPos            = 0;
+    std::size_t             d_selectCount       = 0;
     float                   d_charSize          = 0;
-    uint16_t                d_top               = 0;
     bool                    d_singleSelect      = false;
-    uint16_t                d_windowSize;
+
+    std::size_t             d_windowSize;
     TextAlign               d_alignment;
     bool                    d_scrollbarsOnLeft;
     bool                    d_alwaysShowScrollbars;
