@@ -36,12 +36,22 @@ namespace Wawt {
 
 namespace {
 
-constexpr float kSPACING = 3.0f;
+constexpr float kSPACING = 4.0f;
+
+inline
+void removeSuffix(StringView_t& view, std::size_t count)
+{
+    while (count-- > 0) {
+        popBackChar(view);
+    }
+    return;                                                           // RETURN
+}
 
 bool adjustView(Text::Data&         view,
                 DrawProtocol       *adapter,
                 const Bounds&       bounds,
                 const std::any&     options) {
+    assert(!view.view().empty());
 
     if (!adapter->getTextValues(view, bounds, 0, options)) {
         // Failed to find bounding box size for the character size. 
@@ -53,18 +63,18 @@ bool adjustView(Text::Data&         view,
 
     if (bounds.d_width < view.d_bounds.d_width) {
         auto length   = view.view().length();
-        auto fitCount = 0u;
-        auto tryCount = (length + 1)/2;
+        auto fitCount = 0u;             // always less then 'length'
+        auto tryCount = (length + 1)/2; // always less then 'length'
         auto attempt  = view;
 
         while (fitCount < tryCount) {
             auto tmp = view.view();
-            tmp.remove_suffix(length - tryCount);
+            removeSuffix(tmp, length - tryCount);
             attempt.d_view = tmp;
             adapter->getTextValues(attempt, bounds, 0, options);
 
             if (bounds.d_width < attempt.d_bounds.d_width) {
-                tryCount = (tryCount + fitCount) / 2;
+                tryCount = (tryCount + fitCount) / 2; // ignore overflow
             }
             else {
                 view.d_baselineOffset = attempt.d_baselineOffset;
@@ -74,10 +84,10 @@ bool adjustView(Text::Data&         view,
             }
         }
         auto tmp = view.view();
-        tmp.remove_suffix(length - fitCount);
+        removeSuffix(tmp, length - fitCount);
         view.d_view   = tmp;
     }
-    return true;
+    return true;                                                      // RETURN
 }
 
 Widget::DownEventMethod makeScroll(int delta) {
@@ -109,7 +119,11 @@ Widget::DownEventMethod makeScroll(int delta) {
                     };
             }
             return cb;
-        };
+        };                                                            // RETURN
+}
+
+inline float yorigin(const Layout::Result& layout) {
+    return layout.d_upperLeft.d_y + layout.d_border + kSPACING/2.0 + 1;
 }
 
 } // unnamed namespace
@@ -138,10 +152,7 @@ ScrolledList::draw(Widget *widget, DrawProtocol *adapter) noexcept
         settings.d_optionName = WawtEnv::sItem;
         settings.d_options    = d_itemOptions;
 
-        row.d_charSize      = d_charSize;
-        row.d_upperLeft.d_y = layout.d_upperLeft.d_y
-                            + layout.d_border
-                            + kSPACING;
+        row.d_charSize      = uint16_t(d_charSize);
 
         if (d_scrollbarsOnLeft && !button.isHidden()) {
             row.d_upperLeft.d_x = button.layoutData().d_upperLeft.d_x
@@ -151,6 +162,23 @@ ScrolledList::draw(Widget *widget, DrawProtocol *adapter) noexcept
         else {
             row.d_upperLeft.d_x = layout.d_upperLeft.d_x + layout.d_border + 1;
         }
+
+        if (!button.isHidden()) {
+            bounds -= button.layoutData().d_bounds.d_width;
+        }
+        auto y = yorigin(layout);
+
+        settings.d_selected = true;
+
+        for (auto& index : d_selectedSet) {
+            auto box = Layout::Result(row.d_upperLeft.d_x,
+                                      y + index*(d_charSize + kSPACING) - 1,
+                                      bounds,
+                                      d_charSize + kSPACING,
+                                      0);
+            adapter->draw(box, settings);
+        }
+        row.d_upperLeft.d_y = y-1;
 
         for (auto [view, baselineOffset, selected, width] : d_windowView) {
             if (!view.empty()) {
@@ -164,24 +192,51 @@ ScrolledList::draw(Widget *widget, DrawProtocol *adapter) noexcept
                     }
                 }
                 settings.d_selected  = selected;
+                
                 row.d_view           = view;
-                row.d_baselineOffset = baselineOffset;
                 row.d_upperLeft.d_x += align;
+                row.d_upperLeft.d_y += baselineOffset/2-1;
                 adapter->draw(row, settings);
                 row.d_upperLeft.d_x -= align;
+                row.d_upperLeft.d_y -= baselineOffset/2-1;
             }
             row.d_upperLeft.d_y += d_charSize + kSPACING;
         }
     }
+    return;                                                           // RETURN
 }
 
 void
-ScrolledList::upEvent(double x, double y, Widget *widget) noexcept
+ScrolledList::upEvent(double, double y, Widget *widget) noexcept
 {
-    // The scrolled list is the parent of the scroll buttons, and overlays
-    // them.  So before determining which row in the view window is being
-    // selected; a check for scrolling must be done (if the buttons aren't
-    // hidden).
+    auto& layout   = widget->layoutData();
+    auto  ul_y     = yorigin(layout);
+    auto  row      = uint16_t((y - ul_y) / (d_charSize + kSPACING));
+
+    if (row < d_windowView.size()) {
+        auto index = uint16_t(row + d_top);
+
+        if (d_singleSelect) {
+            clearSelection();
+        }
+        d_lastRowClicked                = index;
+        std::get<2>(d_windowView[row]) ^= true;
+        d_rows[index].second           ^= true; // non-single select: toggle
+
+        if (d_rows[index].second) {
+            d_selectedSet.insert(row);
+            d_selectCount += 1;
+        }
+        else {
+            d_selectedSet.erase(row);
+            d_selectCount -= 1;
+        }
+
+        if (d_clickCb) {
+            d_clickCb(index, d_rows[index]);
+        }
+    }
+    return;                                                           // RETURN
 }
 
 // PUBLIC METHODS
@@ -197,10 +252,31 @@ ScrolledList::ScrolledList(uint16_t       visibleRowCount,
 {
 }
 
+void
+ScrolledList::clearSelection() noexcept
+{
+    if (d_singleSelect) {
+        if (d_lastRowClicked.has_value()) {
+            d_rows[*d_lastRowClicked].second = false;
+        }
+    }
+    else {
+        for (auto& item : d_rows) {
+            item.second = false;
+        }
+    }
+    d_lastRowClicked.reset();
+
+    for (auto& item : d_windowView) {
+        std::get<2>(item) = false;
+    }
+    d_selectedSet.clear();
+    d_selectCount = 0;
+    return;                                                           // RETURN
+}
+
 Widget
-ScrolledList::list(const Layout&          layout,
-                   const SelectChange&    selectCb,
-                   bool                   singleSelect) noexcept
+ScrolledList::list(const Layout& layout) noexcept
 {
     auto rowHeight  = 2.0/d_windowSize;
     auto upOneRow   = Widget(WawtEnv::sButton, {})
@@ -252,7 +328,11 @@ ScrolledList::list(const Layout&          layout,
                         .downEventMethod(makeScroll(d_windowSize));
                         
     auto scrollBox  = Widget(WawtEnv::sScrollbox,
-                             {{-1.0, 1.0, 2_wr}, { 1.0,-1.0, 3_wr}, 0});
+                             {{-1.0, 1.0, 2_wr}, { 1.0,-1.0, 3_wr}, 0})
+                        .downEventMethod( // eat down events
+                                [] (double, double, Widget*, Widget*) {
+                                    return [](double, double, bool) { };
+                                });
                                
     return Widget(WawtEnv::sList, *this, layout)
             .addChild(std::move(upOneRow))      // RID: 0
@@ -306,14 +386,41 @@ ScrolledList::list(const Layout&          layout,
                                 me->d_charSize = 0;
                             }
                             else {
-                                me->d_charSize = uint16_t(size);
+                                me->d_charSize = size;
                             }
                         }
                         else {
                             me->synchronizeView(adapter);
                         }
                     }
-                });
+                });                                                   // RETURN
+}
+
+ScrolledList&
+ScrolledList::singleSelectList(bool value) noexcept
+{
+    if (value != d_singleSelect) {
+        if (!d_singleSelect) { // from multi-select to single select
+            if (d_lastRowClicked.has_value()
+             && !d_rows[*d_lastRowClicked].second) { // was toggled off
+                d_lastRowClicked.reset();
+            }
+
+            for (auto& item : d_rows) {
+                item.second = false;
+            }
+
+            if (d_lastRowClicked.has_value()) {
+                d_rows[*d_lastRowClicked].second = true;
+                d_selectCount = 1;
+            }
+            else {
+                d_selectCount = 0;
+            }
+        }
+        d_singleSelect = value;
+    }
+    return *this;                                                     // RETURN
 }
 
 void
@@ -328,6 +435,7 @@ ScrolledList::synchronizeView(DrawProtocol *adapter) noexcept
     }
 
     d_windowView.clear();
+    d_selectedSet.clear();
 
     if (adapter == nullptr) {
         return;                                                       // RETURN
@@ -357,10 +465,14 @@ ScrolledList::synchronizeView(DrawProtocol *adapter) noexcept
                     ++row) {
                 auto& item          = d_rows[row];
                 text.d_view         = StringView_t(item.first);
-                text.d_charSize     = d_charSize;
+                text.d_charSize     = uint16_t(d_charSize);
 
                 if (!text.view().empty()) {
                     adjustView(text, adapter, bounds, d_itemOptions);
+                }
+
+                if (item.second) {
+                    d_selectedSet.insert(d_windowView.size());
                 }
                 d_windowView.emplace_back(text.view(),
                                           uint16_t(text.d_baselineOffset),

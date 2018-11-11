@@ -72,6 +72,9 @@ std::ostream& outputXMLescapedChar(std::ostream& os, Char_t ch);
 
 std::ostream& outputXMLescapedString(std::ostream& os, StringView_t string);
 
+//! Note: EOS (nul) character is returned on invalid encoding.
+Char_t popBackChar(StringView_t& view);
+
 Char_t popFrontChar(StringView_t& view);
 
 //

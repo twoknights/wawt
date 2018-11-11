@@ -87,6 +87,11 @@ class Addons : public Wawt::ScreenImpl<Addons,DrawOptions> {
         , d_month(2, Range{   1,   12, &d_day  }, {'\t'})
         , d_day(  2, Range{   1,   31, &d_year }, {'\t'})
         , d_year( 4, Range{2018, 2199, &d_month}, {'\t'}) {
+            d_list.onItemClick(
+                [this](auto,auto) {
+                    d_buttons->children()[2]
+                              .disabled(d_list.selectCount() == 0);
+                });
             d_month.inputVerifier(&Range::isDigit).autoEnter(true);
               d_day.inputVerifier(&Range::isDigit).autoEnter(true);
              d_year.inputVerifier(&Range::isDigit).autoEnter(true);
@@ -142,7 +147,9 @@ Addons::createScreenPanel()
                 d_enterRow->focus(&*d_enterRow);
             }
         };
-    auto delSel = Wawt::OnClickCb();
+    auto delSel = 
+        [this](Widget *) -> void {
+        };
 
     auto lineColor   = defaultOptions(WawtEnv::sPanel)
                           .lineColor(defaultOptions(WawtEnv::sScreen)

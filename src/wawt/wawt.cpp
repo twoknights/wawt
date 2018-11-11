@@ -124,6 +124,55 @@ void appendChar(String_t *str, Char_t ch) {
     return;                                                           // RETURN
 }
 
+// Only one of the following is used, suppress complaints about that with 
+// "inline".
+
+inline
+wchar_t backChar(const std::wstring_view& s) {
+    return s.empty() ? '\0' : s.back();                               // RETURN
+}
+
+inline
+char32_t backChar(const std::string_view& text) {
+    if (text.empty()) {
+        return U'\0';                                                 // RETURN
+    }
+    auto it     = text.rbegin();
+    auto ch     = *it++;
+    auto value  = int{};
+    auto shift  = 0;
+
+    while ((ch & 0300) == 0200) {
+        if (shift >= 18 || it == text.rend()) {
+            return U'\0';
+        }
+        value |= int(ch & 077) << shift;
+        shift += 6;
+        ch     = *it++;
+    }
+
+    if ((ch & 0200) == 0) { // 7 bit ASCII
+        if (shift !=  0) return U'\0';                                // RETURN
+        ch &= 0177;
+    }
+    else if ((ch & 0340) == 0300) {
+        if (shift !=  6) return U'\0';                                // RETURN
+        ch &= 037;
+    }
+    else if ((ch & 0360) == 0340) {
+        if (shift != 12) return U'\0';                                // RETURN
+        ch &= 017;
+    }
+    else if ((ch & 0370) == 0360) {
+        if (shift != 18) return U'\0';                                // RETURN
+        ch &= 07;
+    }
+    else {
+        return U'\0';                                                 // RETURN
+    }
+    return char32_t((int(ch) << shift) | value);                      // RETURN
+}
+
 bool clearCharSizeMap(Widget *widget) {
     if (widget->hasText()) {
         widget->text().d_layout.d_charSizeMap->clear();
@@ -145,7 +194,7 @@ bool clearCharSizeMap(Widget *widget) {
 
 inline
 wchar_t frontChar(const std::wstring_view& s) {
-    return s.empty() ? '\0' : s[0];                                   // RETURN
+    return s.empty() ? '\0' : s.front();                              // RETURN
 }
 
 inline
@@ -321,6 +370,20 @@ std::ostream& outputXMLescapedString(std::ostream& os, StringView_t text)
         outputXMLescapedChar(os, ch);
     }
     return os;                                                        // RETURN
+}
+
+Char_t popBackChar(StringView_t& view)
+{
+    auto back = backChar(view);
+    if (back != '\0') {
+        if constexpr(std::is_same_v<Char_t, wchar_t>) {
+            view.remove_suffix(1);
+        }
+        else {
+            view.remove_suffix(sizeOfChar(back));
+        }
+    }
+    return back;                                                      // RETURN
 }
 
 Char_t popFrontChar(StringView_t& view)

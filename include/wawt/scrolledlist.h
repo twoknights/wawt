@@ -22,9 +22,10 @@
 #include "wawt/widget.h"
 
 #include <any>
-#include <ostream>
 #include <cstdint>
+#include <deque>
 #include <optional>
+#include <set>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -42,7 +43,8 @@ class ScrolledList : public Tracker {
     // PUBLIC TYPES
     using Item          = std::pair<String_t, bool>;
     using Items         = std::deque<Item>;
-    using SelectChange  = std::function<void(uint16_t, const Item&)>;
+    using OnItemClick   = std::function<void(uint16_t, const Item&)>;
+    using OptionalRow   = std::optional<uint16_t>;
 
     // PUBLIC CONSTRUCTORS
     ScrolledList(uint16_t       visibleRowCount,
@@ -57,18 +59,26 @@ class ScrolledList : public Tracker {
         synchronizeView();
     }
 
-    std::any&       itemOptions()                                     noexcept{
-        return d_itemOptions;
+    void            clearSelection()                                  noexcept;
+
+    ScrolledList&   itemOptions(std::any&& options)                   noexcept{
+        d_itemOptions = std::move(options);
+        return *this;
     }
 
     // Return an 'WawtEnv::sList' container of the list widgets.
-    Widget          list(const Layout&       layout,
-                         const SelectChange& selectCb     = SelectChange(),
-                         bool                singleSelect = false)    noexcept;
+    Widget          list(const Layout& layout)                        noexcept;
+
+    ScrolledList&   onItemClick(const OnItemClick& callback)          noexcept{
+        d_clickCb = callback;
+        return *this;
+    }
 
     Items&          rows()                                            noexcept{
         return d_rows;
     }
+
+    ScrolledList&   singleSelectList(bool value)                      noexcept;
 
     void            synchronizeView(DrawProtocol *adapter = nullptr)  noexcept;
 
@@ -84,8 +94,20 @@ class ScrolledList : public Tracker {
         return d_itemOptions;
     }
 
+    OptionalRow     lastRowClicked()                            const noexcept{
+        return d_lastRowClicked; 
+    }
+
     const Items&    rows()                                      const noexcept{
         return d_rows;
+    }
+
+    bool            singleSelectList()                          const noexcept{
+        return d_singleSelect;
+    }
+
+    uint16_t        selectCount()                               const noexcept{
+        return d_selectCount;
     }
 
     //! Row at top of viewed area.
@@ -117,10 +139,12 @@ class ScrolledList : public Tracker {
 
     // PRIVATE DATA
     Items                   d_rows{};
-    SelectChange            d_clickCb{};
-    std::optional<uint16_t> d_singleSelectRow{};
+    OnItemClick             d_clickCb{};
+    OptionalRow             d_lastRowClicked{};
+    std::set<uint16_t>      d_selectedSet{};
     std::vector<RowInfo>    d_windowView{};
-    uint16_t                d_charSize          = 0;
+    uint16_t                d_selectCount       = 0;
+    float                   d_charSize          = 0;
     uint16_t                d_top               = 0;
     bool                    d_singleSelect      = false;
     uint16_t                d_windowSize;
