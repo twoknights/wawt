@@ -29,7 +29,6 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
-#include <unordered_set>
 #include <vector>
 
 namespace Wawt {
@@ -70,14 +69,11 @@ class WawtEnv {
         return _instance;
     }
 
-    static StringView_t  translate(const StringView_t& phrase) {
-        return _instance->_translate(phrase);
-    }
-
     // PUBLIC CLASS DATA
     static Char_t  kFocusChg;
 
     static char    sButton[];
+    static char    sCanvas[];
     static char    sDialog[];
     static char    sEntry[];
     static char    sItem[];
@@ -88,19 +84,19 @@ class WawtEnv {
     static char    sScrollbox[];
 
     // PUBLIC CONSTRUCTOR
-    WawtEnv() : d_optionDefaults{}, d_strings{}, d_drawAdapter(nullptr) {
+    WawtEnv() : d_optionDefaults{}, d_drawAdapter(nullptr) {
         _init();
     }
 
     WawtEnv(DrawProtocol *adapter)
-    : d_optionDefaults{}, d_strings{}, d_drawAdapter(adapter) {
+    : d_optionDefaults{}, d_drawAdapter(adapter) {
         _init();
     }
 
     template <typename Options>
     WawtEnv(const DefaultOptions<Options>&  optionDefaults,
             DrawProtocol                   *adapter = nullptr)
-    : d_optionDefaults{}, d_strings{}, d_drawAdapter(adapter)
+    : d_optionDefaults{}, d_drawAdapter(adapter)
     {
         for (auto& [optionName, border, options] : optionDefaults) {
             d_optionDefaults.try_emplace(optionName, border, options);
@@ -134,11 +130,6 @@ class WawtEnv {
         _atomicFlag.clear();
     }
 
-    StringView_t      _translate(const StringView_t& phrase) {
-        // MUST BE THREAD-SAFE
-        return *d_strings.emplace(phrase).first; // TBD: translate
-    }
-
     // PRIVATE ACCESSORS
     float          _defaultBorderThickness(const std::string& optionName) const
                                                                      noexcept {
@@ -154,7 +145,6 @@ class WawtEnv {
 
     // PRIVATE DATA MEMBERS
     std::map<std::string, Defaults> d_optionDefaults{};
-    std::unordered_set<String_t>    d_strings{};
     DrawProtocol                   *d_drawAdapter;
 };
 

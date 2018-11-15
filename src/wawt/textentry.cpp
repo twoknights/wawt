@@ -108,8 +108,7 @@ TextEntry::draw(Widget *widget, DrawProtocol *adapter) noexcept
     if (d_focus && d_bufferLng < d_maxInputCharacters) {
         label.append(d_cursor);
     }
-
-    text.d_view = StringView_t(label);
+    text.d_view   = label;
 
     if (!label.empty()) {
         if (!text.resolveSizes(box,

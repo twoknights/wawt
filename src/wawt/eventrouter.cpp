@@ -161,6 +161,7 @@ EventRouter::draw()
                 d_timedCallback  = std::function<void()>();
             }
             d_current = deferredActivate_p->first;
+            d_current->synchronizeTextView();
             d_current->resize(d_currentWidth, d_currentHeight);
             deferredActivate_p->second();
         }
@@ -227,6 +228,7 @@ EventRouter::showAlert(const Widget&    panel,
         auto screen = Widget(WawtEnv::sScreen,
                              Layout()).addChild(std::move(clone));
         screen.assignWidgetIds();
+        screen.synchronizeTextView(true);
         screen.resizeScreen(d_currentWidth, d_currentHeight);
 
         while (d_spinLock.test_and_set());

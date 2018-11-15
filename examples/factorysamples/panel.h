@@ -56,6 +56,7 @@ inline Wawt::Widget
 Panels::createScreenPanel()
 {
     using namespace Wawt;
+    using namespace Wawt::literals;
     auto panelFill   = defaultOptions(WawtEnv::sPanel)
                           .fillColor(DrawOptions::Color(192u, 192u, 255u));
     auto lineColor   = defaultOptions(WawtEnv::sPanel)

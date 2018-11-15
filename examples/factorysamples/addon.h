@@ -73,7 +73,7 @@ class Addons : public Wawt::ScreenImpl<Addons,DrawOptions> {
         : d_next(std::move(next))
         , d_prev(std::move(prev))
         , d_buttons()
-        , d_list(7)
+        , d_list(7, Wawt::TextAlign::eCENTER, true)
         , d_enterRow(25,
                 [this](auto text, auto ch) -> bool {
                     auto string = text->entry();
@@ -128,6 +128,7 @@ inline Wawt::Widget
 Addons::createScreenPanel()
 {
     using namespace Wawt;
+    using namespace Wawt::literals;
     auto addTop =
         [this](Widget *) -> void {
             auto string = d_enterRow.entry();
@@ -205,7 +206,7 @@ Addons::createScreenPanel()
                .addChild(
                     label(d_enterRow,
                           {{-0.25, 0.05}, {0.25, 0.13}},
-                          d_enterRow.layoutString(),
+                          d_enterRow.layoutString().c_str(),
                           3_Sz, TextAlign::eRIGHT))
                .addChild(
                     label({{ 0.27, 0.05}, {1.0, 0.13}},

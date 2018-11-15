@@ -21,6 +21,8 @@
 #include "wawt/wawtenv.h"
 #include "wawt/widget.h"
 
+#include <iostream>
+
 #include <iterator>
 
 #ifdef WAWT_WIDECHAR
@@ -52,24 +54,25 @@ bool adjustView(Text::Data&         view,
                 DrawProtocol       *adapter,
                 const Bounds&       bounds,
                 const std::any&     options) {
-    assert(!view.view().empty());
+    auto rowView = view.view();
+    assert(!rowView.empty());
 
     if (!adapter->getTextValues(view, bounds, 0, options)) {
         // Failed to find bounding box size for the character size. 
-        view.d_view           = StringView_t{};
+        view.d_view           = StringView_t(S(""));
         view.d_baselineOffset = 0;
         return false;
     }
     assert(bounds.d_height > view.d_bounds.d_height);
 
     if (bounds.d_width < view.d_bounds.d_width) {
-        auto length   = view.view().length();
+        auto length   = rowView.length();
         auto fitCount = 0u;             // always less then 'length'
         auto tryCount = (length + 1)/2; // always less then 'length'
         auto attempt  = view;
 
         while (fitCount < tryCount) {
-            auto tmp = view.view();
+            auto tmp = rowView;
             removeSuffix(tmp, length - tryCount);
             attempt.d_view = tmp;
             adapter->getTextValues(attempt, bounds, 0, options);
@@ -84,9 +87,9 @@ bool adjustView(Text::Data&         view,
                 tryCount = (length + fitCount) / 2;
             }
         }
-        auto tmp = view.view();
+        auto tmp = rowView;
         removeSuffix(tmp, length - fitCount);
-        view.d_view   = tmp;
+        view.d_view = tmp;
     }
     return true;                                                      // RETURN
 }
@@ -443,13 +446,11 @@ ScrolledList::scroll(int delta) noexcept
     }
 
     while (delta > 0) {
-        if (d_top == d_rows.end()) {
+        if (++d_top == d_rows.end()) {
             --d_top;
-            d_topPos -= 1;
             break;
         }
         d_topPos += 1;
-        ++d_top;
         --delta;
     }
 

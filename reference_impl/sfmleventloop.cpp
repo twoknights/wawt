@@ -69,51 +69,39 @@ SfmlEventLoop::run(sf::RenderWindow&                 window,
     while (window.isOpen()) {
         auto width  = float{};
         auto height = float{};
+        auto next_w = float{};
+        auto next_h = float{};
         auto event  = sf::Event{};
 
         try {
-            if (window.pollEvent(event)) {
+            bool doDraw = false;
+
+            while (window.pollEvent(event)) {
                 if (event.type == sf::Event::Closed) {
                     if (shutdown()) {
                         window.close();
                     }
                     else {
-                        window.clear();
-                        router.draw();
-                        window.display();
+                        doDraw = true;
                     }
                 }
                 else if (event.type == sf::Event::Resized) {
-                    float w  = static_cast<float>(event.size.width); 
-                    float h = static_cast<float>(event.size.height); 
+                    next_w = static_cast<float>(event.size.width); 
+                    next_h = static_cast<float>(event.size.height); 
 
-                    if (w < minWidth) {
-                        w = float(minWidth);
+                    if (next_w < minWidth) {
+                        next_w = float(minWidth);
                     }
 
-                    if (h < minHeight) {
-                        h = float(minHeight);
-                    }
-
-                    if (w != width || h != height) {
-                        width  = w;
-                        height = h;
-                        sf::View view(sf::FloatRect(0, 0, width, height));
-                        router.resize(width, height);
-
-                        window.clear();
-                        window.setView(view);
-                        router.draw();
-                        window.display();
+                    if (next_h < minHeight) {
+                        next_h = float(minHeight);
                     }
                 }
                 else if (event.type == sf::Event::MouseButtonPressed) {
                     if (event.mouseButton.button == sf::Mouse::Button::Left) {
                         mouseUp = router.downEvent(event.mouseButton.x,
                                                    event.mouseButton.y);
-                        window.clear();
-                        router.draw();
-                        window.display();
+                        doDraw = true;
                     }
                 }
                 else if (event.type == sf::Event::MouseButtonReleased) {
@@ -122,29 +110,40 @@ SfmlEventLoop::run(sf::RenderWindow&                 window,
                         mouseUp(event.mouseButton.x,
                                 event.mouseButton.y,
                                 true);
-                        window.clear();
-                        router.draw();
-                        window.display();
+                        mouseUp = Wawt::EventUpCb();
+                        doDraw = true;
+                    }
+                }
+                else if (event.type == sf::Event::MouseMoved) {
+                    if (mouseUp) {
+                        mouseUp(event.mouseMove.x,
+                                event.mouseMove.y,
+                                false);
+                        doDraw = true;
                     }
                 }
                 else if (event.type == sf::Event::TextEntered) {
-                    window.clear();
-
                     Wawt::Char_t key;
                     encodeKey(key, event.text.unicode);
-
-                    if (router.inputEvent(key)) {
-                        router.draw();
-                    }
-                    window.display();
+                    doDraw = router.inputEvent(key);
                 }
             }
-            else {
-                if (router.tick(loopInterval)) {
-                    window.clear();
-                    router.draw();
-                    window.display();
+            auto doResize = next_w != width || next_h != height;
+
+            if (router.tick(loopInterval) || doResize || doDraw) {
+                if (doResize) {
+                    width  = next_w;
+                    height = next_h;
+                    router.resize(width, height);
                 }
+                window.clear();
+
+                if (doResize) {
+                    auto view = sf::View(sf::FloatRect(0, 0, width, height));
+                    window.setView(view);
+                }
+                router.draw();
+                window.display();
             }
         }
         catch (Wawt::WawtException& ex) {

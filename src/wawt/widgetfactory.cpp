@@ -25,12 +25,12 @@
 #include <iostream>
 
 #ifdef WAWT_WIDECHAR
-#define S(str) String_t(L"" str)  // wide char strings (std::wstring)
+#define S(str) (L"" str)  // wide char strings (std::wstring)
 #define C(c) (L ## c)
 #else
 #undef  S
 #undef  C
-#define S(str) String_t(u8"" str)      // UTF8 strings  (std::string)
+#define S(str) (u8"" str)      // UTF8 strings  (std::string)
 #define C(c) (U ## c)
 #endif
 
@@ -92,7 +92,7 @@ void addDropDown(Widget             *dropDown,
 
     for (auto& item : list.children()) {
         // item layout is relative to list so they require no adjustments.
-        item.downEventMethod( // on click copy label to drop-down etc. and clean up.
+        item.downEventMethod( // on click copy label to drop-down clean-up etc.
             [cb=selectCb,select,id,root](auto, auto, Widget *widget, auto)
             {
                 widget->selected(true);
@@ -104,7 +104,8 @@ void addDropDown(Widget             *dropDown,
 
                             if (widget->inside(x, y)) {
                                 select->resetLabel(widget->text()
-                                                         .d_data.view());
+                                                         .d_layout
+                                                         .d_viewFn);
                                 auto lclselect = select;
                                 auto lclcb     = std::move(cb);
                                 auto rid       = widget->settings()
@@ -427,29 +428,48 @@ Widget::DownEventMethod makeRadioButtonDownMethod(const GroupClickCb& cb)
 
 } // unnamed namespace
 
+Widget canvas(Trackee&&                        tracker,
+              const Layout&                    layout,
+              Widget::DrawMethod&&             customDraw,
+              Widget::DownEventMethod&&        onClick)
+{
+    return  Widget(WawtEnv::sCanvas, std::move(tracker), layout)
+            .downEventMethod(std::move(onClick))
+            .drawMethod(std::move(customDraw));
+}
+
+Widget canvas(const Layout&                    layout,
+              Widget::DrawMethod&&             customDraw,
+              Widget::DownEventMethod&&        onClick)
+{
+    return  Widget(WawtEnv::sCanvas, layout)
+            .downEventMethod(std::move(onClick))
+            .drawMethod(std::move(customDraw));
+}
+
 Widget checkBox(Trackee&&               tracker,
                 const Layout&           layout,
-                StringView_t            string,
+                Text::View_t&&          string,
                 CharSizeGroup           group,
                 TextAlign               alignment)
 {
     return  Widget(WawtEnv::sItem, std::move(tracker), layout)
             .downEventMethod(makeToggleButtonDownMethod(GroupClickCb()))
             .useTextBounds(layout.d_thickness <= 0.0)
-            .text(string, group, alignment)
+            .text(std::move(string), group, alignment)
             .textMark(Text::BulletMark::eSQUARE,
                       alignment != TextAlign::eRIGHT);                // RETURN
 }
 
 Widget checkBox(const Layout&           layout,
-                StringView_t            string,
+                Text::View_t&&          string,
                 CharSizeGroup           group,
                 TextAlign               alignment)
 {
     return  Widget(WawtEnv::sItem, layout)
             .downEventMethod(makeToggleButtonDownMethod(GroupClickCb()))
             .useTextBounds(layout.d_thickness <= 0.0)
-            .text(string, group, alignment)
+            .text(std::move(string), group, alignment)
             .textMark(Text::BulletMark::eSQUARE,
                       alignment != TextAlign::eRIGHT);                // RETURN
 }
@@ -467,27 +487,27 @@ Widget concatenateLabels(Trackee&&             tracker,
     auto noLayout    = [](Widget*,const Widget&,bool,DrawProtocol*) -> void {};
 
     if (group && labels.size() > 0) {
-        auto length = std::size_t{};
-
         for (auto [string, options] : labels) {
             if (auto p1 = std::get_if<TextEntry*>(&string)) {
                 result.addChild(label(**p1,
                                       Layout(),
-                                      (*p1)->layoutString(),
+                                      Text::capture((*p1)->layoutString()),
                                       group,
                                       TextAlign::eLEFT)
                                 .layoutMethod(noLayout).options(options));
-                length += (*p1)->layoutString().length();
             }
-            else if (auto p2 = std::get_if<StringView_t>(&string)) {
-                result.addChild(label(Layout(), *p2, group, TextAlign::eLEFT)
+            else if (auto p2 = std::get_if<Text::View_t>(&string)) {
+                result.addChild(label(Layout(),
+                                      std::move(*p2),
+                                      group,
+                                      TextAlign::eLEFT)
                                     .layoutMethod(noLayout).options(options));
-                length += p2->length();
             }
             else {
                 assert(0);
             }
         }
+        auto length = std::size_t{32};
         result.layoutMethod(
             [alignment, length](Widget         *me,
                                 const Widget&   parent,
@@ -520,8 +540,10 @@ Widget dialogBox(Trackee&&                     tracker,
     auto lineLayout = gridLayoutGenerator(-1.0, dialog.size()+3, 1);
     auto modal = Widget(WawtEnv::sDialog, std::move(tracker), dialogLayout);
 
-    for (auto& line : dialog) {
-        auto nextChild = label(lineLayout(), line.d_view, line.d_group);
+    for (auto line : dialog) {
+        auto nextChild = label(lineLayout(),
+                               std::move(line.d_view),
+                               line.d_group);
 
         if (modal.hasChildren()) {
             modal.addChild(std::move(nextChild));
@@ -592,13 +614,13 @@ Widget fixedSizeList(Trackee&&               tracker,
     auto childLayout = gridLayoutGenerator(-1.0, labels.size(), 1);
     auto list        = Widget(WawtEnv::sList, std::move(tracker), listLayout);
 
-    for (auto& label : labels) {
+    for (auto label : labels) {
         list.addChild(
             Widget(WawtEnv::sItem, std::move(tracker), childLayout())
                 .downEventMethod(singleSelect
                     ? makeRadioButtonDownMethod(selectCb)
                     : makeToggleButtonDownMethod(selectCb))
-                .text(label, group, TextAlign::eCENTER));
+                .text(std::move(label), group, TextAlign::eCENTER));
 
     }
     return list;                                                      // RETURN
@@ -616,36 +638,36 @@ Widget fixedSizeList(const Layout&           listLayout,
 
 Widget label(Trackee&&                  tracker,
              const Layout&              layout,
-             StringView_t               string,
+             Text::View_t&&             string,
              CharSizeGroup              group,
              TextAlign                  alignment)
 {
     return  Widget(WawtEnv::sLabel, std::move(tracker), layout)
-            .text(string, group, alignment);                          // RETURN
+            .text(std::move(string), group, alignment);               // RETURN
 }
 
 Widget label(const Layout&              layout,
-             StringView_t               string,
+             Text::View_t&&             string,
              CharSizeGroup              group,
              TextAlign                  alignment)
 {
     return  Widget(WawtEnv::sLabel, layout)
-            .text(string, group, alignment);                          // RETURN
+            .text(std::move(string), group, alignment);               // RETURN
 }
 
 Widget label(Trackee&&                  tracker,
              const Layout&              layout,
-             StringView_t               string,
+             Text::View_t&&             string,
              TextAlign                  alignment)
 {
     return  Widget(WawtEnv::sLabel, std::move(tracker), layout)
-            .text(string, alignment);                                 // RETURN
+            .text(std::move(string), alignment);                      // RETURN
 }
 
-Widget label(const Layout& layout, StringView_t string, TextAlign alignment)
+Widget label(const Layout& layout, Text::View_t&& string, TextAlign alignment)
 {
     return  Widget(WawtEnv::sLabel, layout)
-            .text(string, alignment);                                 // RETURN
+            .text(std::move(string), alignment);                      // RETURN
 }
 
 Widget panel(Trackee&& tracker, const Layout& layout, std::any options)
@@ -663,42 +685,42 @@ Widget panel(const Layout& layout, std::any options)
 Widget pushButton(Trackee&&             tracker,
                   const Layout&         layout,
                   OnClickCb             clicked,
-                  StringView_t          string,
+                  Text::View_t&&        string,
                   CharSizeGroup         group,
                   TextAlign             alignment)
 {
     return  Widget(WawtEnv::sButton, std::move(tracker), layout)
             .downEventMethod(makePushButtonDownMethod(std::move(clicked)))
-            .text(string, group, alignment);                          // RETURN
+            .text(std::move(string), group, alignment);               // RETURN
 }
 
 Widget pushButton(const Layout&         layout,
                   OnClickCb             clicked,
-                  StringView_t          string,
+                  Text::View_t&&        string,
                   CharSizeGroup         group,
                   TextAlign             alignment)
 {
     return pushButton(Trackee(), layout,
-                      clicked, string, group, alignment);             // RETURN
+                      clicked, std::move(string), group, alignment);  // RETURN
 }
 
 Widget pushButton(const Layout&         layout,
                   OnClickCb             clicked,
-                  StringView_t          string,
+                  Text::View_t&&        string,
                   TextAlign             alignment)
 {
     return pushButton(Trackee(), layout, clicked,
-                      string, CharSizeGroup(), alignment);            // RETURN
+                      std::move(string), CharSizeGroup(), alignment); // RETURN
 }
 
 Widget pushButton(Trackee&&             tracker,
                   const Layout&         layout,
                   OnClickCb             clicked,
-                  StringView_t          string,
+                  Text::View_t&&        string,
                   TextAlign             alignment)
 {
     return pushButton(std::move(tracker), layout, clicked,
-                      string, CharSizeGroup(), alignment);            // RETURN
+                      std::move(string), CharSizeGroup(), alignment); // RETURN
 }
 
 Widget pushButtonGrid(Trackee&&               tracker,
@@ -740,7 +762,7 @@ Widget pushButtonGrid(Trackee&&               tracker,
     for (auto& [click, label] : buttonDefs) {
         gridPanel.addChild(pushButton(childLayout(),
                                       click,
-                                      label,
+                                      Text::View_t(label),
                                       group,
                                       alignment));
         if (spaced) {
@@ -828,12 +850,12 @@ Widget radioButtonPanel(Trackee&&               tracker,
                               std::move(tracker),
                               panelLayout);
 
-    for (auto& label : labels) {
+    for (auto label : labels) {
         gridPanel.addChild(
             Widget(WawtEnv::sItem, std::move(tracker), childLayout())
                 .downEventMethod(makeRadioButtonDownMethod(gridCb))
                 .useTextBounds(true)
-                .text(label, group, alignment)
+                .text(std::move(label), group, alignment)
                 .textMark(Text::BulletMark::eROUND,
                           alignment != TextAlign::eRIGHT));
 

@@ -30,34 +30,43 @@
 namespace Wawt {
 
 struct LabelGroup {
-    StringView_t    d_view{};
+    Text::View_t    d_view{};
     CharSizeGroup   d_group{};
 };
 
 struct TextOption {
-    using Stringish = std::variant<StringView_t,TextEntry*>;
+    using Stringish = std::variant<Text::View_t, TextEntry*>;
 
     Stringish       d_stringish{};
     std::any        d_options{};
 };
 
 using OnClickCb         = std::function<void(Widget *)>;
-using ClickLabelPair    = std::pair<OnClickCb, StringView_t>;
+using ClickLabelPair    = std::pair<OnClickCb, Text::View_t>;
 using ClickLabelList    = std::initializer_list<ClickLabelPair>;
 using GroupClickCb      = std::function<void(Widget *,uint16_t relativeId)>;
 using LabelGroupList    = std::initializer_list<LabelGroup>;
-using LabelList         = std::initializer_list<StringView_t>;
+using LabelList         = std::initializer_list<Text::View_t>;
 using LabelOptionList   = std::initializer_list<TextOption>;
 using WidgetGenerator   = std::function<Widget(int row, int column)>;
 
+Widget canvas(Trackee&&                        tracker,
+              const Layout&                    layout,
+              Widget::DrawMethod&&             customDraw,
+              Widget::DownEventMethod&&        onClick);
+
+Widget canvas(const Layout&                    layout,
+              Widget::DrawMethod&&             customDraw,
+              Widget::DownEventMethod&&        onClick);
+
 Widget checkBox(Trackee&&                      tracker,
                 const Layout&                  layout,
-                StringView_t                   view,
+                Text::View_t&&                 view,
                 CharSizeGroup                  group     = CharSizeGroup(),
                 TextAlign                      alignment = TextAlign::eLEFT);
 
 Widget checkBox(const Layout&                  layout,
-                StringView_t                   view,
+                Text::View_t&&                 view,
                 CharSizeGroup                  group      = CharSizeGroup(),
                 TextAlign                      alignment  = TextAlign::eLEFT);
 
@@ -107,22 +116,22 @@ Widget fixedSizeList(const Layout&             listLayout,
 
 Widget label(Trackee&&                         tracker,
              const Layout&                     layout,
-             StringView_t                      view,
+             Text::View_t&&                    view,
              CharSizeGroup                     group     = CharSizeGroup(),
              TextAlign                         alignment = TextAlign::eCENTER);
 
 Widget label(const Layout&                     layout,
-             StringView_t                      view,
+             Text::View_t&&                    view,
              CharSizeGroup                     group     = CharSizeGroup(),
              TextAlign                         alignment = TextAlign::eCENTER);
 
 Widget label(Trackee&&                         tracker,
              const Layout&                     layout,
-             StringView_t                      view,
+             Text::View_t&&                    view,
              TextAlign                         alignment);
 
 Widget label(const Layout&                     layout,
-             StringView_t                      view,
+             Text::View_t&&                    view,
              TextAlign                         alignment);
 
 Widget panel(Trackee&&                         tracker,
@@ -185,25 +194,25 @@ Widget panelLayout(const Layout&                layoutPanel,
 Widget pushButton(Trackee&&                    tracker,
                   const Layout&                buttonLayout,
                   OnClickCb                    clicked,
-                  StringView_t                 view,
+                  Text::View_t&&               view,
                   CharSizeGroup                group     = CharSizeGroup(),
                   TextAlign                    alignment = TextAlign::eCENTER);
 
 Widget pushButton(const Layout&                buttonLayout,
                   OnClickCb                    clicked,
-                  StringView_t                 view,
+                  Text::View_t&&               view,
                   CharSizeGroup                group     = CharSizeGroup(),
                   TextAlign                    alignment = TextAlign::eCENTER);
 
 Widget pushButton(Trackee&&                    tracker,
                   const Layout&                buttonLayout,
                   OnClickCb                    clicked,
-                  StringView_t                 view,
+                  Text::View_t&&               view,
                   TextAlign                    alignment);
 
 Widget pushButton(const Layout&                buttonLayout,
                   OnClickCb                    clicked,
-                  StringView_t                 view,
+                  Text::View_t&&               view,
                   TextAlign                    alignment);
 
 Widget pushButtonGrid(Trackee&&                tracker,

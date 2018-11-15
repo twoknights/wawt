@@ -39,19 +39,28 @@ namespace Wawt {
                                 //============
 
 enum class  TextAlign { eINVALID, eLEFT, eCENTER, eRIGHT };
-struct      CharSizeGroup : std::optional<uint16_t> { };
-
-inline constexpr CharSizeGroup operator ""_Sz(unsigned long long int n) {
-    return CharSizeGroup{n};
-}
-
-constexpr CharSizeGroup kNOGROUP{};
 
 class DrawProtocol;
 
 struct Text {
   public:
     // PUBLIC TYPES
+    using ViewFn    = std::function<StringView_t()>;
+
+                            //====================
+                            // struct Text::View_t
+                            //====================
+
+    struct View_t {
+        using Char = String_t::value_type;
+
+        View_t()                = default;
+        View_t(const Char *s)   : d_viewFn(Text::capture(s)) { }
+        View_t(ViewFn&& f)      : d_viewFn(std::move(f))     { }
+        View_t(const ViewFn& f) : d_viewFn(f)                { }
+
+        ViewFn d_viewFn;
+    };
 
                             //==================
                             // struct Text::Data
@@ -69,7 +78,6 @@ struct Text {
     };
 
     struct Data {
-        using View = std::variant<StringView_t,String_t>;
         uint32_t            d_leftAlignMark:1, // left or right
                             d_useTextBounds:1,
                             d_labelMark:4,
@@ -77,7 +85,7 @@ struct Text {
                             d_baselineOffset:13;
         Coordinates         d_upperLeft{};
         Bounds              d_bounds{};
-        View                d_view{};
+        StringView_t        d_view{};
 
         Data() noexcept
         : d_leftAlignMark(false)
@@ -99,13 +107,7 @@ struct Text {
         }
 
         StringView_t view()                                     const noexcept{
-            if (auto p1 = std::get_if<StringView_t>(&d_view)) {
-                return *p1;
-            }
-            if (auto p2 = std::get_if<String_t>(&d_view)) {
-                return *p2;
-            }
-            return StringView_t();
+            return d_view;
         }
     };
 
@@ -121,12 +123,23 @@ struct Text {
         CharSizeGroup       d_charSizeGroup{};
         CharSizeMapPtr      d_charSizeMap{};
         bool                d_refreshBounds = false;
+        ViewFn              d_viewFn{&Text::emptyString};
 
         uint16_t    upperLimit(const Wawt::Layout::Result& container) noexcept;
 
         Coordinates position(const Bounds&                bounds,
                              const Wawt::Layout::Result&  container) noexcept;
     };
+
+    // PUBLIC CLASS METHODS
+    template <typename Stringish>
+    static ViewFn capture(const Stringish& string) {
+        return ViewFn([string] { return StringView_t(string); });
+    }
+
+    static StringView_t emptyString() {
+        return StringView_t();
+    }
 
     // PUBLIC METHODS
     bool resolveLayout(const Wawt::Layout::Result&  container,

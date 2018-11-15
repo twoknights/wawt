@@ -33,12 +33,12 @@
 #include <utility>
 
 #ifdef WAWT_WIDECHAR
-#define S(str) String_t(L"" str)  // wide char strings (std::wstring)
+#define S(str) (L"" str)  // wide char strings (std::wstring)
 #define C(c) (L ## c)
 #else
 #undef  S
 #undef  C
-#define S(str) String_t(u8"" str)      // UTF8 strings  (std::string)
+#define S(str) (u8"" str)      // UTF8 strings  (std::string)
 #define C(c) (U ## c)
 #endif
 
@@ -280,6 +280,7 @@ std::any            WawtEnv::_any;
 Char_t   WawtEnv::kFocusChg   = C('\0');
 
 char     WawtEnv::sButton[]   = "button";
+char     WawtEnv::sCanvas[]   = "canvas";
 char     WawtEnv::sDialog[]   = "dialog";
 char     WawtEnv::sEntry[]    = "entry";
 char     WawtEnv::sItem[]     = "item";
@@ -1032,12 +1033,12 @@ Widget::serializeMethod(SerializeMethod&& newMethod) & noexcept
 }
 
 Widget&
-Widget::text(StringView_t string, CharSizeGroup group, TextAlign alignment) &
+Widget::text(Text::View_t&& string, CharSizeGroup group, TextAlign alignment) &
                                                                       noexcept
 {
     text().d_layout.d_charSizeGroup    = group;
     text().d_layout.d_textAlign        = alignment;
-    text().d_data.d_view               = string;
+    text().d_layout.d_viewFn           = std::move(string.d_viewFn);
     return *this;                                                     // RETURN
 }
 
@@ -1123,6 +1124,10 @@ Widget::assignWidgetIds(uint16_t        next,
         d_layout.d_upperLeft = {-1.0, -1.0};
         d_layout.d_lowerRight= { 1.0,  1.0};
         text().d_layout.d_charSizeMap  = map;
+        
+        if (!text().d_layout.d_viewFn) {
+            text().d_layout.d_viewFn = Text::capture(S(""));
+        }
     }
     else if (hasText()) { // Don't create text layout if not needed.
         d_text->d_layout.d_charSizeMap = map;
@@ -1411,6 +1416,7 @@ Widget::pushDialog(Widget&& child, DrawProtocol *adapter)
                                              relativeId,
                                              map,
                                              d_root);
+                screen.synchronizeTextView(true);
                 screen.layout(adapter, true,  *d_root);
                 screen.layout(adapter, false, *d_root);
                 childId = WidgetId(id, false);
@@ -1424,11 +1430,12 @@ Widget::pushDialog(Widget&& child, DrawProtocol *adapter)
 }
 
 bool
-Widget::resetLabel(StringView_t newLabel)
+Widget::resetLabel(Text::View_t&& newLabel)
 {
     if (d_text) {
-        d_text->d_data.d_view   = newLabel;
+        d_text->d_layout.d_viewFn = std::move(newLabel.d_viewFn);
         d_text->d_layout.d_refreshBounds = true;
+        d_text->d_data.d_view = d_text->d_layout.d_viewFn();
     }
     return bool(d_text);                                              // RETURN
 }
@@ -1488,8 +1495,10 @@ Widget::serialize(std::ostream&     os,
 
     indent += 2;
 
-    for (auto& child : children()) {
-        child.serialize(os, indent);
+    if (hasChildren()) {
+        for (auto& child : children()) {
+            child.serialize(os, indent);
+        }
     }
     os << closeTag;
     return;                                                           // RETURN
@@ -1499,6 +1508,21 @@ Widget::SerializeMethod
 Widget::serializeMethod() const noexcept
 {
     return d_methods ? d_methods->d_serializeMethod : SerializeMethod();
+}
+
+void
+Widget::synchronizeTextView(bool recurse) noexcept
+{
+    if (d_text) {
+        d_text->d_data.d_view = d_text->d_layout.d_viewFn();
+        d_text->d_layout.d_refreshBounds; // realign new string
+    }
+
+    if (recurse && hasChildren()) {
+        for (auto& child : children()) {
+            child.synchronizeTextView(true);
+        }
+    }
 }
 
 const Text&

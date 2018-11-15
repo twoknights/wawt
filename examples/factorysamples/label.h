@@ -47,6 +47,7 @@ class Labels : public Wawt::ScreenImpl<Labels,DrawOptions> {
 
 private:
     // PRIVATE DATA MEMBERS
+    bool            d_english = false;
     Wawt::OnClickCb d_next;
 };
 
@@ -54,11 +55,28 @@ inline Wawt::Widget
 Labels::createScreenPanel()
 {
     using namespace Wawt;
+    using namespace Wawt::literals;
     auto yellowText = defaultOptions(WawtEnv::sLabel)
                         .textColor({255u,255u,0u});
     auto lineColor  = defaultOptions(WawtEnv::sPanel)
                         .lineColor(defaultOptions(WawtEnv::sScreen)
                                         .d_fillColor);
+    auto buttonLabel  = Text::View_t([this] {
+        return StringView_t(d_english ? S("Pусский") : S("English"));
+    });
+    auto prefix = Text::View_t([this] {
+        return StringView_t(d_english ? S("With support for")
+                                      : S("С поддержкой"));
+    });
+    auto suffix = Text::View_t([this] {
+        return StringView_t(d_english ? S("or wide character strings.")
+                                      : S("или широких символьных строк."));
+    });
+    auto toggle = [this] (Widget*) {
+        d_english = !d_english;
+        synchronizeTextView();
+        resize();
+    };
     auto screen =
         panel().addChild(
                     label({{-1.0, -1.0}, {1.0, -0.9}, 0.1}, S("Labels"))
@@ -67,8 +85,9 @@ Labels::createScreenPanel()
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(
                     pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}}, -1.0, 1_Sz,
-                                   {{d_next, S("Next")}})
-                                    .border(5).options(lineColor))
+                                   {{toggle, buttonLabel},
+                                    {d_next, S("Next")}})
+                    .border(5).options(lineColor))
                .addChild(
                     panelLayout({{-1.0, 1.0, 0_wr}, {1.0, -1.0, 1_wr}}, 0, 1,
 
@@ -82,10 +101,10 @@ label({},
   S("and assigned to a character size group where all share the same size."),
       2_Sz),
 concatenateLabels({}, 3_Sz, TextAlign::eCENTER, {
-        { S("С поддержкой "), yellowText},
-        { S("UTF-8"), yellowText.clone().bold(true).font(1)
-                                        .textColor({255u,0u,0u})},
-        { S(" или широким символом."), yellowText}
+        { prefix, yellowText},
+        { S(" UTF-8 "), yellowText.clone().bold(true).font(1)
+                                          .textColor({255u,0u,0u})},
+        { suffix, yellowText}
     })));
 // End Samples.
 

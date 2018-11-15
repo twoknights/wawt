@@ -233,9 +233,7 @@ class Screen {
      * @param newHeight The new height value (optionally the current height).
      * @param adapter Optional adapter to use when "laying" out the screen.
      *
-     * This method should also be called if the mapping of string ID values
-     * to strings change (e.g. a language change). The 'activate' method
-     * must be called before this method can be used.
+     * The 'activate' method must be called before this method can be used.
      */
     void resize(double        newWidth  = 0,
                 double        newHeight = 0,
@@ -256,6 +254,25 @@ class Screen {
     void screenSetup(std::string_view name, const SetTimerCb& setTimer) {
         d_setTimer  = setTimer;
         d_name.assign(name.data(), name.length());
+    }
+                
+    /**
+     * @brief Update text strings with current layout results.
+     *
+     * @param widget Optional widget to synchronize. Default is all widgets.
+     *
+     * This method is called as a part of 'activate', but should also be
+     * called if there was a change that would modify the values returned
+     * by any text layout string functor. A call to 'resize()' may have to
+     * follow if the text changes the width of the displayed text.
+     */
+    void synchronizeTextView(Widget *widget = nullptr) {
+        if (widget) {
+            widget->synchronizeTextView(false);
+        }
+        else {
+            d_screen.synchronizeTextView(true);
+        }
     }
 
     // PUBLIC ACCESSSOR
@@ -343,7 +360,19 @@ class ScreenImpl : public Screen {
 
     // PUBLIC CLASS MEMBERS
 
+    // PUBLIC CONSTRUCTORS
+
+    // To insure that 'this' can be used in lambda captures often found in
+    // widget callbacks, delete the move and copy constructors and assignments.
+
+    ScreenImpl(ScreenImpl&&)                        = delete;
+    ScreenImpl(const ScreenImpl&)                   = delete;
+
     // PUBLIC MANIPULATORS
+
+    ScreenImpl& operator=(ScreenImpl&&)             = delete;
+    ScreenImpl& operator=(const ScreenImpl&)        = delete;
+
     /**
      * @brief Activate a screen so its 'draw' and other methods can be called.
      *
@@ -424,8 +453,9 @@ ScreenImpl<Derived,Option>::activate(double         width,
                                      Types&...      args)
 {
     try {
-        resize(width, height);
         static_cast<Derived*>(this)->resetWidgets(args...);
+        d_screen.synchronizeTextView();
+        resize(width, height);
     }
     catch (WawtException caught) {
             std::ostringstream os;

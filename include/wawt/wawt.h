@@ -34,13 +34,13 @@ namespace Wawt {
 #ifdef WAWT_WIDECHAR
 //! Character encoding:  wide-char (size & byte-order is system dependent)
 using Char_t        = wchar_t
-using String_t      = std::basic_string<wchar_t>;
-using StringView_t  = std::basic_string_view<wchar_t>;
+using String_t      = std::wstring;
+using StringView_t  = std::wstring_view;
 #else
 //! Character encoding: utf32 char, utf8 strings
 using Char_t        = char32_t;
-using String_t      = std::basic_string<char>;
-using StringView_t  = std::basic_string_view<char>;
+using String_t      = std::string;
+using StringView_t  = std::string_view;
 #endif
 
 inline
@@ -82,6 +82,22 @@ Char_t popFrontChar(StringView_t& view);
 //
 using EventUpCb   = std::function<void(double x, double y, bool)>;
 
+
+                            //=====================
+                            // struct CharSizeGroup
+                            //=====================
+
+struct      CharSizeGroup : std::optional<uint16_t> { };
+
+namespace literals {
+
+inline constexpr CharSizeGroup operator ""_Sz(unsigned long long int n) {
+    return CharSizeGroup{n};
+}
+
+} // end literals
+
+constexpr CharSizeGroup kNOGROUP{};
 
                             //===================
                             // struct Coordinates

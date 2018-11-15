@@ -25,8 +25,6 @@
 #include <wawt/wawtenv.h>
 #include <wawt/widgetfactory.h>
 
-#include <iostream>
-
                                 //==============
                                 // class Buttons
                                 //==============
@@ -52,13 +50,13 @@ private:
     // PRIVATE DATA MEMBERS
     Wawt::OnClickCb             d_next;
     Wawt::OnClickCb             d_prev;
-    std::vector<Wawt::String_t> d_buttons;
 };
 
 inline Wawt::Widget
 Buttons::createScreenPanel()
 {
     using namespace Wawt;
+    using namespace Wawt::literals;
     auto lineColor  = defaultOptions(WawtEnv::sPanel)
                           .lineColor(defaultOptions(WawtEnv::sScreen)
                                           .d_fillColor);
@@ -67,13 +65,12 @@ Buttons::createScreenPanel()
         [layoutGrid]() mutable -> Layout {
             return layoutGrid().scale(1.0, 0.8);
         };
-    d_buttons.reserve(10);
     auto widgetFn   =
         [childLayout = gridLayoutGenerator(-1.0, 10, 3),
          this] (int r, int c) -> Widget {
             return pushButton(childLayout(),
                               OnClickCb(),
-                              d_buttons.emplace_back(toString((7-r*3)+c)),
+                              Text::capture(toString((7-r*3)+c)),
                               3_Sz);
         };
 

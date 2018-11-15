@@ -248,24 +248,24 @@ class  Widget final {
         return *this;
     }
 
-    Widget  text(StringView_t   string,
+    Widget  text(Text::View_t&& string,
                  CharSizeGroup  group     = CharSizeGroup(),
                  TextAlign      alignment = TextAlign::eCENTER) &&   noexcept {
-        this->text(string, group, alignment);
+        this->text(std::move(string), group, alignment);
         return std::move(*this);
     }
 
-    Widget& text(StringView_t   string,
+    Widget& text(Text::View_t&& string,
                  CharSizeGroup  group     = CharSizeGroup(),
                  TextAlign      alignment = TextAlign::eCENTER) &    noexcept;
 
-    Widget  text(StringView_t string, TextAlign alignment) &&        noexcept {
-        this->text(string, CharSizeGroup(), alignment);
+    Widget  text(Text::View_t&& string, TextAlign alignment) &&      noexcept {
+        this->text(std::move(string), CharSizeGroup(), alignment);
         return std::move(*this);
     }
 
-    Widget& text(StringView_t string, TextAlign alignment) &         noexcept {
-        return text(string, CharSizeGroup(), alignment);
+    Widget& text(Text::View_t&& string, TextAlign alignment) &       noexcept {
+        return text(std::move(string), CharSizeGroup(), alignment);
     }
 
     Widget  textMark(Text::BulletMark  mark,
@@ -316,7 +316,7 @@ class  Widget final {
     WidgetId  pushDialog(Widget&&       child,
                          DrawProtocol  *adapter = WawtEnv::drawAdapter());
 
-    bool      resetLabel(StringView_t newLabel);
+    bool      resetLabel(Text::View_t&& newLabel);
 
     void      resizeScreen(double         width,
                            double         height,
@@ -333,6 +333,8 @@ class  Widget final {
     Settings& settings()                                             noexcept {
         return d_settings;  
     }
+
+    void      synchronizeTextView(bool recurse = true)               noexcept;
 
     Text&     text()                                                 noexcept {
         if (!d_text) {

@@ -61,6 +61,11 @@ class SfmlDrawAdapter : public Wawt::DrawProtocol {
                         uint16_t              upperLimit,
                         const std::any&       options)       noexcept override;
 
+    // PUBLIC MANIPULATORS
+    sf::RenderWindow *window()                                       noexcept {
+        return &d_window;
+    }
+
     // PUBLIC ACCESSORS
     bool   isGood()                                            const noexcept {
         return d_defaultOk;
