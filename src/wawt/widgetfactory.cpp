@@ -491,7 +491,7 @@ Widget concatenateLabels(Trackee&&             tracker,
             if (auto p1 = std::get_if<TextEntry*>(&string)) {
                 result.addChild(label(**p1,
                                       Layout(),
-                                      Text::capture((*p1)->layoutString()),
+                                      (*p1)->layoutString(),
                                       group,
                                       TextAlign::eLEFT)
                                 .layoutMethod(noLayout).options(options));
@@ -834,7 +834,7 @@ Widget pushButtonGrid(const Layout&           gridLayout,
 {
     return pushButtonGrid(Trackee(), gridLayout, buttonDefs.size(),
                           borderThickness, group, TextAlign::eCENTER,
-                          buttonDefs, spaced);    // RETURN
+                          buttonDefs, spaced);                        // RETURN
 }
 
 Widget radioButtonPanel(Trackee&&               tracker,

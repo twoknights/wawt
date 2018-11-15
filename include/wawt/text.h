@@ -29,6 +29,7 @@
 #include <ostream>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <variant>
 
@@ -55,9 +56,23 @@ struct Text {
         using Char = String_t::value_type;
 
         View_t()                = default;
-        View_t(const Char *s)   : d_viewFn(Text::capture(s)) { }
-        View_t(ViewFn&& f)      : d_viewFn(std::move(f))     { }
-        View_t(const ViewFn& f) : d_viewFn(f)                { }
+
+        template<std::size_t N>
+        View_t(const Char (&str)[N])
+            : d_viewFn([str] { return StringView_t(str,N-1); }) { }
+
+        template<typename Str>
+        View_t(Str&& str,
+               std::enable_if_t<std::is_convertible_v<Str, StringView_t>>*
+                                                                    = nullptr)
+            : d_viewFn([s=std::forward<Str>(str)] { return StringView_t(s); })
+            { }
+
+        template<typename Fn>
+        View_t(Fn&& f,
+               std::enable_if_t<std::is_invocable_r<StringView_t, Fn>::value>*
+                                                                    = nullptr)
+             : d_viewFn(std::forward<Fn>(f))     { }
 
         ViewFn d_viewFn;
     };
@@ -123,23 +138,13 @@ struct Text {
         CharSizeGroup       d_charSizeGroup{};
         CharSizeMapPtr      d_charSizeMap{};
         bool                d_refreshBounds = false;
-        ViewFn              d_viewFn{&Text::emptyString};
+        ViewFn              d_viewFn{[] { return StringView_t(); }};
 
         uint16_t    upperLimit(const Wawt::Layout::Result& container) noexcept;
 
         Coordinates position(const Bounds&                bounds,
                              const Wawt::Layout::Result&  container) noexcept;
     };
-
-    // PUBLIC CLASS METHODS
-    template <typename Stringish>
-    static ViewFn capture(const Stringish& string) {
-        return ViewFn([string] { return StringView_t(string); });
-    }
-
-    static StringView_t emptyString() {
-        return StringView_t();
-    }
 
     // PUBLIC METHODS
     bool resolveLayout(const Wawt::Layout::Result&  container,

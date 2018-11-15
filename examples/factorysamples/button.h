@@ -70,7 +70,7 @@ Buttons::createScreenPanel()
          this] (int r, int c) -> Widget {
             return pushButton(childLayout(),
                               OnClickCb(),
-                              Text::capture(toString((7-r*3)+c)),
+                              toString((7-r*3)+c),
                               3_Sz);
         };
 

@@ -1126,7 +1126,7 @@ Widget::assignWidgetIds(uint16_t        next,
         text().d_layout.d_charSizeMap  = map;
         
         if (!text().d_layout.d_viewFn) {
-            text().d_layout.d_viewFn = Text::capture(S(""));
+            text().d_layout.d_viewFn = [] { return StringView_t(); };
         }
     }
     else if (hasText()) { // Don't create text layout if not needed.
