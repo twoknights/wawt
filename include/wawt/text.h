@@ -21,6 +21,7 @@
 
 #include "wawt/wawt.h"
 #include "wawt/layout.h"
+#include "wawt/wawtenv.h"
 
 #include <any>
 #include <functional>
@@ -57,22 +58,32 @@ struct Text {
 
         View_t()                = default;
 
+        template<typename ENUM,
+                 typename = std::enable_if_t<std::is_enum_v<ENUM>
+                                            || std::is_same_v<ENUM,int>>>
+        View_t(ENUM stringId)
+            : d_viewFn([stringId] {
+                            return WawtEnv::translate(int(stringId));
+                       }) { }
+
         template<std::size_t N>
         View_t(const Char (&str)[N])
-            : d_viewFn([str] { return StringView_t(str,N-1); }) { }
+            : d_viewFn([str] {
+                            return WawtEnv::translate(StringView_t(str,N-1));
+                       }) { }
 
-        template<typename Str>
-        View_t(Str&& str,
-               std::enable_if_t<std::is_convertible_v<Str, StringView_t>>*
+        template<typename STR>
+        View_t(STR&& str,
+               std::enable_if_t<std::is_convertible_v<STR, StringView_t>>*
                                                                     = nullptr)
-            : d_viewFn([s=std::forward<Str>(str)] { return StringView_t(s); })
+            : d_viewFn([s=std::forward<STR>(str)] { return StringView_t(s); })
             { }
 
-        template<typename Fn>
-        View_t(Fn&& f,
-               std::enable_if_t<std::is_invocable_r<StringView_t, Fn>::value>*
+        template<typename FN>
+        View_t(FN&& f,
+               std::enable_if_t<std::is_invocable_r<StringView_t, FN>::value>*
                                                                     = nullptr)
-             : d_viewFn(std::forward<Fn>(f))     { }
+             : d_viewFn(std::forward<FN>(f)) { }
 
         ViewFn d_viewFn;
     };

@@ -275,6 +275,7 @@ bool findWidget(const Widget              **widget,
 std::atomic_flag    WawtEnv::_atomicFlag   = ATOMIC_FLAG_INIT;
 WawtEnv            *WawtEnv::_instance     = nullptr;
 std::any            WawtEnv::_any;
+WawtEnv::Translator WawtEnv::_translator;
 
 // The following defaults should be found in all fonts.
 Char_t   WawtEnv::kFocusChg   = C('\0');

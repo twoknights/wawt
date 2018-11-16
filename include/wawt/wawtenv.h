@@ -42,6 +42,16 @@ class DrawProtocol;
 class WawtEnv {
   public:
     // PUBLIC TYPES
+    class Translator {
+      public:
+        virtual StringView_t operator()(const StringView_t& string) {
+            return string;
+        }
+
+        virtual StringView_t operator()(int) {
+            return StringView_t();
+        }
+    };
     using Defaults      = std::pair<float , std::any>;
 
     template <typename Options>
@@ -65,6 +75,14 @@ class WawtEnv {
         return _instance ? _instance->d_drawAdapter : nullptr;
     }
 
+    static StringView_t translate(const StringView_t& string) {
+        return _instance ? _instance->_translate(string) : string;
+    }
+
+    static StringView_t translate(int stringId) {
+        return _instance ? _instance->_translate(stringId) : StringView_t();
+    }
+
     static WawtEnv      *instance() {
         return _instance;
     }
@@ -84,24 +102,25 @@ class WawtEnv {
     static char    sScrollbox[];
 
     // PUBLIC CONSTRUCTOR
-    WawtEnv() : d_optionDefaults{}, d_drawAdapter(nullptr) {
+    WawtEnv(Translator *translator = nullptr)
+    : d_optionDefaults{}, d_drawAdapter(nullptr), d_translator{translator} {
         _init();
     }
 
-    WawtEnv(DrawProtocol *adapter)
-    : d_optionDefaults{}, d_drawAdapter(adapter) {
+    WawtEnv(DrawProtocol *adapter, Translator *translator = nullptr)
+    : d_optionDefaults{}, d_drawAdapter(adapter), d_translator{translator} {
         _init();
     }
 
     template <typename Options>
     WawtEnv(const DefaultOptions<Options>&  optionDefaults,
-            DrawProtocol                   *adapter = nullptr)
-    : d_optionDefaults{}, d_drawAdapter(adapter)
+            DrawProtocol                   *adapter     = nullptr,
+            Translator                     *translator  = nullptr)
+    : d_optionDefaults{}, d_drawAdapter(adapter), d_translator{translator}
     {
         for (auto& [optionName, border, options] : optionDefaults) {
             d_optionDefaults.try_emplace(optionName, border, options);
         }
-
         _init();
     }
 
@@ -115,13 +134,18 @@ class WawtEnv {
     }
 
   private:
+
     // PRIVATE CLASS MEMBERS
     static std::atomic_flag     _atomicFlag;
     static WawtEnv             *_instance;
     static std::any             _any;
+    static Translator           _translator;
 
     // PRIVATE MANIPULATORS
     void _init() {
+        if (d_translator == nullptr) {
+            d_translator = &_translator;
+        }
         while (_atomicFlag.test_and_set()) {};
         
         if (_instance == nullptr) {
@@ -143,9 +167,18 @@ class WawtEnv {
         return d_optionDefaults.end() != it ? it->second.second : _any;
     }
 
+    StringView_t    _translate(const StringView_t& string) const {
+        return (*d_translator)(string);
+    }
+
+    StringView_t    _translate(int stringId) const {
+        return (*d_translator)(stringId);
+    }
+
     // PRIVATE DATA MEMBERS
     std::map<std::string, Defaults> d_optionDefaults{};
-    DrawProtocol                   *d_drawAdapter;
+    DrawProtocol                   *d_drawAdapter    = nullptr;
+    Translator                     *d_translator     = nullptr;
 };
 
 } // end Wawt namespace

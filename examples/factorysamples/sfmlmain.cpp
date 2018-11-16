@@ -67,9 +67,11 @@ drawHexBoard(Wawt::Widget *widget, Wawt::DrawProtocol *adapter, double mx, doubl
 
     auto  radius      = std::min(boxwidth/BOARDWIDTH, boxheight/BOARDHEIGHT);
     auto  corner_x    = std::ceil(upperLeft_x
-                                  + std::round((boxwidth  - radius*BOARDWIDTH)/2.));
+                                  + std::round((boxwidth
+                                                    - radius*BOARDWIDTH)/2.));
     auto  corner_y    = std::ceil(upperLeft_y
-                                  + std::round((boxheight - radius*BOARDHEIGHT)/2.));
+                                  + std::round((boxheight
+                                                    - radius*BOARDHEIGHT)/2.));
 
     // Draw the hex board on a black background
     auto  x           = 0.f;
@@ -241,8 +243,10 @@ int main()
                                    sf::ContextSettings());
 
     auto drawAdapter = SfmlDrawAdapter(window, primary, secondary);
+    auto translator  = Labels::Translate{};
     auto wawtEnv     = Wawt::WawtEnv(DrawOptions::optionDefaults(),
-                                     &drawAdapter);
+                                     &drawAdapter,
+                                     &translator);
 
     Wawt::EventRouter::Handle panels, labels, bullets, lists, buttons, addons,
                               canvas;
@@ -251,7 +255,8 @@ int main()
     labels  = router.create<Labels>("Labels",
                                     [&router,&panels](auto) {
                                        router.activate<Panels>(panels);
-                                    });
+                                    },
+                                    translator.d_english);
     panels  = router.create<Panels>("Panels",
                                     [&router,&labels](auto) {
                                        router.activate<Labels>(labels);
