@@ -2,6 +2,7 @@
 build/
 html/
 latex/
+.vscode/
 junk*
 
 # Prerequisites

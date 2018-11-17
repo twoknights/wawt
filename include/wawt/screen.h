@@ -398,7 +398,6 @@ class ScreenImpl : public Screen {
   protected:
     // PROTECTED CONSTRUCTORS
 
-    //! Initialize the base class with a close function object.
     ScreenImpl();
 
     // PROTECTED MANIPULATORS

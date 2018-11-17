@@ -20,11 +20,12 @@
 #define TICTACDOH_SETUPSCREEN_H
 
 #include "stringid.h"
+#include "drawoptions.h"
 
-#include <SFML/Network/TcpSocket.hpp>
+#include <wawt/wawt.h>
+#include <wawt/screen.h>
 
-#include <atomic>
-#include <iostream>
+#include <utility>
 
                             //==================
                             // class SetupScreen
@@ -51,35 +52,40 @@ class SetupScreen : public Wawt::ScreenImpl<SetupScreen,DrawOptions> {
 
         virtual ~Calls() { }
 
-        virtual StatusPair connect(const Wawt::String_t& address)       = 0;
+        virtual StatusPair accept(const Wawt::String_t& address)        = 0;
 
         virtual void       cancel()                                     = 0;
 
-        virtual void       startGame(const Wawt::String_t&, int)        = 0;
+        virtual StatusPair connect(const Wawt::String_t& address)       = 0;
+
+        virtual void       startGame(int)                               = 0;
     };
 
     // PUBLIC CONSTRUCTORS
-    SetupScreen(Calls *controller)
-        : ScreenImpl() , d_controller(controller) { }
+    SetupScreen(Calls *controller, StringIdLookup *mapper)
+        : ScreenImpl(), d_controller(controller), d_mapper(mapper) { }
 
     // PUBLIC MANIPULATORS
     // Called by 'WawtScreenImpl::setup()':
     Wawt::Widget createScreenPanel();
 
+    void         initialize();
+
     // Called by 'WawtScreenImpl::activate()':
     void resetWidgets();
 
-    /*Wawt::EnterFn*/ void connectCallback(bool listen);
+    void connectCallback(bool listen);
 
     void connectionResult(bool success, Wawt::String_t status);
 
   private:  
     // PRIVATE DATA MEMBERS
-//    TextEntry              *d_connectEntry;
-//    TextEntry              *d_listenEntry;
-//    List                   *d_playerMark;
-    Calls                  *d_controller;
+    Wawt::TextEntry         d_connectEntry{35};
+    Wawt::TextEntry         d_listenPortEntry{5};
     int                     d_moveTime = 10;
+    Wawt::Tracker           d_languageList;
+    Calls                  *d_controller;
+    StringIdLookup         *d_mapper;
 };
 
 #endif

@@ -75,7 +75,7 @@ Canvas::createScreenPanel()
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(
                     pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}}, -1.0, 1_Sz,
-                                   {{d_prev, S("Prev")}})
+                                   {{S("Prev"),    d_prev}})
                     .border(5).options(lineColor))
                .addChild(
                     canvas({{-1.0, 1.25, 0_wr}, {1.0, -1.25, 1_wr}},

@@ -89,6 +89,8 @@ using EventUpCb   = std::function<void(double x, double y, bool)>;
 
 struct      CharSizeGroup : std::optional<uint16_t> { };
 
+// LITERALS
+
 namespace literals {
 
 inline constexpr CharSizeGroup operator ""_Sz(unsigned long long int n) {
@@ -191,7 +193,9 @@ class WidgetId {
 constexpr WidgetId WidgetId::kPARENT(UINT16_MAX,true);
 constexpr WidgetId WidgetId::kROOT(UINT16_MAX-1,true);
 
-// FREE OPERATORS
+// LITERALS
+
+namespace literals {
 
 inline
 constexpr WidgetId operator "" _w(unsigned long long int n)     noexcept {
@@ -201,6 +205,8 @@ constexpr WidgetId operator "" _w(unsigned long long int n)     noexcept {
 inline
 constexpr WidgetId operator "" _wr(unsigned long long int n)    noexcept {
     return WidgetId(n, true);
+}
+
 }
 
 

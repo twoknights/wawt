@@ -19,11 +19,21 @@
 
 #include "controller.h"
 
-#include <SFML/Network/SocketSelector.hpp>
-
 #include <chrono>
+#include <mutex>
 #include <string>
 #include <thread>
+
+#undef  S
+#undef  C
+
+#ifdef WAWT_WIDECHAR
+#define S(str) (L"" str)  // wide char strings (std::wstring)
+#define C(c) (L ## c)
+#else
+#define S(str) (u8"" str)      // UTF8 strings  (std::string)
+#define C(c) (U ## c)
+#endif
 
 using namespace std::literals::chrono_literals;
 
@@ -35,18 +45,27 @@ namespace {
                             // class Controller
                             //-----------------
 
+Controller::~Controller()
+{
+}
+
+Controller::StatusPair
+Controller::accept(const Wawt::String_t& address)
+{
+}
+
 void
 Controller::cancel()
 {
     std::lock_guard<std::mutex> guard(d_cbLock);
-    d_ipc->closeChannel(d_currentId);
+    //d_ipc->closeChannel(d_currentId);
 }
 
+#if 0
 void
 Controller::connectionChange(Wawt::IpcProtocol::ChannelId,
                              Wawt::IpcProtocol::ChannelStatus)
 {
-#if 0
     // Note: no other connection update for 'id' can be delivered
     // until this function returns.
     std::lock_guard<std::mutex> guard(d_cbLock);
@@ -80,8 +99,8 @@ Controller::connectionChange(Wawt::IpcProtocol::ChannelId,
         // TBD: DISCONNECT
     }
     return;                                                           // RETURN
-#endif
 }
+#endif
 
 Controller::StatusPair
 Controller::connect(const Wawt::String_t&)
@@ -117,26 +136,24 @@ Controller::connect(const Wawt::String_t&)
 bool
 Controller::shutdown()
 {
-    d_router.showAlert(Wawt::Panel({},
-                       {
-                       Wawt::Label(Wawt::Layout::slice(false, 0.1, 0.3),
-                                  {S("Do you wish to exit the game?")}),
-                       Wawt::ButtonBar(Wawt::Layout::slice(false, -0.3, -0.1),
-                                      {
-                                        {{S("Yes")},
-                                         [this](auto) {
-                                            d_ipc->closeAll();
-                                            d_router.discardAlert();
-                                            d_router.shuttingDown();
-                                            return Wawt::FocusCb();
-                                         }},
-                                        {{S("No")},
-                                         [this](auto) {
-                                            d_router.discardAlert();
-                                            return Wawt::FocusCb();
-                                         }}
-                                      })
-                       }));
+    using namespace Wawt;
+    using namespace Wawt::literals;
+    d_router.showAlert(
+            panel().addChild(
+                        label(Layout().scale(1.0, 0.2),
+                              S("Do you wish to exit the game?")))
+                   .addChild(
+                        pushButtonGrid({{-1.0, 0.6}, {1.0, 0.9}}, -1.0, 1_Sz,
+                                       {{S("Yes"), [this](auto) {
+                                             //d_ipc->closeAll();
+                                             d_router.discardAlert();
+                                             // event-loop checks the router
+                                             // shutdown flag (do this last):
+                                             d_router.shuttingDown();
+                                        }},
+                                        {S("No"), [this](auto) {
+                                             d_router.discardAlert();
+                                         }}})));
     return false;                                                     // RETURN
 }
 
@@ -145,27 +162,27 @@ Controller::startup()
 {
     d_setupScreen = d_router.create<SetupScreen>("Setup Screen",
                                                  this,
-                                                 std::ref(d_mapper));
-    d_gameScreen  = d_router.create<GameScreen>("Game Screen",
-                                                 this);
+                                                 d_mapper);
+    //d_gameScreen  = d_router.create<GameScreen>("Game Screen", this);
     /* ... additional screens here ...*/
 
     d_router.activate<SetupScreen>(d_setupScreen);
-//    d_router.activate<GameScreen>(d_gameScreen, Wawt::String_t("X"));
     // Ready for events to be processed.
     return;                                                           // RETURN
 }
 
+#if 0
 void
 Controller::showSetupScreen()
 {
     d_router.activate<SetupScreen>(d_setupScreen);
 }
+#endif
 
 void
-Controller::startGame(const Wawt::String_t& marker, int)
+Controller::startGame(int)
 {
-    d_router.activate<GameScreen>(d_gameScreen, marker);
+    d_router.activate<SetupScreen>(d_setupScreen);
 }
 
 // vim: ts=4:sw=4:et:ai

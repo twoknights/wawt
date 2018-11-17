@@ -26,6 +26,8 @@
 #include <string>
 #include <utility>
 
+#include <iostream>
+
 #ifdef WAWT_WIDECHAR
 #define S(str) (L"" str)  // wide char strings (std::wstring)
 #define C(c) (L ## c)
@@ -112,11 +114,14 @@ TextEntry::draw(Widget *widget, DrawProtocol *adapter) noexcept
 
     if (!label.empty()) {
         if (!text.resolveSizes(box,
-                               layout.upperLimit(box),
+                               0,
                                adapter,
                                widget->settings().d_options)) {
             return;                                               // RETURN
         }
+        text.d_bounds.d_height += text.d_baselineOffset
+                                  - widget->text().d_data.d_baselineOffset;
+        std::cout << "o1: " << text.d_baselineOffset << " o2: " << widget->text().d_data.d_baselineOffset << " h1: " << text.d_bounds.d_height << " h2: " << widget->text().d_data.d_bounds.d_height << std::endl;
     }
     text.d_upperLeft = layout.position(text.d_bounds, box);
 
@@ -193,7 +198,7 @@ TextEntry::TextEntry(uint16_t           maxInputCharacters,
 , d_backspace(backspace)
 , d_enter(enter)
 , d_endChars(1, enter)
-, d_layoutString(String_t(maxInputCharacters-2, C('X')) + S("g"))
+, d_layoutString(String_t(maxInputCharacters-1, C('X')) + S("g") + S("|"))
 {
     d_buffer = std::make_unique<Char_t[]>(maxInputCharacters);
 }
@@ -210,7 +215,7 @@ TextEntry::TextEntry(uint16_t           maxInputCharacters,
 , d_backspace(backspace)
 , d_enter(enter)
 , d_endChars(endList.begin(), endList.end())
-, d_layoutString(String_t(maxInputCharacters-1, C('X')) + S("g"))
+, d_layoutString(String_t(maxInputCharacters-1, C('X')) + S("g") + S("|"))
 {
     d_endChars.push_back(enter);
     d_buffer = std::make_unique<Char_t[]>(maxInputCharacters);

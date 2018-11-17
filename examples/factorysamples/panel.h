@@ -70,12 +70,8 @@ Panels::createScreenPanel()
     auto popDialog =
         [me = this](Widget *) -> void {
             auto buttons = pushButtonGrid({}, 2.0, kNOGROUP,
-                            {
-                                {   [me](Widget *) -> void {
-                                        me->dropModalDialogBox();
-                                    },
-                                    S("Close")
-                                }
+                            {{S("Close"),
+                             [me](Widget *) { me->dropModalDialogBox(); }}
                             });
             auto dialog = dialogBox(
                     Layout().scale(0.33, 0.33),
@@ -96,10 +92,10 @@ Panels::createScreenPanel()
                              .fillColor({235,235,255})))
                .addChild(
                     pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}}, -1.0, 2_Sz,
-                                   {{d_prev,    S("Prev")},
-                                    {popDialog, S("Dialog")},
-                                    {d_next,    S("Next")}})
-                                    .border(5).options(lineColor))
+                                   {{S("Prev"),    d_prev},
+                                    {S("Dialog"),  popDialog},
+                                    {S("Next"),    d_next}})
+                    .border(5).options(lineColor))
                .addChild(
                     panelLayout({{-1.0, 1.0, 0_wr}, {1.0, -1.0, 1_wr}},
                                 layoutFn,

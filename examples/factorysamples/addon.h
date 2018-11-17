@@ -106,10 +106,10 @@ class Addons : public Wawt::ScreenImpl<Addons,DrawOptions> {
     void resetWidgets() {
         d_buttons->children()[2].disabled(true);
         d_list.clear();
-        d_enterRow.entry("");
-        d_month.entry("");
-        d_day.entry("");
-        d_year.entry("");
+        d_enterRow.entry(S(""));
+        d_month.entry(S(""));
+        d_day.entry(S(""));
+        d_year.entry(S(""));
     }
 
 private:
@@ -174,7 +174,6 @@ Addons::createScreenPanel()
     auto lineColor   = defaultOptions(WawtEnv::sPanel)
                           .lineColor(defaultOptions(WawtEnv::sScreen)
                                           .d_fillColor);
-    auto entryOptions = defaultOptions(WawtEnv::sEntry);
     auto titleBar = S("Text Entry and Variable Sized Lists.");
     auto screen =
         panel().addChild(
@@ -184,18 +183,18 @@ Addons::createScreenPanel()
                              .fillColor({235,235,255})))
                .addChild(
                     pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}}, -1.0, 1_Sz,
-                                   {{d_prev,    S("Prev")},
-                                    {d_next,    S("Next")}})
+                                   {{S("Prev"),    d_prev},
+                                    {S("Next"),    d_next}})
                                     .border(5).options(lineColor))
                .addChild(
                     concatenateLabels({{-0.7, -0.85}, {0.7, -0.75}}, 2_Sz,
                                       TextAlign::eCENTER, {
                             { S("Enter today's date: ") },
-                            { &d_month, entryOptions },
+                            { &d_month },
                             { S("/") },
-                            { &d_day, entryOptions },
+                            { &d_day },
                             { S("/") },
-                            { &d_year, entryOptions },
+                            { &d_year },
                             { S(" (TextEntry & concatenated labels)") },
                         }))
                .addChild(
@@ -215,9 +214,9 @@ Addons::createScreenPanel()
                .addChild(
                     pushButtonGrid(d_buttons,
                                    {{-0.2, 0.2}, { 0.2, .3}}, -1.0, 1_Sz,
-                                   {{addTop,  S("AddTop")},
-                                    {addBot,  S("AddBot")},
-                                    {delSel,  S("DelSel")}}));
+                                   {{S("AddTop"),  addTop},
+                                    {S("AddBot"),  addBot},
+                                    {S("DelSel"),  delSel}}));
 
 
     return screen;                                                    // RETURN

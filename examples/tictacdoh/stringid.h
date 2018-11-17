@@ -1,5 +1,5 @@
 /** @file stringid.h
- *  @brief String IDs and mappings for Tic-Tac-DOH!
+ *  @brief Multi-Lingual strings for Tic-Tac-DOH!
  *
  * Copyright 2018 Bruce Szablak
  *
@@ -19,27 +19,12 @@
 #ifndef TICTACDOH_STRINGID_H
 #define TICTACDOH_STRINGID_H
 
-#include <wawt/wawt.h>
-#include <wawt/screen.h>
-#include <wawt/eventrouter.h>
-
-#include <drawoptions.h>
-#include <sfmldrawadapter.h>
+#include <wawt/wawtenv.h>
 
 #include <atomic>
 
-#undef  S
-#undef  C
-#define S(str) Wawt::String_t(u8"" str)      // UTF8 strings  (std::string)
-#define C(c) (u8 ## c)
-//#define S(str) Wawt::String_t(L"" str)  // wide char strings (std::wstring)
-//#define C(c) (L ## c)
-
-
-// Note: StringId should be implicitly castable to 'uint16_t'
-enum StringId {
-    eNone   // 0 reserved by Wawt framework.
-  , eGameSettings
+enum class StringId {
+    eGameSettings
   , eSelectLanguage
   , eWaitForConnection
   , eConnectToOpponent
@@ -47,7 +32,7 @@ enum StringId {
   , ePlayAsO
 };
 
-class StringIdLookup {
+class StringIdLookup : public Wawt::WawtEnv::Translator {
     std::atomic_uint        d_currentLanguage; // Thread-safe
 
   public:
@@ -69,14 +54,12 @@ class StringIdLookup {
         : d_currentLanguage(static_cast<unsigned int>(Language::eENGLISH)) { }
 
     // PUBLIC MANIPULATORS
+    Wawt::StringView_t operator()(int stringId)                     override;
     
     // Set current language and return previous setting.
     Language currentLanguage(Language newCurrent);
 
     // PUBLIC ACCESSORS
-    // Map StringId to string.
-    Wawt::String_t operator()(StringId lookup) const;
-
     Language currentLanguage() const {
         return static_cast<Language>(d_currentLanguage.load());
     }

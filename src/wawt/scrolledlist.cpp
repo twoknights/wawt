@@ -35,6 +35,8 @@
 #define C(c) (U ## c)
 #endif
 
+using namespace Wawt::literals;
+
 namespace Wawt {
 
 namespace {

@@ -220,11 +220,11 @@ SfmlIpcAdapter::accept(Connection *connection, sf::TcpListener *listener)
 }
 
 IpcProtocol::ChannelStatus
-SfmlIpcAdapter::acceptChannels(String_t  *diagnostic,
+SfmlIpcAdapter::acceptChannels(String_t        *diagnostic,
                                std::any         configuration)
                                                              noexcept
 {
-    return configureAdapter(diagnostic, configuration);
+    return configureAdapter(diagnostic, configuration, true);
 }
 
 void
@@ -325,7 +325,7 @@ IpcProtocol::ChannelStatus
 SfmlIpcAdapter::createNewChannel(String_t    *diagnostic,
                                  std::any     configuration) noexcept
 {
-    return configureAdapter(diagnostic, configuration);
+    return configureAdapter(diagnostic, configuration, false);
 }
 
 
@@ -346,7 +346,8 @@ SfmlIpcAdapter::installCallbacks(ChannelCb       connectionUpdate,
 
 IpcProtocol::ChannelStatus
 SfmlIpcAdapter::configureAdapter(Wawt::String_t *diagnostic,
-                                 std::any        address) noexcept
+                                 std::any        address,
+                                 bool            listen) noexcept
 {
     std::string string;
     // Preliminaries
@@ -379,25 +380,17 @@ SfmlIpcAdapter::configureAdapter(Wawt::String_t *diagnostic,
         *diagnostic = S("The address string is malformed.");
         return ChannelStatus::eMALFORMED;                           // RETURN
     }
-    bool            listen = false;
     std::string     ipStr;
     std::string     portStr;
 
-    if (parse.str(1) == "listen") {
-        listen = true;
-    }
-    else if (parse.str(1) != "connect") {
-        *diagnostic = S("The connection type is invalid.");
-        return ChannelStatus::eINVALID;                             // RETURN
-    }
-    assert(parse.size() == 4);
+    assert(parse.size() == 3);
 
-    if (parse.str(3).empty()) {
-        portStr = parse.str(2);
+    if (parse.str(2).empty()) {
+        portStr = parse.str(1);
     }
     else {
-        ipStr   = parse.str(2);
-        portStr = parse.str(3);
+        ipStr   = parse.str(1);
+        portStr = parse.str(2);
     }
     std::size_t     pos;
     int             port;

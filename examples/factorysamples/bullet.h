@@ -80,7 +80,8 @@ checkBox({}, S("Right alignment."), 5_Sz, TextAlign::eRIGHT)
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(
                     pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}}, -1.0, 2_Sz,
-                                   {{d_prev, S("Prev")}, {d_next, S("Next")}})
+                                   {{S("Prev"),    d_prev},
+                                    {S("Next"),    d_next}})
                                     .border(5).options(lineColor))
                .addChild(
                     panelLayout({{-1.0, 1.0, 0_wr}, {1.0, -1.0, 1_wr}},

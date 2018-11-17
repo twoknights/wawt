@@ -22,129 +22,140 @@
 #include <array>
 #include <iostream>
 
+#undef  S
+#undef  C
+
+#ifdef WAWT_WIDECHAR
+#define S(str) (L"" str)  // wide char strings (std::wstring)
+#define C(c) (L ## c)
+#else
+#define S(str) (u8"" str)      // UTF8 strings  (std::string)
+#define C(c) (U ## c)
+#endif
+
 namespace {
 
-Wawt::String_t english(StringId id) {
+Wawt::StringView_t english(StringId id) {
     switch (id) {
-      case eGameSettings:
+      case StringId::eGameSettings:
           return S("Game Settings");
-      case eSelectLanguage:
+      case StringId::eSelectLanguage:
           return S("Select Language");
-      case eWaitForConnection:
-          return S("Wait for opponent to connect.");
-      case eConnectToOpponent:
+      case StringId::eWaitForConnection:
+          return S("Wait for opponent to connect: ");
+      case StringId::eConnectToOpponent:
           return S("Connect to your opponent's computer.");
-      case ePlayAsX:
+      case StringId::ePlayAsX:
           return S("Play using 'X' marker.");
-      case ePlayAsO:
+      case StringId::ePlayAsO:
           return S("Play using 'O' marker.");
       default: abort();
     };
 }
 
-Wawt::String_t german(StringId id) {
+Wawt::StringView_t german(StringId id) {
     switch (id) {
-      case eGameSettings:
+      case StringId::eGameSettings:
           return S("Spieleinstellungen");
-      case eSelectLanguage:
+      case StringId::eSelectLanguage:
           return S("Sprache Auswählen");
-      case eWaitForConnection:
-          return S("Warte auf Gegner, um zu verbinden.");
-      case eConnectToOpponent:
+      case StringId::eWaitForConnection:
+          return S("Warte auf Gegner, um zu verbinden: ");
+      case StringId::eConnectToOpponent:
           return S("Verbinde dich mit dem Computer deines Gegners.");
-      case ePlayAsX:
+      case StringId::ePlayAsX:
           return S("Spielen Sie mit der 'X' Markierung.");
-      case ePlayAsO:
+      case StringId::ePlayAsO:
           return S("Spielen Sie mit der 'O' Markierung.");
       default: abort();
     };
 }
 
-Wawt::String_t spanish(StringId id) {
+Wawt::StringView_t spanish(StringId id) {
     switch (id) {
-      case eGameSettings:
+      case StringId::eGameSettings:
           return S("Configuración del Juego");
-      case eSelectLanguage:
+      case StringId::eSelectLanguage:
           return S("Seleccione el Idioma");
-      case eWaitForConnection:
-          return S("Espere a que el oponente se conecte.");
-      case eConnectToOpponent:
+      case StringId::eWaitForConnection:
+          return S("Espere a que el oponente se conecte: ");
+      case StringId::eConnectToOpponent:
           return S("Conéctate a la computadora de tu oponente.");
-      case ePlayAsX:
+      case StringId::ePlayAsX:
           return S("Juega usando el marcador 'X'.");
-      case ePlayAsO:
+      case StringId::ePlayAsO:
           return S("Juega usando el marcador 'O'.");
       default: abort();
     };
 }
 
-Wawt::String_t french(StringId id) {
+Wawt::StringView_t french(StringId id) {
     switch (id) {
-      case eGameSettings:
+      case StringId::eGameSettings:
           return S("Configuration du Jeu");
-      case eSelectLanguage:
+      case StringId::eSelectLanguage:
           return S("Choisir la Langue");
-      case eWaitForConnection:
-          return S("Attendez que l'adversaire se connecte.");
-      case eConnectToOpponent:
+      case StringId::eWaitForConnection:
+          return S("Attendez que l'adversaire se connecte: ");
+      case StringId::eConnectToOpponent:
           return S("Connectez-vous à l'ordinateur de votre adversaire.");
-      case ePlayAsX:
+      case StringId::ePlayAsX:
           return S("Jouer avec le marqueur 'X'.");
-      case ePlayAsO:
+      case StringId::ePlayAsO:
           return S("Jouer avec le marqueur 'O'.");
       default: abort();
     };
 }
 
-Wawt::String_t italian(StringId id) {
+Wawt::StringView_t italian(StringId id) {
     switch (id) {
-      case eGameSettings:
+      case StringId::eGameSettings:
           return S("Setup del Gioco");
-      case eSelectLanguage:
+      case StringId::eSelectLanguage:
           return S("Seleziona la Lingua");
-      case eWaitForConnection:
-          return S("Attendere che l'avversario si connetta.");
-      case eConnectToOpponent:
+      case StringId::eWaitForConnection:
+          return S("Attendere che l'avversario si connetta: ");
+      case StringId::eConnectToOpponent:
           return S("Collegarsi al computer dell'avversario.");
-      case ePlayAsX:
+      case StringId::ePlayAsX:
           return S("Gioca usando il marcatore 'X'.");
-      case ePlayAsO:
+      case StringId::ePlayAsO:
           return S("Gioca usando il marcatore 'O'.");
       default: abort();
     };
 }
 
-Wawt::String_t polish(StringId id) {
+Wawt::StringView_t polish(StringId id) {
     switch (id) {
-      case eGameSettings:
+      case StringId::eGameSettings:
           return S("Ustawienia Gry");
-      case eSelectLanguage:
+      case StringId::eSelectLanguage:
           return S("Wybierz Język");
-      case eWaitForConnection:
-          return S("Zaczekaj, aż przeciwnik się połączy.");
-      case eConnectToOpponent:
+      case StringId::eWaitForConnection:
+          return S("Zaczekaj, aż przeciwnik się połączy: ");
+      case StringId::eConnectToOpponent:
           return S("Połącz się z komputerem przeciwnika.");
-      case ePlayAsX:
+      case StringId::ePlayAsX:
           return S("Zagraj za pomocą znacznika 'X'.");
-      case ePlayAsO:
+      case StringId::ePlayAsO:
           return S("Zagraj za pomocą znacznika 'O'.");
       default: abort();
     };
 }
 
-Wawt::String_t russian(StringId id) {
+Wawt::StringView_t russian(StringId id) {
     switch (id) {
-      case eGameSettings:
+      case StringId::eGameSettings:
           return S("Настройка Игры");
-      case eSelectLanguage:
+      case StringId::eSelectLanguage:
           return S("Выберите Язык");
-      case eWaitForConnection:
-          return S("Подождите, пока противник подключится.");
-      case eConnectToOpponent:
+      case StringId::eWaitForConnection:
+          return S("Подождите, пока противник подключится: ");
+      case StringId::eConnectToOpponent:
           return S("Подключитесь к компьютеру вашего оппонента.");
-      case ePlayAsX:
+      case StringId::ePlayAsX:
           return S("Играйте с помощью маркера «X».");
-      case ePlayAsO:
+      case StringId::ePlayAsO:
           return S("Играйте с помощью маркера «O».");
       default: abort();
     };
@@ -156,19 +167,20 @@ Wawt::String_t russian(StringId id) {
                             // class StringIdLookup
                             //---------------------
 
-Wawt::String_t
-StringIdLookup::operator()(StringId id) const
+Wawt::StringView_t
+StringIdLookup::operator()(int id)
 {
-    Language current = static_cast<Language>(d_currentLanguage.load());
+    Language current  = static_cast<Language>(d_currentLanguage.load());
+    StringId stringId = static_cast<StringId>(id);
 
     switch (current) {
-      case Language::eENGLISH: return english(id);
-      case Language::eGERMAN:  return german(id);
-      case Language::eSPANISH: return spanish(id);
-      case Language::eFRENCH:  return french(id);
-      case Language::eITALIAN: return italian(id);
-      case Language::ePOLISH:  return polish(id);
-      case Language::eRUSSIAN: return russian(id);
+      case Language::eENGLISH: return english(stringId);
+      case Language::eGERMAN:  return german(stringId);
+      case Language::eSPANISH: return spanish(stringId);
+      case Language::eFRENCH:  return french(stringId);
+      case Language::eITALIAN: return italian(stringId);
+      case Language::ePOLISH:  return polish(stringId);
+      case Language::eRUSSIAN: return russian(stringId);
       default: abort();
     }
 }

@@ -97,8 +97,8 @@ Labels::createScreenPanel()
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(
                     pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}}, -1.0, 1_Sz,
-                                   {{toggle, LabelId::OtherLanguage},
-                                    {d_next, S("Next")}})
+                                   {{LabelId::OtherLanguage, toggle},
+                                    {S("Next"),    d_next}})
                     .border(5).options(lineColor))
                .addChild(
                     panelLayout({{-1.0, 1.0, 0_wr}, {1.0, -1.0, 1_wr}}, 0, 1,

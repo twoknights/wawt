@@ -163,7 +163,7 @@ class EventRouter {
     void showAlert(const Widget&    panel,
                    double           width           = 0.33,
                    double           height          = 0.33,
-                   double           borderThickness = 2.0);
+                   double           borderThickness = 5.0);
 
     void shuttingDown() {
         d_shutdownFlag = true;

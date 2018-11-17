@@ -20,6 +20,7 @@
 #define TICTACDOH_GAMESCREEN_H
 
 #include "stringid.h"
+#include "drawoptions.h"
 
 #include <iostream>
 
@@ -44,17 +45,17 @@ class GameScreen : public Wawt::ScreenImpl<GameScreen,DrawOptions> {
     enum GameResult { eFORFEIT };
 
     // PUBLIC CONSTRUCTORS
-    GameScreen(Calls *controller)
-        : ScreenImpl(), d_controller(controller) { }
+    GameScreen(Calls *controller, StringIdLookup *mapper)
+        : ScreenImpl(), d_controller(controller), d_mapper(mapper) { }
 
     // PUBLIC MANIPULATORS
     // Called by 'WawtScreenImpl::setup()':
     Wawt::Widget createScreenPanel();
 
-    // Called by 'WawtScreenImpl::activate()':
     void gameOver(GameResult result);
 
-    void resetWidgets(const Wawt::String_t& marker);
+    // Called by 'WawtScreenImpl::activate()':
+    void resetWidgets();
 
     void startGame();
 
@@ -63,10 +64,7 @@ class GameScreen : public Wawt::ScreenImpl<GameScreen,DrawOptions> {
 private:
     // PRIVATE DATA MEMBERS
     GameScreen::Calls      *d_controller;
-    Wawt::Widget           *d_timeLabel;
-    Wawt::Widget           *d_boardPanel;
-    Wawt::String_t          d_marker;
-    int                     d_countDown = -1;
+    StringIdLookup         *d_mapper;
 };
 
 #endif

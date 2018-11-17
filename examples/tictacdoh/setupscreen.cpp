@@ -17,16 +17,24 @@
  * limitations under the License.
  */
 
-#include "stringid.h"
 #include "setupscreen.h"
+#include "stringid.h"
+
+#include <wawt/drawprotocol.h>
 
 #include <chrono>
 #include <string>
+#include <iostream>
+
+#ifdef WAWT_WIDECHAR
+#define S(str) (L"" str)  // wide char strings (std::wstring)
+#define C(c) (L ## c)
+#else
+#define S(str) (u8"" str)      // UTF8 strings  (std::string)
+#define C(c) (U ## c)
+#endif
 
 using namespace std::literals::chrono_literals;
-
-// String literals must have the appropriate prefix.
-// See: Wawt::Char_t and Wawt::String_t
 
 namespace {
 
@@ -36,76 +44,78 @@ namespace {
                             // class SetupScreen
                             //------------------
 
-Wawt::Panel
+Wawt::Widget
 SetupScreen::createScreenPanel()
 {
-    auto changeLanguage = [this](auto, uint16_t index) {
-        d_mapper.currentLanguage(static_cast<StringIdLookup::Language>(index));
+    using namespace Wawt;
+    using namespace Wawt::literals;
+
+    auto changeLanguage = [this](auto, uint16_t row) {
+        d_mapper->currentLanguage(static_cast<StringIdLookup::Language>(row));
         // Since this results in string IDs taking on new string values,
-        // the framework needs to reload those values.  This only happens
-        // on resize:
+        // the framework needs to reload those values.
+        synchronizeTextView();
+        // Now re-layout the screen:
         resize(); // not acutally changing the size.
-        return Wawt::FocusCb(); // no text entry block gets the focus
     };
 
-    auto changeMoveTime =   [this](auto *text, bool onEnter)
-                            {
-                                try {
-                                    int time = std::stoi(*text);
+    auto languageList =
+        panel(Layout().scale(0.3, 0.4))
+            .addChild(
+                label({{-1.0,-1.0},{ 1.0,-0.7}}, StringId::eSelectLanguage))
+            .addChild(
+                fixedSizeList(d_languageList,
+                              {{-1.0, 1.0, 0_wr},{ 1.0, 1.0}},
+                              true,
+                              changeLanguage,
+                              2_Sz,
+                              {
+                                  S("English"),
+                                  S("Deutsch"),
+                                  S("Español"),
+                                  S("Français"),
+                                  S("Italiano"),
+                                  S("Polski"),
+                                  S("Pусский")
+                              }));
 
-                                    if (time >= 5 && time <= 15) {
-                                        d_moveTime = time;
-                                        return true; // give up focus
-                                    }
-                                }
-                                catch(...) {
-                                }
-                                *text = Wawt::toString(d_moveTime);
-                                return !onEnter;
-                            };
+    auto leftSideContents =
+        panel({{-1.0, 1.0, 0_wr},{ 0.0, 1.0}})
+            .addChild(std::move(languageList))
+            .addChild(
+                pushButton({{},{-0.95,-0.95}, Layout::Vertex::eUPPER_LEFT},
+                           [this](auto) { d_screen.serialize(std::cout);
+                                          Wawt::DrawStream draw;
+                                          d_screen.draw(&draw); },
+                           S("*")));
 
-    Panel::Widgets selectLanguage = // 2 widgets
-        {
-            Label(Layout::slice(false, 0.25, 0.45),
-                  {StringId::eSelectLanguage}),
-            List({{-0.8, 1., 1_wr},{0.8, 5., 1_wr}},
-                 1_F,
-                 Wawt::ListType::eSELECTLIST,
-                 {
-                     { S("English")  , true },
-                     { S("Deutsch")   },
-                     { S("Español")   },
-                     { S("Français")  },
-                     { S("Italiano")  },
-                     { S("Polski")    },
-                     { S("Pусский")   }
-                 },
-                 changeLanguage)
-        };
+    auto networkSettings =
+        panel({{-1.0, -0.9},{ 1.0, 0.0}})
+            .addChild(
+                concatenateLabels({{-1.0,-0.9},{ 1.0,-0.6}}, 2_Sz,
+                                  TextAlign::eLEFT,
+                                  {{StringId::eWaitForConnection},
+                                   {&d_listenPortEntry}}))
+            .addChild(
+                label({{-1.0, 0.0},{ 1.0, 0.3}},
+                      StringId::eConnectToOpponent, 2_Sz, TextAlign::eLEFT))
+            .addChild(
+                label(d_connectEntry,
+                      {{-1.0, 0.3},{ 1.0, 0.6}},
+                      d_connectEntry.layoutString(), 2_Sz, TextAlign::eLEFT));
 
-    Panel::Widgets networkConnect = // 4 widgets
-        {
-            Label(Layout::slice(false, 0.0, 0.22),
-                  {StringId::eWaitForConnection, 2_F, Align::eLEFT}),
-            TextEntry(&d_listenEntry,
-                     {{-1.0,1.1, 1_wr},{-0.5,3., 1_wr}},
-                      5,
-                      connectCallback(true),
-                      {StringId::eNone, 3_F, Align::eLEFT}),
-            Label(Layout::slice(false, -0.45, -0.23),
-                  {StringId::eConnectToOpponent, 2_F, Align::eLEFT}),
-            TextEntry(&d_connectEntry,
-                      Layout::slice(false, -0.22, 0.0),
-                      40,
-                      connectCallback(false),
-                      {StringId::eNone, 3_F, Align::eLEFT})
-        };
+    auto rightSideContents =
+        panel({{ 0.0, 1.0, 0_wr},{ 0.8, 1.0}})
+            .addChild(std::move(networkSettings));
 
-    return Panel({},
-        {
-/* 1 */     Label(Layout::slice(false, 0.1, 0.2), // Header
-                  {StringId::eGameSettings}),
-/* 5 */     Panel(Layout::slice(true, 0.05, 0.5), // Left half of screen
+    return
+        panel({})
+            .addChild(
+                label({{-1.0,-0.9},{ 1.0,-0.7}}, StringId::eGameSettings))
+            .addChild(std::move(leftSideContents))
+            .addChild(std::move(rightSideContents));
+
+#if 0
             {
 /* 4(2,3) */    Panel(Layout::centered(0.5, 0.75).translate(0.,-.25),
                       selectLanguage)
@@ -126,107 +136,20 @@ SetupScreen::createScreenPanel()
                        {S(": Move timer (seconds)"), 2_F, Align::eLEFT}),
                 Panel(Layout::slice(false, 0.6, 0.8), networkConnect)
             })
-            , Button({{},{-0.95,-0.95}, Vertex::eUPPER_LEFT},
-                     {[this](auto) { d_screen.serialize(std::cout);
-                                     return FocusCb();
-                                   }, ActionType::eCLICK},
-                     {S("*")})
-        });                                                           // RETURN
+#endif
+}
+
+void
+SetupScreen::initialize()
+{
+    d_languageList->children()[0].selected(true);
 }
 
 void
 SetupScreen::resetWidgets()
 {
-    d_listenEntry->textView().setText(S(""));
-    d_connectEntry->textView().setText(S(""));
-}
-
-Wawt::EnterFn
-SetupScreen::connectCallback(bool listen)
-{
-    // Create a functor to handle both "listen" and "connect" methods of
-    // creating a connection.  Call the "controller" to initiate the
-    // connection (showing the returned information string), handle the
-    // button requestng the connection attempt be canceled. The controller
-    // will also perform the coin "toss", determine the move timeout,
-    // and retur the results to this screen.
-    return [this, listen](auto textString, bool onEnter) {
-        if (!onEnter) { // clicked another widget...
-            *textString = S("");
-            return true;
-        }
-        auto status = d_controller->connect((listen ? S("listen=")
-                                                    : S("connect="))
-                                             + *textString);
-        auto id = addModalDialogBox(
-            {
-                Label(Layout::slice(false, 0.1, 0.3), {S("")}),
-                ButtonBar(Layout::slice(false, -0.3, -0.1),
-                          {
-                            {{S("Cancel")},
-                                [this](auto) {
-                                    d_controller->cancel();
-                                    return FocusCb();
-                                }
-                            }
-                          })
-            });
-        lookup<Label>(id++).textView().setText(status.second);
-        auto& btn = lookup<ButtonBar>(id).button(0);
-        Wawt::SelectFn onClick;
-
-        if (status.first) {
-            onClick =   [this](auto) {
-                            d_controller->cancel();
-                            return FocusCb();
-                        };
-        }
-        else {
-            onClick =   [this, listen](auto) {
-                            dropModalDialogBox();
-                            // return focus to listen text entry widget:
-                            return listen ? d_listenEntry->getFocusCb()
-                                          : d_connectEntry->getFocusCb();
-                        };
-        }
-        btn.inputView().callback() = onClick;
-        resize();
-        return true;
-    };
-}
-
-void
-SetupScreen::connectionResult(bool success, Wawt::String_t  message)
-{
-    Wawt::SelectFn  onClick;
-    Wawt::String_t  buttonLabel;
-    auto selectedRows = d_playerMark->selectedRows();
-    assert(selectedRows.size() == 1);
-    auto marker = selectedRows.front() == 0 ? S("X") : S("O");
-
-    if (success) {
-        onClick =   [this,marker](auto) {
-                        d_controller->startGame(marker, d_moveTime);
-                        return FocusCb();
-                    };
-        buttonLabel = S("Play");
-    }
-    else {
-        onClick =   [this](auto) {
-                        dropModalDialogBox();
-                        d_connectEntry->textView().setText("");
-                        d_listenEntry->textView().setText("");
-                        return FocusCb();
-                    };
-        buttonLabel = S("Done");
-    }
-    addModalDialogBox({
-                          Label(Layout::slice(false, 0.1, 0.3), {message}),
-                          ButtonBar(Layout::slice(false, -0.3, -0.1),
-                                    {
-                                      {{buttonLabel}, onClick}
-                                    })
-                      });
+    d_listenPortEntry.entry(S(""));
+    d_connectEntry.entry(S(""));
 }
 
 // vim: ts=4:sw=4:et:ai

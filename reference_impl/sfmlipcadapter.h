@@ -49,6 +49,7 @@ class SfmlIpcAdapter : public Wawt::IpcProtocol {
 
     // PUBLIC WawtIpcAdapter INTERFACE
 
+    // Synchronously configure the adapter to accept channels created by peers.
     ChannelStatus   acceptChannels(Wawt::String_t  *diagnostic,
                                    std::any         configuration)
                                                              noexcept override;
@@ -59,7 +60,7 @@ class SfmlIpcAdapter : public Wawt::IpcProtocol {
     //! Asynchronous close of a channel.
     void            closeChannel(ChannelId      id)          noexcept override;
 
-    //! Synchronous call. If adapter permits, may be called more than once.
+    //! Synchronously configure a channel to a peer that is accepting channels.
     ChannelStatus   createNewChannel(Wawt::String_t    *diagnostic,
                                      std::any           configuration)
                                                              noexcept override;
@@ -78,6 +79,8 @@ class SfmlIpcAdapter : public Wawt::IpcProtocol {
     // PUBLIC ACCESSORS
     unsigned short listenPort() const { return 0; }
 
+
+
   private:
     // PRIVATE TYPES
     struct  Connection;
@@ -94,7 +97,8 @@ class SfmlIpcAdapter : public Wawt::IpcProtocol {
                         Connection                 *connection);
 
     ChannelStatus configureAdapter(Wawt::String_t *diagnostic,
-                                   std::any        address) noexcept;
+                                   std::any        address,
+                                   bool            listen) noexcept;
 
     void        readMsgLoop(Connection             *connection);
 
@@ -119,8 +123,8 @@ class SfmlIpcAdapter : public Wawt::IpcProtocol {
     ConnectionMap                   d_connections{};
     bool                            d_shutdown      = false;
     int                             d_next          = 0;
-    std::regex                      d_pattern{ // 1=type 2=ip|port 3=port|""
-          R"(^(connect|listen)=([a-z\.\-\d]+)(?:\:(\d+))?$)"};
+    std::regex                      d_pattern{ // 1=ip|port 2=port|""
+          R"(^([a-z\.\-\d]+)(?:\:(\d+))?$)"};
     uint8_t                         d_adapterId;
 };
 

@@ -83,8 +83,8 @@ Buttons::createScreenPanel()
                              .fillColor(DrawOptions::Color(235,235,255))))
                .addChild(
                     pushButtonGrid({{-1.0, 0.9}, {1.0, 1.0}}, -1.0, 2_Sz,
-                                   {{d_prev, S("Prev")},
-                                    {d_next, S("Next")}})
+                                   {{S("Prev"),    d_prev},
+                                    {S("Next"),    d_next}})
                                     .border(5).options(lineColor))
                .addChild(
                     panelLayout({{-1.0, 1.0, 0_wr}, {1.0, -1.0, 1_wr}},
@@ -93,21 +93,21 @@ Buttons::createScreenPanel()
 // Start Samples:
 pushButton({}, OnClickCb(), S("Click Me (1_Sz)"), 1_Sz),
 pushButtonGrid({}, -1.0, 2_Sz,
-               { {OnClickCb(),S("Non-spaced Grid Choice 1 (2_Sz)")},
-                 {OnClickCb(),S("Non-spaced Grid Choice 2 (2_Sz)")} }, false),
+               { {S("Non-spaced Grid Choice 1 (2_Sz)")},
+                 {S("Non-spaced Grid Choice 2 (2_Sz)")} }, false),
 pushButtonGrid({}, -1.0, 2_Sz,
-               { {OnClickCb(),S("Spaced Grid Choice 1 (2_Sz)")},
-                 {OnClickCb(),S("Spaced Grid Choice 2 (2_Sz)")} }),
+               { {S("Spaced Grid Choice 1 (2_Sz)")},
+                 {S("Spaced Grid Choice 2 (2_Sz)")} }),
 pushButtonGrid({}, 2, -1.0, 3_Sz,
-               { {OnClickCb(),S("Non-spaced Grid Choice 1 (3_Sz)")},
-                 {OnClickCb(),S("Non-spaced Grid Choice 2 (3_Sz)")},
-                 {OnClickCb(),S("Choice 3 (3_Sz)")},
-                 {OnClickCb(),S("Choice 4 (3_Sz)")} }, false),
+               { {S("Non-spaced Grid Choice 1 (3_Sz)")},
+                 {S("Non-spaced Grid Choice 2 (3_Sz)")},
+                 {S("Choice 3 (3_Sz)")},
+                 {S("Choice 4 (3_Sz)")} }, false),
 pushButtonGrid({}, 2, -1.0, 3_Sz,
-               { {OnClickCb(),S("Spaced Grid Choice 1 (3_Sz)")},
-                 {OnClickCb(),S("Spaced Grid Choice 2 (3_Sz)")},
-                 {OnClickCb(),S("Choice 3 (3_Sz)")},
-                 {OnClickCb(),S("Choice 4 (3_Sz)")} }, true),
+               { {S("Spaced Grid Choice 1 (3_Sz)")},
+                 {S("Spaced Grid Choice 2 (3_Sz)")},
+                 {S("Choice 3 (3_Sz)")},
+                 {S("Choice 4 (3_Sz)")} }, true),
 widgetGrid({}, 3, 3, widgetFn, true)));
 // End Samples.
     return screen;                                                    // RETURN

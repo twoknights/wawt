@@ -131,10 +131,9 @@ IpcMessage& IpcMessage::operator=(const IpcMessage& rhs)
     return *this;                                                     // RETURN
 }
 
-
-                        //==================
-                        // class IpcProtocol
-                        //==================
+                                //==================
+                                // class IpcProtocol
+                                //==================
 
 /**
  * @brief An interface whose providers support communication between tasks.

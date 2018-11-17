@@ -44,6 +44,8 @@ class WawtEnv {
     // PUBLIC TYPES
     class Translator {
       public:
+        virtual ~Translator() { }
+
         virtual StringView_t operator()(const StringView_t& string) {
             return string;
         }

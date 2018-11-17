@@ -21,14 +21,18 @@
 #include "stringid.h"
 #include "controller.h"
 
+#include <wawt/wawt.h>
+#include <wawt/eventrouter.h>
+#include <wawt/wawtenv.h>
+
 #include <sfmldrawadapter.h>
 #include <sfmleventloop.h>
-#include <sfmlipcadapter.h>
 
 #include <fontconfig/fontconfig.h>
 
-#include <iostream>
 #include <chrono>
+#include <string>
+#include <iostream>
 
 using namespace std::chrono_literals;
 
@@ -60,39 +64,38 @@ constexpr int HEIGHT = 720;
 
 int main()
 {
-    bool arial = false;
-    std::string path = fontPath("Verdana");
+    auto primary = fontPath("Verdana");
 
-    if (path.empty()) {
-        path  = fontPath("Arial");
+    if (primary.empty()) {
+        primary  = fontPath("Arial");
 
-        if (path.empty()) {
+        if (primary.empty()) {
             std::cerr << "Failed to find Verdana or Arial fonts." << std::endl;
             return 0;                                                 // RETURN
         }
-        arial = true;
     }
-    sf::RenderWindow window(sf::VideoMode(float(WIDTH), float(HEIGHT)),
-                            "Tic-Tac-DOH!",
-                            sf::Style::Default,
-                            sf::ContextSettings());
+    auto window = sf::RenderWindow(sf::VideoMode(float(WIDTH), float(HEIGHT)),
+                                   "Tic-Tac-DOH!",
+                                   sf::Style::Default,
+                                   sf::ContextSettings());
 
-    StringIdLookup   idMapper;
-    SfmlDrawAdapter  drawAdapter(window, path, arial);
-    SfmlIpcAdapter   ipcAdapter;
-
-    WawtEventRouter  router(&drawAdapter, idMapper, DrawOptions::defaults());
-
-    Controller       controller(router, idMapper, &ipcAdapter);
-    auto shutdown = [&controller]() {
-                        return controller.shutdown();
-                    };
+    auto secondary   = fontPath("Times");
+    auto idMapper    = StringIdLookup();
+    auto drawAdapter = SfmlDrawAdapter(window, primary, secondary);
+    auto wawtEnv     = Wawt::WawtEnv(DrawOptions::optionDefaults(),
+                                     &drawAdapter,
+                                     &idMapper);
+    auto router      = Wawt::EventRouter();
+    auto controller  = Controller(router, &idMapper);
+    auto shutdown    = [&controller]() {
+                           return controller.shutdown();
+                       };
 
     try {
         controller.startup();
         SfmlEventLoop::run(window, router, shutdown, 5ms, WIDTH/4, HEIGHT/4);
     }
-    catch (Wawt::Exception& e) {
+    catch (Wawt::WawtException& e) {
         std::cout << e.what() << std::endl;
 
         return 1;                                                     // RETURN

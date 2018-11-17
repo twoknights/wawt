@@ -19,16 +19,15 @@
 #ifndef TICTACDOH_CONTROLLER_H
 #define TICTACDOH_CONTROLLER_H
 
+#include <wawt/wawt.h>
+#include <wawt/eventrouter.h>
+
 #include "stringid.h"
-#include "gamescreen.h"
+//#include "gamescreen.h"
 #include "setupscreen.h"
 
-#include <wawt/ipcprotocol.h>
-
-#include <SFML/Network/TcpListener.hpp>
-#include <SFML/Network/TcpSocket.hpp>
-
 #include <atomic>
+#include <mutex>
 #include <regex>
 #include <thread>
 
@@ -36,52 +35,44 @@
                             // class Controller
                             //=================
 
-class Controller : public SetupScreen::Calls, public GameScreen::Calls {
+class Controller : public SetupScreen::Calls/*, public GameScreen::Calls*/ {
   public:
     // PUBLIC TYPES
     using Handle = Wawt::EventRouter::Handle;
-    using ConnId = Wawt::IpcProtocol::ChannelId;
 
     // PUBLIC CONSTRUCTORS
     Controller(Wawt::EventRouter&     router,
-               Wawt::IpcProtocol     *ipcAdapter)
-        : d_router(router), d_ipc(ipcAdapter) { }
+               StringIdLookup        *mapper)
+        : d_router(router), d_mapper(mapper) { d_cancel = false; }
+
+    ~Controller();
 
     // SetupScreen::Calls Interface:
-    StatusPair connect(const Wawt::String_t& address)       override;
+    StatusPair  accept(const Wawt::String_t& address)        override;
 
-    void       cancel()                                     override;
+    void        cancel()                                     override;
 
-    void       startGame(const Wawt::String_t&, int)        override;
+    StatusPair  connect(const Wawt::String_t& address)       override;
+
+    void        startGame(int)                               override;
 
     // GameScreen::Calls Interface:
 
-    void showSetupScreen()                                  override;
+    // void        showSetupScreen()                            override;
 
     // PUBLIC MANIPULATORS
-    void accept();
-
-    void asyncConnect(sf::IpAddress address, int port);
-
     bool shutdown();
 
     void startup();
 
   private:
-    void connectionChange(Wawt::IpcProtocol::ChannelId     id,
-                          Wawt::IpcProtocol::ChannelStatus status);
-
-    Wawt::EventRouter&    d_router;
-    Wawt::IpcProtocol    *d_ipc;
     std::mutex          d_cbLock;
     Handle              d_setupScreen;
     Handle              d_gameScreen;
     std::thread         d_gameThread;
-    sf::TcpListener     d_listener{};
-    sf::TcpSocket       d_connection{};
-    ConnId              d_currentId     = Wawt::IpcProtocol::kINVALID_ID;
-    std::regex          d_addressRegex{R"(^([a-z.\-\d]+):(\d+)$)"};
     std::atomic_bool    d_cancel;
+    Wawt::EventRouter&  d_router;
+    StringIdLookup     *d_mapper;
 };
 
 #endif

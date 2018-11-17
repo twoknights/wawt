@@ -29,6 +29,8 @@
 
 namespace Wawt {
 
+using OnClickCb         = std::function<void(Widget *)>;
+
 struct LabelGroup {
     Text::View_t    d_view{};
     CharSizeGroup   d_group{};
@@ -41,9 +43,12 @@ struct TextOption {
     std::any        d_options{};
 };
 
-using OnClickCb         = std::function<void(Widget *)>;
-using ClickLabelPair    = std::pair<OnClickCb, Text::View_t>;
-using ClickLabelList    = std::initializer_list<ClickLabelPair>;
+struct LabelClickPair {
+    Text::View_t    d_view{};
+    OnClickCb       d_click{};
+};
+
+using LabelClickList    = std::initializer_list<LabelClickPair>;
 using GroupClickCb      = std::function<void(Widget *,uint16_t relativeId)>;
 using LabelGroupList    = std::initializer_list<LabelGroup>;
 using LabelList         = std::initializer_list<Text::View_t>;
@@ -221,7 +226,7 @@ Widget pushButtonGrid(Trackee&&                tracker,
                       double                   borderThickness,
                       CharSizeGroup            group,
                       TextAlign                alignment,
-                      ClickLabelList           buttonDefs,
+                      LabelClickList           buttonDefs,
                       bool                     spaced    = true);
 
 Widget pushButtonGrid(const Layout&            gridLayout,
@@ -229,7 +234,7 @@ Widget pushButtonGrid(const Layout&            gridLayout,
                       double                   borderThickness,
                       CharSizeGroup            group,
                       TextAlign                alignment,
-                      ClickLabelList           buttonDefs,
+                      LabelClickList           buttonDefs,
                       bool                     spaced    = true);
 
 Widget pushButtonGrid(Trackee&&                tracker,
@@ -237,27 +242,27 @@ Widget pushButtonGrid(Trackee&&                tracker,
                       int                      columns,
                       double                   borderThickness,
                       CharSizeGroup            group,
-                      ClickLabelList           buttonDefs,
+                      LabelClickList           buttonDefs,
                       bool                     spaced    = true);
 
 Widget pushButtonGrid(const Layout&            gridLayout,
                       int                      columns,
                       double                   borderThickness,
                       CharSizeGroup            group,
-                      ClickLabelList           buttonDefs,
+                      LabelClickList           buttonDefs,
                       bool                     spaced    = true);
 
 Widget pushButtonGrid(Trackee&&                tracker,
                       const Layout&            gridLayout,
                       double                   borderThickness,
                       CharSizeGroup            group,
-                      ClickLabelList           buttonDefs,
+                      LabelClickList           buttonDefs,
                       bool                     spaced    = true);
 
 Widget pushButtonGrid(const Layout&            gridLayout,
                       double                   borderThickness,
                       CharSizeGroup            group,
-                      ClickLabelList           buttonDefs,
+                      LabelClickList           buttonDefs,
                       bool                     spaced    = true);
 
 Widget radioButtonPanel(Trackee&&              tracker,

@@ -232,19 +232,23 @@ void adjacentTextLayout(Widget        *widget,
                 }
                 xpos += space;
             }
+            auto space = firstChild.layoutData().d_bounds.d_height
+                            - firstChild.text().d_data.d_bounds.d_height
+                            - firstChild.text().d_data.d_baselineOffset;
+            ypos += space/2.0f;
          
             for (auto& child : widget->children()) {
-                auto& childLayout          = child.layoutData();
-                auto& childData            = child.text().d_data;
-                auto& childWidth           = childData.d_bounds.d_width;
-                auto  offset               = childData.d_baselineOffset
-                                                            - minBaseline/2;
-                childData.d_upperLeft.d_x  = xpos;
-                childData.d_upperLeft.d_y  = ypos + offset;
-                childData.d_bounds.d_width = childWidth;
-                childLayout.d_upperLeft    = childData.d_upperLeft;
-                childLayout.d_bounds       = childData.d_bounds;
-                xpos                      += childWidth + 1;
+                auto& childLayout            = child.layoutData();
+                auto& childData              = child.text().d_data;
+                auto& childWidth             = childData.d_bounds.d_width;
+                auto  offset                 = childData.d_baselineOffset
+                                                              - minBaseline/2;
+                childData.d_upperLeft.d_x    = xpos;
+                childData.d_upperLeft.d_y    = ypos + offset;
+                childData.d_bounds.d_width   = childWidth;
+                childLayout.d_upperLeft.d_x  = childData.d_upperLeft.d_x;
+                childLayout.d_bounds.d_width = childWidth;
+                xpos                        += childWidth + 1;
             }
         }
     }
@@ -580,6 +584,7 @@ Widget dropDownList(Trackee&&                  tracker,
     // and prevents down click events from being propagated to any other widget
     // if it isn't on the drop-down list proper (instead the drop-down
     // [and its parent] are removed).
+    using namespace Wawt::literals;
     auto selectLayout = gridLayoutGenerator(-1.0, labels.size()+1, 1);
     auto parent
         = panel(std::move(tracker), layout.border(0.0))
@@ -729,7 +734,7 @@ Widget pushButtonGrid(Trackee&&               tracker,
                       double                  borderThickness,
                       CharSizeGroup           group,
                       TextAlign               alignment,
-                      ClickLabelList          buttonDefs,
+                      LabelClickList          buttonDefs,
                       bool                    spaced)
 {
     auto gridPanel   = panel(std::move(tracker), gridLayout);
@@ -759,7 +764,7 @@ Widget pushButtonGrid(Trackee&&               tracker,
             });
     }
                     
-    for (auto& [click, label] : buttonDefs) {
+    for (auto& [label, click] : buttonDefs) {
         gridPanel.addChild(pushButton(childLayout(),
                                       click,
                                       Text::View_t(label),
@@ -782,7 +787,7 @@ Widget pushButtonGrid(const Layout&           gridLayout,
                       double                  borderThickness,
                       CharSizeGroup           group,
                       TextAlign               alignment,
-                      ClickLabelList          buttonDefs,
+                      LabelClickList          buttonDefs,
                       bool                    spaced)
 {
     return pushButtonGrid(Trackee(),  gridLayout, columns, borderThickness,
@@ -794,7 +799,7 @@ Widget pushButtonGrid(Trackee&&               tracker,
                       int                     columns,
                       double                  borderThickness,
                       CharSizeGroup           group,
-                      ClickLabelList          buttonDefs,
+                      LabelClickList          buttonDefs,
                       bool                    spaced)
 {
     return pushButtonGrid(std::move(tracker), gridLayout, columns,
@@ -806,7 +811,7 @@ Widget pushButtonGrid(const Layout&           gridLayout,
                       int                     columns,
                       double                  borderThickness,
                       CharSizeGroup           group,
-                      ClickLabelList          buttonDefs,
+                      LabelClickList          buttonDefs,
                       bool                    spaced)
 {
     return pushButtonGrid(Trackee(), gridLayout, columns, borderThickness,
@@ -818,7 +823,7 @@ Widget pushButtonGrid(Trackee&&               tracker,
                       const Layout&           gridLayout,
                       double                  borderThickness,
                       CharSizeGroup           group,
-                      ClickLabelList          buttonDefs,
+                      LabelClickList          buttonDefs,
                       bool                    spaced)
 {
     return pushButtonGrid(std::move(tracker), gridLayout, buttonDefs.size(),
@@ -829,7 +834,7 @@ Widget pushButtonGrid(Trackee&&               tracker,
 Widget pushButtonGrid(const Layout&           gridLayout,
                       double                  borderThickness,
                       CharSizeGroup           group,
-                      ClickLabelList          buttonDefs,
+                      LabelClickList          buttonDefs,
                       bool                    spaced)
 {
     return pushButtonGrid(Trackee(), gridLayout, buttonDefs.size(),
