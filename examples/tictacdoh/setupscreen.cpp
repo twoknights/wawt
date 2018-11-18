@@ -68,7 +68,7 @@ SetupScreen::createScreenPanel()
                               {{-1.0, 1.0, 0_wr},{ 1.0, 1.0}},
                               true,
                               changeLanguage,
-                              2_Sz,
+                              kNOGROUP,
                               {
                                   S("English"),
                                   S("Deutsch"),

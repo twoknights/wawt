@@ -263,7 +263,9 @@ using BoundsPtr = std::shared_ptr<Bounds>;
 Widget::LayoutMethod genSpacedLayout(const BoundsPtr&   bounds,
                                      int                rows,
                                      int                columns,
-                                     TextAlign          alignment)
+                                     TextAlign          horizontalAlign,
+                                     TextAlign          verticalAlign
+                                                        = TextAlign::eBASELINE)
 {
     return
         [=] (Widget                 *widget,
@@ -339,13 +341,23 @@ Widget::LayoutMethod genSpacedLayout(const BoundsPtr&   bounds,
             labelPosition.d_y   = position.d_y + border + 1;
             labelPosition.d_x   = position.d_x + border + 1;
 
-            if (alignment != TextAlign::eLEFT) {
+            if (horizontalAlign != TextAlign::eLEFT) {
                 auto space = width - labelBounds.d_width - 2*(border+1);
 
-                if (alignment == TextAlign::eCENTER) {
+                if (horizontalAlign == TextAlign::eCENTER) {
                     space /= 2.0;
                 }
                 labelPosition.d_x += space;
+            }
+
+            if (verticalAlign != TextAlign::eTOP
+             && verticalAlign != TextAlign::eBASELINE) {
+                auto space = height - labelBounds.d_height - 2*(border+1);
+
+                if (verticalAlign == TextAlign::eCENTER) {
+                    space /= 2.0;
+                }
+                labelPosition.d_y += space;
             }
         };                                                            // RETURN
 }
@@ -437,7 +449,9 @@ Widget checkBox(Trackee&&               tracker,
     return  Widget(WawtEnv::sItem, std::move(tracker), layout)
             .downEventMethod(makeToggleButtonDownMethod(GroupClickCb()))
             .useTextBounds(layout.d_thickness <= 0.0)
-            .text(std::move(string), group, alignment)
+            .text(std::move(string))
+            .charSizeGroup(group)
+            .horizontalAlign(alignment)
             .textMark(Text::BulletMark::eSQUARE,
                       alignment != TextAlign::eRIGHT);                // RETURN
 }
@@ -450,7 +464,9 @@ Widget checkBox(const Layout&           layout,
     return  Widget(WawtEnv::sItem, layout)
             .downEventMethod(makeToggleButtonDownMethod(GroupClickCb()))
             .useTextBounds(layout.d_thickness <= 0.0)
-            .text(std::move(string), group, alignment)
+            .text(std::move(string))
+            .charSizeGroup(group)
+            .horizontalAlign(alignment)
             .textMark(Text::BulletMark::eSQUARE,
                       alignment != TextAlign::eRIGHT);                // RETURN
 }
@@ -475,14 +491,18 @@ Widget concatenateLabels(Trackee&&             tracker,
                                       (*p1)->layoutString(),
                                       group,
                                       TextAlign::eLEFT)
-                                .layoutMethod(noLayout).options(options));
+                                .layoutMethod(noLayout)
+                                .verticalAlign(TextAlign::eBASELINE)
+                                .options(options));
             }
             else if (auto p2 = std::get_if<Text::View_t>(&string)) {
                 result.addChild(label(Layout(),
                                       std::move(*p2),
                                       group,
                                       TextAlign::eLEFT)
-                                    .layoutMethod(noLayout).options(options));
+                                .layoutMethod(noLayout)
+                                .verticalAlign(TextAlign::eBASELINE)
+                                .options(options));
             }
             else {
                 assert(0);
@@ -567,7 +587,9 @@ Widget dropDownList(Trackee&&                  tracker,
         = panel(std::move(tracker), layout.border(0.0))
             .addChild(Widget(WawtEnv::sList, selectLayout())
                         .downEventMethod(createDropDown(std::move(selectCb)))
-                        .text(S(""), group, TextAlign::eLEFT)
+                        .text(S(""))
+                        .charSizeGroup(group)
+                        .horizontalAlign(TextAlign::eLEFT)
                         .textMark(Text::BulletMark::eDOWNARROW))
             .addChild(fixedSizeList({{-1.0,1.0,0_wr},{1.0,1.0}},
                                     true,
@@ -602,7 +624,9 @@ Widget fixedSizeList(Trackee&&               tracker,
                 .downEventMethod(singleSelect
                     ? makeRadioButtonDownMethod(selectCb)
                     : makeToggleButtonDownMethod(selectCb))
-                .text(std::move(label), group, TextAlign::eCENTER));
+                .text(std::move(label))
+                .charSizeGroup(group)
+                .horizontalAlign(TextAlign::eCENTER));
 
     }
     return list;                                                      // RETURN
@@ -625,7 +649,10 @@ Widget label(Trackee&&                  tracker,
              TextAlign                  alignment)
 {
     return  Widget(WawtEnv::sLabel, std::move(tracker), layout)
-            .text(std::move(string), group, alignment);               // RETURN
+            .text(std::move(string))
+            .charSizeGroup(group)
+            .verticalAlign(TextAlign::eBASELINE)
+            .horizontalAlign(alignment);                              // RETURN
 }
 
 Widget label(const Layout&              layout,
@@ -634,7 +661,10 @@ Widget label(const Layout&              layout,
              TextAlign                  alignment)
 {
     return  Widget(WawtEnv::sLabel, layout)
-            .text(std::move(string), group, alignment);               // RETURN
+            .text(std::move(string))
+            .charSizeGroup(group)
+            .verticalAlign(TextAlign::eBASELINE)
+            .horizontalAlign(alignment);                              // RETURN
 }
 
 Widget label(Trackee&&                  tracker,
@@ -643,13 +673,17 @@ Widget label(Trackee&&                  tracker,
              TextAlign                  alignment)
 {
     return  Widget(WawtEnv::sLabel, std::move(tracker), layout)
-            .text(std::move(string), alignment);                      // RETURN
+            .text(std::move(string))
+            .verticalAlign(TextAlign::eBASELINE)
+            .horizontalAlign(alignment);                              // RETURN
 }
 
 Widget label(const Layout& layout, Text::View_t&& string, TextAlign alignment)
 {
     return  Widget(WawtEnv::sLabel, layout)
-            .text(std::move(string), alignment);                      // RETURN
+            .text(std::move(string))
+            .verticalAlign(TextAlign::eBASELINE)
+            .horizontalAlign(alignment);                              // RETURN
 }
 
 Widget panel(Trackee&& tracker, const Layout& layout, std::any options)
@@ -673,7 +707,9 @@ Widget pushButton(Trackee&&             tracker,
 {
     return  Widget(WawtEnv::sButton, std::move(tracker), layout)
             .downEventMethod(makePushButtonDownMethod(std::move(clicked)))
-            .text(std::move(string), group, alignment);               // RETURN
+            .text(std::move(string))
+            .charSizeGroup(group)
+            .horizontalAlign(alignment);                              // RETURN
 }
 
 Widget pushButton(const Layout&         layout,
@@ -837,7 +873,9 @@ Widget radioButtonPanel(Trackee&&               tracker,
             Widget(WawtEnv::sItem, std::move(tracker), childLayout())
                 .downEventMethod(makeRadioButtonDownMethod(gridCb))
                 .useTextBounds(true)
-                .text(std::move(label), group, alignment)
+                .text(std::move(label))
+                .charSizeGroup(group)
+                .horizontalAlign(alignment)
                 .textMark(Text::BulletMark::eROUND,
                           alignment != TextAlign::eRIGHT));
 
@@ -895,8 +933,12 @@ Widget widgetGrid(Trackee&&                    tracker,
                 next.layoutMethod(genSpacedLayout(bounds,
                                                   rows,
                                                   columns,
-                                                  next.text().d_layout
-                                                             .d_textAlign));
+                                                  next.text()
+                                                      .d_layout
+                                                      .horizontalAlign(),
+                                                  next.text()
+                                                      .d_layout
+                                                      .verticalAlign()));
             }
             grid.addChild(std::move(next));
         }

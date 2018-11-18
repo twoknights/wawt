@@ -151,6 +151,7 @@ ScrolledList::draw(Widget *widget, DrawProtocol *adapter) noexcept
             adapter->draw(box, settings);
         }
         row.d_upperLeft.d_y = y-1;
+        row.d_baselineAlign = true;
 
         for (auto [view, selected, width] : d_windowView) {
             if (!view.empty()) {
@@ -491,6 +492,8 @@ ScrolledList::synchronizeView(DrawProtocol *adapter) noexcept
     if (d_rowSize  > 0 && layout.d_bounds.d_width > margin+2*d_rowSize ) {
         auto  height = float(d_rowSize  + 2);
         auto  bounds = Bounds{layout.d_bounds.d_width - margin, height};
+
+        text.d_baselineAlign = true;
 
         for (auto row  = d_top;
                   row != d_rows.end() && d_windowView.size()<d_windowSize;

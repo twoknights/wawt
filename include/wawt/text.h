@@ -40,7 +40,9 @@ namespace Wawt {
                                 // struct Text
                                 //============
 
-enum class  TextAlign { eINVALID, eLEFT, eCENTER, eRIGHT };
+enum class  TextAlign {
+    eINVALID, eLEFT, eCENTER, eRIGHT, eTOP, eBOTTOM, eBASELINE
+};
 
 class DrawProtocol;
 
@@ -106,6 +108,7 @@ struct Text {
     struct Data {
         uint32_t            d_leftAlignMark:1, // left or right
                             d_useTextBounds:1,
+                            d_baselineAlign:1,
                             d_labelMark:4,
                             d_charSize:13;
         Coordinates         d_upperLeft{};
@@ -115,6 +118,7 @@ struct Text {
         Data() noexcept
         : d_leftAlignMark(false)
         , d_useTextBounds(false)
+        , d_baselineAlign(false)
         , d_labelMark(BulletMark::eNONE)
         , d_charSize(0) { }
 
@@ -143,16 +147,30 @@ struct Text {
     using CharSizeMapPtr    = std::shared_ptr<CharSizeMap>;
 
     struct Layout {
-        TextAlign           d_textAlign     = TextAlign::eCENTER;
+        ViewFn              d_viewFn{[] { return StringView_t(); }};
         CharSizeGroup       d_charSizeGroup{};
         CharSizeMapPtr      d_charSizeMap{};
-        bool                d_refreshBounds = false;
-        ViewFn              d_viewFn{[] { return StringView_t(); }};
+        uint16_t            d_verticalAlign:3,
+                            d_horizontalAlign:3,
+                            d_refreshBounds:1;
+
+        Layout()
+            : d_verticalAlign(int(TextAlign::eCENTER))
+            , d_horizontalAlign(int(TextAlign::eCENTER))
+            , d_refreshBounds(false) { }
 
         uint16_t    upperLimit(const Wawt::Layout::Result& container) noexcept;
 
         Coordinates position(const Bounds&                bounds,
                              const Wawt::Layout::Result&  container) noexcept;
+
+        TextAlign horizontalAlign()                             const noexcept{
+            return static_cast<TextAlign>(d_horizontalAlign);
+        }
+
+        TextAlign verticalAlign()                               const noexcept{
+            return static_cast<TextAlign>(d_verticalAlign);
+        }
     };
 
     // PUBLIC METHODS

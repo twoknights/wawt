@@ -164,13 +164,13 @@ class  Widget final {
         return *this;
     }
 
-    Widget  optionName(char const * const optionName) &&             noexcept {
-        d_settings.d_optionName = optionName;
+    Widget  charSizeGroup(CharSizeGroup group) &&                    noexcept {
+        this->charSizeGroup(group);
         return std::move(*this);
     }
 
-    Widget& optionName(char const * const optionName) &              noexcept {
-        d_settings.d_optionName = optionName;
+    Widget& charSizeGroup(CharSizeGroup group) &                     noexcept {
+        text().d_layout.d_charSizeGroup = group;
         return *this;
     }
 
@@ -202,6 +202,17 @@ class  Widget final {
         return *this;
     }
 
+    Widget  horizontalAlign(TextAlign alignment) &&                  noexcept {
+        this->horizontalAlign(alignment);
+        return std::move(*this);
+    }
+
+    Widget& horizontalAlign(TextAlign alignment) &                   noexcept {
+        text().d_layout.d_horizontalAlign
+                                    = static_cast<unsigned int>(alignment);
+        return *this;
+    }
+
     Widget  inputMethod(InputMethod&&         newMethod) &&          noexcept;
 
     Widget& inputMethod(InputMethod&&         newMethod) &           noexcept;
@@ -224,6 +235,16 @@ class  Widget final {
 
     Widget& newChildMethod(NewChildMethod&&   newMethod) &           noexcept;
 
+    Widget  optionName(char const * const optionName) &&             noexcept {
+        d_settings.d_optionName = optionName;
+        return std::move(*this);
+    }
+
+    Widget& optionName(char const * const optionName) &              noexcept {
+        d_settings.d_optionName = optionName;
+        return *this;
+    }
+
     Widget  options(std::any options) &&                             noexcept {
         d_settings.d_options = std::move(options);
         return std::move(*this);
@@ -238,6 +259,26 @@ class  Widget final {
 
     Widget& serializeMethod(SerializeMethod&& newMethod) &           noexcept;
 
+    Widget  text(Text::View_t&& string) &&                           noexcept{
+        this->text(std::move(string));
+        return std::move(*this);
+    }
+
+    Widget& text(Text::View_t&& string) &                             noexcept{
+        text().d_layout.d_viewFn = std::move(string.d_viewFn);
+        return *this;
+    }
+
+
+    Widget  textMark(Text::BulletMark  mark,
+                     bool              leftAlignMark = true) &&      noexcept {
+        this->textMark(mark, leftAlignMark);
+        return std::move(*this);
+    }
+
+    Widget& textMark(Text::BulletMark  mark,
+                     bool              leftAlignMark = true) &       noexcept;
+
     Widget  useTextBounds(bool setting) &&                           noexcept {
         text().d_data.d_useTextBounds = setting;
         return std::move(*this);
@@ -248,34 +289,15 @@ class  Widget final {
         return *this;
     }
 
-    Widget  text(Text::View_t&& string,
-                 CharSizeGroup  group     = CharSizeGroup(),
-                 TextAlign      alignment = TextAlign::eCENTER) &&   noexcept {
-        this->text(std::move(string), group, alignment);
+    Widget  verticalAlign(TextAlign alignment) &&                    noexcept {
+        this->verticalAlign(alignment);
         return std::move(*this);
     }
 
-    Widget& text(Text::View_t&& string,
-                 CharSizeGroup  group     = CharSizeGroup(),
-                 TextAlign      alignment = TextAlign::eCENTER) &    noexcept;
-
-    Widget  text(Text::View_t&& string, TextAlign alignment) &&      noexcept {
-        this->text(std::move(string), CharSizeGroup(), alignment);
-        return std::move(*this);
+    Widget& verticalAlign(TextAlign alignment) &                     noexcept {
+        text().d_layout.d_verticalAlign = static_cast<unsigned int>(alignment);
+        return *this;
     }
-
-    Widget& text(Text::View_t&& string, TextAlign alignment) &       noexcept {
-        return text(std::move(string), CharSizeGroup(), alignment);
-    }
-
-    Widget  textMark(Text::BulletMark  mark,
-                     bool              leftAlignMark = true) &&      noexcept {
-        this->textMark(mark, leftAlignMark);
-        return std::move(*this);
-    }
-
-    Widget& textMark(Text::BulletMark  mark,
-                     bool              leftAlignMark = true) &       noexcept;
 
     // PUBLIC MANIPULATORS
 

@@ -257,6 +257,7 @@ SfmlDrawAdapter::draw(const Wawt::Text::Data&        text,
             fillColor.a = options.d_greyedEffect;
         }
     }
+    auto yoffset = 0;
 
     if (!text.view().empty()) {
         sf::Font& font = getFont(options.d_fontIndex);
@@ -273,6 +274,12 @@ SfmlDrawAdapter::draw(const Wawt::Text::Data&        text,
          && text.d_leftAlignMark) {
             offset = text.d_charSize;
         }
+
+        if (!text.d_baselineAlign) {
+            auto bounds = label.getLocalBounds();
+            yoffset     = bounds.top;
+            label.setOrigin(bounds.left, yoffset);
+        }
         label.setPosition(text.d_upperLeft.d_x + offset,
                           text.d_upperLeft.d_y);
         d_window.draw(label);
@@ -283,7 +290,7 @@ SfmlDrawAdapter::draw(const Wawt::Text::Data&        text,
         auto radius     = size/5.0;
         auto border     = std::ceil(0.05*size);
         auto xcenter    = text.d_upperLeft.d_x + size/2.;
-        auto ycenter    = text.d_upperLeft.d_y + size - 5*radius/3;
+        auto ycenter    = text.d_upperLeft.d_y + size - 5*radius/3 - yoffset;
 
         if (!text.d_leftAlignMark) {
             xcenter += text.d_bounds.d_width - size;
@@ -397,13 +404,25 @@ SfmlDrawAdapter::getTextValues(Wawt::Text::Data&      values,
                 widthLimit -= charSize;
             }
 
-            if (newBounds.top  + newBounds.height >= container.d_height
-             || newBounds.left + newBounds.width  >= widthLimit) {
-                upperLimit = charSize;
+            if (values.d_baselineAlign) {
+                if (newBounds.top  + newBounds.height >= container.d_height
+                 || newBounds.left + newBounds.width  >= widthLimit) {
+                    upperLimit = charSize;
+                }
+                else {
+                    lowerLimit = charSize;
+                    bounds     = newBounds;
+                }
             }
             else {
-                lowerLimit = charSize;
-                bounds     = newBounds;
+                if (newBounds.height >= container.d_height
+                 || newBounds.width  >= widthLimit) {
+                    upperLimit = charSize;
+                }
+                else {
+                    lowerLimit = charSize;
+                    bounds     = newBounds;
+                }
             }
             charSize   = (upperLimit + lowerLimit)/2;
         }
@@ -412,19 +431,30 @@ SfmlDrawAdapter::getTextValues(Wawt::Text::Data&      values,
 
     if (values.d_labelMark != Wawt::Text::BulletMark::eNONE) {
         bounds.width += values.d_charSize;
+
+        if (values.view().empty()) {
+            bounds.height = values.d_charSize;
+        }
     }
     // There is no guarantee that there is a character size that will permit
     // the string to fit in the container.  Need to check for this case:
 
+    // Character size allows string to fit the "container".
+    if (values.d_baselineAlign) {
+        values.d_bounds.d_width  = bounds.left + bounds.width;
+        values.d_bounds.d_height = bounds.top  + bounds.height;
+    }
+    else {
+        values.d_bounds.d_width  = bounds.width;
+        values.d_bounds.d_height = bounds.height;
+    }
+
     if (!noFitRequested) {
-        if (bounds.top  + bounds.height >= container.d_height
-         || bounds.left + bounds.width  >= container.d_width) {
+        if (values.d_bounds.d_height >= container.d_height
+         || values.d_bounds.d_width  >= container.d_width) {
             return false;                                             // RETURN
         }
     }
-    // Character size allows string to fit the "container".
-    values.d_bounds.d_width  = bounds.left + bounds.width;
-    values.d_bounds.d_height = bounds.top  + bounds.height;
     return true;                                                      // RETURN
 }
 

@@ -672,15 +672,27 @@ Text::Layout::position(const Bounds&                bounds,
     position.d_x = container.d_upperLeft.d_x + container.d_border + 1;
     position.d_y = container.d_upperLeft.d_y + container.d_border + 1;
 
-    if (d_textAlign != TextAlign::eLEFT) {
+    if (horizontalAlign() != TextAlign::eLEFT) {
         auto space = container.d_bounds.d_width
                    - bounds.d_width
                    - borderAdjustment;
 
-        if (d_textAlign == TextAlign::eCENTER) {
+        if (horizontalAlign() == TextAlign::eCENTER) {
             space /= 2.0f;
         }
         position.d_x += space;
+    }
+
+    if (verticalAlign() != TextAlign::eTOP
+     && verticalAlign() != TextAlign::eBASELINE) {
+        auto space = container.d_bounds.d_height
+                   - bounds.d_height
+                   - borderAdjustment;
+
+        if (verticalAlign() == TextAlign::eCENTER) {
+            space /= 2.0f;
+        }
+        position.d_y += space;
     }
     return position;                                                  // RETURN
 }
@@ -730,7 +742,8 @@ Text::resolveLayout(const Wawt::Layout::Result&  container,
             = d_data.d_charSize;
     }
     // Although the size may not have changed, the position might have:
-    d_data.d_upperLeft    = d_layout.position(d_data.d_bounds, container);
+    d_data.d_baselineAlign = d_layout.verticalAlign() == TextAlign::eBASELINE;
+    d_data.d_upperLeft     = d_layout.position(d_data.d_bounds, container);
     return true;                                                      // RETURN
 }
 
@@ -850,7 +863,8 @@ Widget::defaultSerialize(std::ostream&      os,
         auto& textData   = widget.text().d_data;
         auto& textLayout = widget.text().d_layout;
         os << spaces
-           << "<text align='"   << int(textLayout.d_textAlign)
+           << "<text horizontalAlign='"   << int(textLayout.d_horizontalAlign)
+           << "' verticalAlign='"   << int(textLayout.d_verticalAlign)
            << "' group='";
 
         if (textLayout.d_charSizeGroup) {
@@ -1027,16 +1041,6 @@ Widget::serializeMethod(SerializeMethod&& newMethod) & noexcept
         d_methods = std::make_unique<Methods>();
     }
     d_methods->d_serializeMethod = std::move(newMethod);
-    return *this;                                                     // RETURN
-}
-
-Widget&
-Widget::text(Text::View_t&& string, CharSizeGroup group, TextAlign alignment) &
-                                                                      noexcept
-{
-    text().d_layout.d_charSizeGroup    = group;
-    text().d_layout.d_textAlign        = alignment;
-    text().d_layout.d_viewFn           = std::move(string.d_viewFn);
     return *this;                                                     // RETURN
 }
 
