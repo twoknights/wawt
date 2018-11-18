@@ -187,13 +187,11 @@ void adjacentTextLayout(Widget        *widget,
         // second pass 'charSize' may have changed. Compute actual bounds
         // using the options assigned to each child:
         auto concatWidth = float{};
-        auto minBaseline = 0u;
 
         do {
             (*text.d_layout.d_charSizeMap)[*text.d_layout.d_charSizeGroup]
                 = values.d_charSize;
             concatWidth = 0;
-            minBaseline = UINT16_MAX;
 
             for (auto& child : widget->children()) {
                 if (child.text().resolveLayout(child.layoutData(),
@@ -201,8 +199,6 @@ void adjacentTextLayout(Widget        *widget,
                                                child.options())) {
                     auto& childData = child.text().d_data;
                     concatWidth += childData.d_bounds.d_width;
-                    minBaseline = std::min(minBaseline,
-                                           childData.d_baselineOffset);
                 }
             }
         } while (concatWidth > width && --values.d_charSize > 2);
@@ -213,15 +209,11 @@ void adjacentTextLayout(Widget        *widget,
             }
         }
         else if (!firstPass) {
-            // Now each child has to be positioned. The text box for each
-            // child is positioned to center it's string in the y direction
-            // relative to the enclosing rectangle.  This has to be corrected
-            // so the labels all share the same baseline.
-
-            // Each child starts with the same layout matching the contained
-            // tex box. Bot will be changed together.
+            // Each child's layout was the full width of the concatenated
+            // text.  Now their width must be set to that required by the
+            // text fragment they contain, and the corner x position set
+            // to the position it must be in.
             auto  xpos    = firstChild.layoutData().d_upperLeft.d_x;
-            auto  ypos    = firstChild.layoutData().d_upperLeft.d_y;
 
             if (alignment != TextAlign::eLEFT) {
                 auto space = firstChild.layoutData().d_bounds.d_width
@@ -232,21 +224,15 @@ void adjacentTextLayout(Widget        *widget,
                 }
                 xpos += space;
             }
-            auto space = firstChild.layoutData().d_bounds.d_height
-                            - firstChild.text().d_data.d_bounds.d_height
-                            - firstChild.text().d_data.d_baselineOffset;
-            ypos += space/2.0f;
          
             for (auto& child : widget->children()) {
                 auto& childLayout            = child.layoutData();
                 auto& childData              = child.text().d_data;
                 auto& childWidth             = childData.d_bounds.d_width;
-                auto  offset                 = childData.d_baselineOffset
-                                                              - minBaseline/2;
+
                 childData.d_upperLeft.d_x    = xpos;
-                childData.d_upperLeft.d_y    = ypos + offset;
                 childData.d_bounds.d_width   = childWidth;
-                childLayout.d_upperLeft.d_x  = childData.d_upperLeft.d_x;
+                childLayout.d_upperLeft.d_x  = xpos;
                 childLayout.d_bounds.d_width = childWidth;
                 xpos                        += childWidth + 1;
             }
@@ -309,21 +295,13 @@ Widget::LayoutMethod genSpacedLayout(const BoundsPtr&   bounds,
             // 'bounds' gives the text box dimensions. The border thickness
             // is unchanged, so:
             auto border = layout.d_border;
-            auto width  = bounds->d_width  + 2*(border + 3);
-            auto height = bounds->d_height + 2*(border + 2);
+            auto width  = bounds->d_width  + 2*(border + 1);
+            auto height = bounds->d_height + 2*(border + 1);
 
             // Now placing the widget requires the panels dimensions to
             // calculate the border margin and spacing between buttons.
             auto panelWidth   = parent.layoutData().d_bounds.d_width;
             auto panelHeight  = parent.layoutData().d_bounds.d_height;
-
-            if (layout.d_bounds.d_width <= width) {
-                width = layout.d_bounds.d_width - 2*border - 2;
-            }
-
-            if (layout.d_bounds.d_height <= height) {
-                height = layout.d_bounds.d_height - 2*border - 2;
-            }
 
             // Calculate separator spacing between buttons:
             auto spacex = columns == 1
@@ -358,8 +336,7 @@ Widget::LayoutMethod genSpacedLayout(const BoundsPtr&   bounds,
                                         + marginy + r * (spacey+height);
             auto& labelPosition = data.d_upperLeft;
             auto& labelBounds   = data.d_bounds;
-            labelPosition.d_y   = position.d_y
-                                        + (height-labelBounds.d_height)/2.0;
+            labelPosition.d_y   = position.d_y + border + 1;
             labelPosition.d_x   = position.d_x + border + 1;
 
             if (alignment != TextAlign::eLEFT) {

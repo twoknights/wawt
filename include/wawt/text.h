@@ -107,8 +107,7 @@ struct Text {
         uint32_t            d_leftAlignMark:1, // left or right
                             d_useTextBounds:1,
                             d_labelMark:4,
-                            d_charSize:13,
-                            d_baselineOffset:13;
+                            d_charSize:13;
         Coordinates         d_upperLeft{};
         Bounds              d_bounds{};
         StringView_t        d_view{};
@@ -117,8 +116,7 @@ struct Text {
         : d_leftAlignMark(false)
         , d_useTextBounds(false)
         , d_labelMark(BulletMark::eNONE)
-        , d_charSize(0)
-        , d_baselineOffset(0) { }
+        , d_charSize(0) { }
 
         bool resolveSizes(const Wawt::Layout::Result& container,
                           uint16_t                    upperLimit,

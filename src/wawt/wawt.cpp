@@ -682,11 +682,6 @@ Text::Layout::position(const Bounds&                bounds,
         }
         position.d_x += space;
     }
-    auto space = container.d_bounds.d_height - bounds.d_height
-               - borderAdjustment;
-
-    space /= 2.0f;
-    position.d_y += space;
     return position;                                                  // RETURN
 }
 
@@ -699,7 +694,10 @@ Text::Layout::upperLimit(const Wawt::Layout::Result& container) noexcept
     if (charSizeLimit < borderAdjustment) {
         return 0;                                                     // RETURN
     }
+    // The 'd_charSize' value is the distance between the upper left y value
+    // and the baseline of the text string.
     charSizeLimit -= borderAdjustment;
+    charSizeLimit  = (5*charSizeLimit)/6;
 
     if (d_charSizeGroup) {
         if (auto it  = d_charSizeMap->find(*d_charSizeGroup);
@@ -732,8 +730,7 @@ Text::resolveLayout(const Wawt::Layout::Result&  container,
             = d_data.d_charSize;
     }
     // Although the size may not have changed, the position might have:
-    d_data.d_upperLeft        = d_layout.position(d_data.d_bounds,
-                                                  container);
+    d_data.d_upperLeft    = d_layout.position(d_data.d_bounds, container);
     return true;                                                      // RETURN
 }
 
@@ -1630,7 +1627,6 @@ DrawStream::getTextValues(Text::Data&      values,
     auto  height    = container.d_height;
     auto  size      = count > 0 ? width/count : height;
 
-    values.d_baselineOffset = 0;
     values.d_charSize       = size >= upperLimit ? upperLimit - 1 : size;
     values.d_bounds         = { float(count*(values.d_charSize)),
                                 float(values.d_charSize) };

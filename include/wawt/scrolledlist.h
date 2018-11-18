@@ -119,7 +119,7 @@ class ScrolledList : public Tracker {
 
   private:
     // PRIVATE TYPES
-    using RowInfo = std::tuple<StringView_t, uint16_t, bool, float>;
+    using RowInfo = std::tuple<StringView_t, bool, float>;
 
     // PRIVATE MANIPULATORS
     void            draw(Widget *widget, DrawProtocol *adapter)       noexcept;
@@ -139,7 +139,7 @@ class ScrolledList : public Tracker {
     ItemIter                d_top               = d_rows.begin();
     int                     d_topPos            = 0;
     std::size_t             d_selectCount       = 0;
-    float                   d_charSize          = 0;
+    float                   d_rowSize           = 0;
     bool                    d_singleSelect      = false;
 
     std::size_t             d_windowSize;

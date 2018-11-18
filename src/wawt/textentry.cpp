@@ -119,9 +119,6 @@ TextEntry::draw(Widget *widget, DrawProtocol *adapter) noexcept
                                widget->settings().d_options)) {
             return;                                               // RETURN
         }
-        text.d_bounds.d_height += text.d_baselineOffset
-                                  - widget->text().d_data.d_baselineOffset;
-        std::cout << "o1: " << text.d_baselineOffset << " o2: " << widget->text().d_data.d_baselineOffset << " h1: " << text.d_bounds.d_height << " h2: " << widget->text().d_data.d_bounds.d_height << std::endl;
     }
     text.d_upperLeft = layout.position(text.d_bounds, box);
 
