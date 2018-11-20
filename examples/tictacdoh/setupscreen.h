@@ -24,6 +24,8 @@
 
 #include <wawt/wawt.h>
 #include <wawt/screen.h>
+#include <wawt/scrolledlist.h>
+#include <wawt/textentry.h>
 
 #include <utility>
 
@@ -62,8 +64,7 @@ class SetupScreen : public Wawt::ScreenImpl<SetupScreen,DrawOptions> {
     };
 
     // PUBLIC CONSTRUCTORS
-    SetupScreen(Calls *controller, StringIdLookup *mapper)
-        : ScreenImpl(), d_controller(controller), d_mapper(mapper) { }
+    SetupScreen(Calls *controller, StringIdLookup *mapper);
 
     // PUBLIC MANIPULATORS
     // Called by 'WawtScreenImpl::setup()':
@@ -83,9 +84,11 @@ class SetupScreen : public Wawt::ScreenImpl<SetupScreen,DrawOptions> {
     Wawt::TextEntry         d_connectEntry{35};
     Wawt::TextEntry         d_listenPortEntry{5};
     int                     d_moveTime = 10;
-    Wawt::Tracker           d_languageList;
+    Wawt::Tracker           d_moveClock;
+
     Calls                  *d_controller;
     StringIdLookup         *d_mapper;
+    Wawt::ScrolledList      d_languageList;
 };
 
 #endif

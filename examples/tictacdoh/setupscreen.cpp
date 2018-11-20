@@ -44,13 +44,31 @@ namespace {
                             // class SetupScreen
                             //------------------
 
+SetupScreen::SetupScreen(Calls *controller, StringIdLookup *mapper)
+: ScreenImpl()
+, d_controller(controller)
+, d_mapper(mapper)
+, d_languageList({
+        { S("English"),  true  }
+      , { S("Deutsch"),  false }
+      , { S("Español"),  false }
+      , { S("Français"), false }
+      , { S("Italiano"), false }
+      , { S("Polski"),   false }
+      , { S("Pусский"),  false }
+      })
+{
+    d_languageList.singleSelectList(true);
+}
+
 Wawt::Widget
 SetupScreen::createScreenPanel()
 {
     using namespace Wawt;
     using namespace Wawt::literals;
 
-    auto changeLanguage = [this](auto, uint16_t row) {
+    auto changeLanguage = [this](ScrolledList::ItemIter itemIter) {
+        auto row = std::distance(d_languageList.rows().begin(), itemIter);
         d_mapper->currentLanguage(static_cast<StringIdLookup::Language>(row));
         // Since this results in string IDs taking on new string values,
         // the framework needs to reload those values.
@@ -58,29 +76,18 @@ SetupScreen::createScreenPanel()
         // Now re-layout the screen:
         resize(); // not acutally changing the size.
     };
+    d_languageList.onItemClick(changeLanguage);
 
     auto languageList =
-        panel(Layout().scale(0.3, 0.4))
+        panel({{-0.5,-0.9},{0.5,-0.1}})
             .addChild(
                 label({{-1.0,-1.0},{ 1.0,-0.7}}, StringId::eSelectLanguage))
             .addChild(
-                fixedSizeList(d_languageList,
-                              {{-1.0, 1.0, 0_wr},{ 1.0, 1.0}},
-                              true,
-                              changeLanguage,
-                              kNOGROUP,
-                              {
-                                  S("English"),
-                                  S("Deutsch"),
-                                  S("Español"),
-                                  S("Français"),
-                                  S("Italiano"),
-                                  S("Polski"),
-                                  S("Pусский")
-                              }));
+                d_languageList.widget()
+                              .layout({{-0.8, 1.0, 0_wr},{ 0.8, 1.0}}));
 
     auto leftSideContents =
-        panel({{-1.0, 1.0, 0_wr},{ 0.0, 1.0}})
+        panel({{-1.0, 1.0, 0_wr},{-0.1, 1.0}})
             .addChild(std::move(languageList))
             .addChild(
                 pushButton({{},{-0.95,-0.95}, Layout::Vertex::eUPPER_LEFT},
@@ -89,24 +96,43 @@ SetupScreen::createScreenPanel()
                                           d_screen.draw(&draw); },
                            S("*")));
 
-    auto networkSettings =
-        panel({{-1.0, -0.9},{ 1.0, 0.0}})
+    auto blankRow =
+        label({}, S(""));
+
+    auto clockSetting = 
+        panel({})
             .addChild(
-                concatenateLabels({{-1.0,-0.9},{ 1.0,-0.6}}, 2_Sz,
-                                  TextAlign::eLEFT,
-                                  {{StringId::eWaitForConnection},
-                                   {&d_listenPortEntry}}))
+                label({{-1.0,-1.0},{ 0.6,1.0}},
+                      S("Preferred move clock setting:"),
+                      2_Sz, TextAlign::eLEFT));
+#if 0
             .addChild(
-                label({{-1.0, 0.0},{ 1.0, 0.3}},
-                      StringId::eConnectToOpponent, 2_Sz, TextAlign::eLEFT))
-            .addChild(
-                label(d_connectEntry,
-                      {{-1.0, 0.3},{ 1.0, 0.6}},
-                      d_connectEntry.layoutString(), 2_Sz, TextAlign::eLEFT));
+                dropDownList(d_moveClock,
+                             {{0.6,-1.0},{1.0,7.0}}, GroupClickCb(), 2_Sz,
+                             {S("5"), S("10"), S("15")}));
+#endif
+
+    auto listenSetting =
+        concatenateTextWidgets({{-1.0,-0.9},{ 1.0,-0.6}},
+                               2_Sz, TextAlign::eLEFT,
+                               label({}, StringId::eWaitForConnection),
+                               d_listenPortEntry.widget());
+
+    auto connectLabel  =
+        label({}, StringId::eConnectToOpponent, 2_Sz, TextAlign::eLEFT);
+
+    auto connectSetting = 
+        d_connectEntry.widget().charSizeGroup(2_Sz)
+                               .horizontalAlign(TextAlign::eLEFT);
 
     auto rightSideContents =
-        panel({{ 0.0, 1.0, 0_wr},{ 0.8, 1.0}})
-            .addChild(std::move(networkSettings));
+        panelLayout({{ 0.0, 1.0, 0_wr},{ 0.9, 0.0}}, 0.0, 1,
+                    blankRow.clone(),
+                    std::move(clockSetting),
+                    blankRow.clone(),
+                    std::move(listenSetting),
+                    std::move(connectLabel),
+                    std::move(connectSetting));
 
     return
         panel({})
@@ -115,28 +141,6 @@ SetupScreen::createScreenPanel()
             .addChild(std::move(leftSideContents))
             .addChild(std::move(rightSideContents));
 
-#if 0
-            {
-/* 4(2,3) */    Panel(Layout::centered(0.5, 0.75).translate(0.,-.25),
-                      selectLanguage)
-            }),
-            Panel(Layout::slice(true, 0.5, 0.95), // right half of screen
-            {
-/* 6 */         List(&d_playerMark,
-                     Layout::slice(false, 0.25, 0.40),
-                     2_F,
-                     Wawt::ListType::eRADIOLIST,
-                     {
-                         { StringId::ePlayAsX, true },
-                         { StringId::ePlayAsO}
-                     }),
-                 TextEntry({{-1.0,-0.05},{-0.9,0.05}}, 2, changeMoveTime,
-                           {S("10"), 2_F, Align::eCENTER}),
-                 Label({{1.5,-1.0,2_wr},{1.0,0.05}},
-                       {S(": Move timer (seconds)"), 2_F, Align::eLEFT}),
-                Panel(Layout::slice(false, 0.6, 0.8), networkConnect)
-            })
-#endif
 }
 
 void

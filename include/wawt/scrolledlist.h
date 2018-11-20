@@ -49,7 +49,13 @@ class ScrolledList : public Tracker {
     using OptionalRow   = std::optional<ItemIter>;
 
     // PUBLIC CONSTRUCTORS
-    ScrolledList(uint16_t       visibleRowCount,
+    ScrolledList(uint16_t       minCharactersToShow,
+                 TextAlign      alignment            = TextAlign::eCENTER,
+                 bool           scrollbarsOnLeft     = false,
+                 bool           alwaysShowScrollbars = false)         noexcept;
+
+    ScrolledList(std::initializer_list<Item>
+                                items,
                  TextAlign      alignment            = TextAlign::eCENTER,
                  bool           scrollbarsOnLeft     = false,
                  bool           alwaysShowScrollbars = false)         noexcept;
@@ -128,7 +134,9 @@ class ScrolledList : public Tracker {
 
     void            upEvent(double x, double y, Widget *widget)       noexcept;
 
-    Widget::DownEventMethod makeScroll(int delta)                     noexcept;
+    Widget::DownEventMethod makeScroll(bool down)                     noexcept;
+
+    Widget::DownEventMethod makePageScroll(bool down)                 noexcept;
 
     // PRIVATE DATA
     Items                   d_rows{};
@@ -141,8 +149,9 @@ class ScrolledList : public Tracker {
     std::size_t             d_selectCount       = 0;
     float                   d_rowSize           = 0;
     bool                    d_singleSelect      = false;
+    std::size_t             d_windowSize        = 0;
 
-    std::size_t             d_windowSize;
+    std::string             d_layoutString;
     TextAlign               d_alignment;
     bool                    d_scrollbarsOnLeft;
     bool                    d_alwaysShowScrollbars;

@@ -180,7 +180,7 @@ struct DrawOptions {
 };
 
 constexpr const DrawOptions::Color DrawOptions::kBLACK{0u,0u,0u,255u};
-constexpr const DrawOptions::Color DrawOptions::kGREY{159u,159u,159u,255u};
+constexpr const DrawOptions::Color DrawOptions::kGREY{200u,200u,200u,255u};
 constexpr const DrawOptions::Color DrawOptions::kWHITE{255u,255u,255u,255u};
 constexpr const DrawOptions::Color DrawOptions::kCLEAR{0u,0u,0u,0u};
 

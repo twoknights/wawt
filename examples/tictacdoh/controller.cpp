@@ -139,11 +139,14 @@ Controller::shutdown()
     using namespace Wawt;
     using namespace Wawt::literals;
     d_router.showAlert(
-            panel().addChild(
-                        label(Layout().scale(1.0, 0.2),
+            panel().options(std::any_cast<DrawOptions>(
+                                    WawtEnv::defaultOptions(WawtEnv::sDialog))
+                        .fillColor(DrawOptions::kGREY))
+                   .addChild(
+                        label(Layout().scale(1.0, 0.2).translate(0,-.2),
                               S("Do you wish to exit the game?")))
                    .addChild(
-                        pushButtonGrid({{-1.0, 0.6}, {1.0, 0.9}}, -1.0, 1_Sz,
+                        pushButtonGrid({{-1.0, 0.5}, {1.0, 0.9}}, -1.0, 1_Sz,
                                        {{S("Yes"), [this](auto) {
                                              //d_ipc->closeAll();
                                              d_router.discardAlert();

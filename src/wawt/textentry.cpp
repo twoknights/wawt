@@ -201,6 +201,7 @@ TextEntry::widget() noexcept
     return
         Widget(WawtEnv::sEntry, *this, Layout())
             .text(d_layoutString)
+            .verticalAlign(TextAlign::eBASELINE)
             .downEventMethod(
                  [](double, double, Widget *me, Widget*) {
                      auto cb = EventUpCb();

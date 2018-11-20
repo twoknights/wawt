@@ -192,7 +192,6 @@ drawHexBoard(Wawt::Widget *widget, Wawt::DrawProtocol *adapter, double mx, doubl
 #include "label.h"
 #include "panel.h"
 #include "bullet.h"
-#include "list.h"
 #include "button.h"
 #include "canvas.h"
 
@@ -248,8 +247,7 @@ int main()
                                      &drawAdapter,
                                      &translator);
 
-    Wawt::EventRouter::Handle panels, labels, bullets, lists, buttons, addons,
-                              canvas;
+    Wawt::EventRouter::Handle panels, labels, bullets, buttons, addons, canvas;
     auto router  = Wawt::EventRouter();
 
     labels  = router.create<Labels>("Labels",
@@ -268,19 +266,12 @@ int main()
                                     [&router,&panels](auto) {
                                        router.activate<Panels>(panels);
                                     },
-                                    [&router,&lists](auto) {
-                                       router.activate<Lists>(lists);
-                                    });
-    lists   = router.create<Lists>("Lists",
-                                    [&router,&bullets](auto) {
-                                       router.activate<Bullets>(bullets);
-                                    },
                                     [&router,&buttons](auto) {
                                        router.activate<Buttons>(buttons);
                                     });
     buttons = router.create<Buttons>("Buttons",
-                                    [&router,&lists](auto) {
-                                       router.activate<Lists>(lists);
+                                    [&router,&bullets](auto) {
+                                       router.activate<Bullets>(bullets);
                                     },
                                     [&router,&addons](auto) {
                                        router.activate<Addons>(addons);

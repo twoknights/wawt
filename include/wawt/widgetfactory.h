@@ -36,13 +36,6 @@ struct LabelGroup {
     CharSizeGroup   d_group{};
 };
 
-struct TextOption {
-    using Stringish = std::variant<Text::View_t, TextEntry*>;
-
-    Stringish       d_stringish{};
-    std::any        d_options{};
-};
-
 struct LabelClickPair {
     Text::View_t    d_view{};
     OnClickCb       d_click{};
@@ -52,7 +45,6 @@ using LabelClickList    = std::initializer_list<LabelClickPair>;
 using GroupClickCb      = std::function<void(Widget *,uint16_t relativeId)>;
 using LabelGroupList    = std::initializer_list<LabelGroup>;
 using LabelList         = std::initializer_list<Text::View_t>;
-using LabelOptionList   = std::initializer_list<TextOption>;
 using WidgetGenerator   = std::function<Widget(int row, int column)>;
 
 Widget canvas(Trackee&&                        tracker,
@@ -136,39 +128,15 @@ Widget dialogBox(const Layout&                 dialogLayout,
                  Widget&&                      buttons,
                  LabelGroupList                dialog);
 
-Widget dropDownList(Trackee&&                  tracker,
-                    Layout                     listLayout,
-                    GroupClickCb&&             selectCb,
-                    CharSizeGroup              group,
-                    LabelList                  labels);
-
-Widget dropDownList(const Layout&              listLayout,
-                    GroupClickCb&&             selectCb,
-                    CharSizeGroup              group,
-                    LabelList                  labels);
-
-Widget fixedSizeList(Trackee&&                 tracker,
-                     const Layout&             listLayout,
-                     bool                      singleSelect,
-                     const GroupClickCb&       selectCb,
-                     CharSizeGroup             group,
-                     LabelList                 labels);
-
-Widget fixedSizeList(const Layout&             listLayout,
-                     bool                      singleSelect,
-                     const GroupClickCb&       selectCb,
-                     CharSizeGroup             group,
-                     LabelList                 labels);
-
 Widget label(Trackee&&                         tracker,
              const Layout&                     layout,
              Text::View_t&&                    view,
-             CharSizeGroup                     group     = CharSizeGroup(),
+             CharSizeGroup                     group     = kNOGROUP,
              TextAlign                         alignment = TextAlign::eCENTER);
 
 Widget label(const Layout&                     layout,
              Text::View_t&&                    view,
-             CharSizeGroup                     group     = CharSizeGroup(),
+             CharSizeGroup                     group     = kNOGROUP,
              TextAlign                         alignment = TextAlign::eCENTER);
 
 Widget label(Trackee&&                         tracker,

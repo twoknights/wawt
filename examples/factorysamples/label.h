@@ -112,12 +112,11 @@ label({}, S("or 'right' aligned,"), 2_Sz, TextAlign::eRIGHT),
 label({},
   S("and assigned to a character size group where all share the same size."),
       2_Sz),
-concatenateLabels({}, 3_Sz, TextAlign::eCENTER, {
-        { S("With support for"), yellowText},
-        { S(" UTF-8 "), yellowText.clone().bold(true).font(1)
-                                          .textColor({255u,0u,0u})},
-        { S("or wide character strings."), yellowText}
-    })));
+concatenateTextWidgets({}, 3_Sz, TextAlign::eCENTER,
+    label({}, S("With support for")).options(yellowText),
+    label({}, S(" UTF-8 ")).options(yellowText.clone().bold(true).font(1)
+                                              .textColor({255u,0u,0u})),
+    label({}, S("or wide character strings.")).options(yellowText))));
 // End Samples.
 
     return screen;                                                    // RETURN

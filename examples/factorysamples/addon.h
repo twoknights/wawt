@@ -73,7 +73,7 @@ class Addons : public Wawt::ScreenImpl<Addons,DrawOptions> {
         : d_next(std::move(next))
         , d_prev(std::move(prev))
         , d_buttons()
-        , d_list(7, Wawt::TextAlign::eCENTER, true)
+        , d_list(20, Wawt::TextAlign::eCENTER, true)
         , d_enterRow(25,
                 [this](auto text, auto ch) -> bool {
                     auto string = text->entry();
@@ -187,26 +187,25 @@ Addons::createScreenPanel()
                                     {S("Next"),    d_next}})
                                     .border(5).options(lineColor))
                .addChild(
-                    concatenateLabels({{-0.7, -0.85}, {0.7, -0.75}}, 2_Sz,
-                                      TextAlign::eCENTER, {
-                            { S("Enter today's date: ") },
-                            { &d_month },
-                            { S("/") },
-                            { &d_day },
-                            { S("/") },
-                            { &d_year },
-                            { S(" (TextEntry & concatenated labels)") },
-                        }))
+                    concatenateTextWidgets({{-0.7, -0.85}, {0.7, -0.75}}, 2_Sz,
+                                           TextAlign::eCENTER,
+                        label({}, S("Enter today's date: ")),
+                        d_month.widget(),
+                        label({}, S("/")),
+                        d_day.widget(),
+                        label({}, S("/")),
+                        d_year.widget(),
+                        label({}, S(" (Concatenated TextEntry & Label)"))))
                .addChild(
                     label({{-1.0,-0.65},{1.0,-0.55}},
                            S("Variable List with Scrolling")))
                .addChild(
-                    d_list.list({{-0.2,-0.5},{ 0.2, 0.0}}))
+                    d_list.widget().layout({{-0.25,-0.5},{ 0.25, 0.0}}))
                .addChild(
-                    label(d_enterRow,
-                          {{-0.25, 0.05}, {0.25, 0.13}},
-                          d_enterRow.layoutString().c_str(),
-                          3_Sz, TextAlign::eRIGHT))
+                    d_enterRow.widget()
+                              .layout({{-0.25, 0.05}, {0.25, 0.13}})
+                              .charSizeGroup(3_Sz)
+                              .horizontalAlign(TextAlign::eRIGHT))
                .addChild(
                     label({{ 0.27, 0.05}, {1.0, 0.13}},
                           S(" (Press 'Enter' to add to list)"),
