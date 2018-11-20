@@ -32,10 +32,7 @@ namespace Wawt {
 
 
 class TextEntry : public Tracker {
-
     // PRIVATE MANIPULATORS
-    void            update(Widget *widget, Trackee *label)   noexcept override;
-
     //! Return 'true' if "focus" is retained; 'false' if it is lost.
     bool            input(Widget *widget, Char_t input)               noexcept;
 
@@ -81,6 +78,8 @@ class TextEntry : public Tracker {
         return *this;
     }
 
+    Widget              widget()                                      noexcept;
+
     // PUBLIC ACCESSORS
     bool                autoEnter()                             const noexcept{
         return d_autoEnter;
@@ -100,10 +99,6 @@ class TextEntry : public Tracker {
 
     const VerifierCb&   inputVerifier()                         const noexcept{
         return d_verifierCb;
-    }
-
-    const String_t&     layoutString()                          const noexcept{
-        return d_layoutString;
     }
 
   private:

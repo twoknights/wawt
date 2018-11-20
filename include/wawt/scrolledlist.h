@@ -65,7 +65,7 @@ class ScrolledList : public Tracker {
     }
 
     // Return an 'WawtEnv::sList' container of the list widgets.
-    Widget          list(const Layout& layout)                        noexcept;
+    Widget          widget()                                          noexcept;
 
     ScrolledList&   onItemClick(const OnItemClick& callback)          noexcept{
         d_clickCb = callback;

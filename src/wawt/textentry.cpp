@@ -51,60 +51,14 @@ namespace {
 
 // PRIVATE METHODS
 void
-TextEntry::update(Widget *widget, Trackee *label) noexcept
-{
-    if (d_label == nullptr && widget) {
-        widget->optionName(WawtEnv::sEntry);
-
-        widget->downEventMethod(
-                    [](double, double, Widget *me, Widget*) {
-                        auto cb = EventUpCb();
-                        if (me->tracker()) {
-                            cb= [me](double x, double y, bool up) -> void {
-                                    if (up && me->inside(x, y)
-                                           && me->tracker()) {
-                                        me->focus(me);
-                                    }
-                                };
-                        }
-                        return cb;
-                    })
-               .drawMethod(
-                    [](Widget *me, DrawProtocol *adapter) {
-                        auto *entry = static_cast<TextEntry*>(me->tracker());
-                        if (entry) {
-                            entry->draw(me, adapter);
-                        }
-                    })
-               .inputMethod(
-                    [](Widget *me, Char_t input) {
-                        auto *entry = static_cast<TextEntry*>(me->tracker());
-                        if (entry) {
-                            return entry->input(me, input);
-                        }
-                        return false;
-                    })
-               .serializeMethod(
-                    [](std::ostream& os, std::string *closeTag,
-                       const Widget& me, unsigned int indent) {
-                        auto *entry = static_cast<TextEntry*>(me.tracker());
-                        if (entry) {
-                            entry->serialize(os, closeTag, me, indent);
-                        }
-                    });
-    }
-    Tracker::update(widget, label);
-    return;                                                           // RETURN
-}
-
-void
 TextEntry::draw(Widget *widget, DrawProtocol *adapter) noexcept
 {
     auto  label  = entry();
-    auto& box    = widget->layoutData();
+    auto  box    = widget->layoutData();
     auto  text   = widget->text().d_data;
     auto& layout = widget->text().d_layout;
 
+    box.d_bounds.d_height = text.d_bounds.d_height;
     adapter->draw(box, widget->settings());
 
     if (d_focus && d_bufferLng < d_maxInputCharacters) {
@@ -239,6 +193,50 @@ TextEntry::entry(StringView_t text) noexcept
     d_bufferLng = lng;
     d_buffer    = std::move(work);
     return true;                                                      // RETURN
+}
+
+Widget
+TextEntry::widget() noexcept
+{
+    return
+        Widget(WawtEnv::sEntry, *this, Layout())
+            .text(d_layoutString)
+            .downEventMethod(
+                 [](double, double, Widget *me, Widget*) {
+                     auto cb = EventUpCb();
+                     if (me->tracker()) {
+                         cb= [me](double x, double y, bool up) -> void {
+                                 if (up && me->inside(x, y)
+                                        && me->tracker()) {
+                                     me->focus(me);
+                                 }
+                             };
+                     }
+                     return cb;
+                 })
+            .drawMethod(
+                 [](Widget *me, DrawProtocol *adapter) {
+                     auto *entry = static_cast<TextEntry*>(me->tracker());
+                     if (entry) {
+                         entry->draw(me, adapter);
+                     }
+                 })
+            .inputMethod(
+                 [](Widget *me, Char_t input) {
+                     auto *entry = static_cast<TextEntry*>(me->tracker());
+                     if (entry) {
+                         return entry->input(me, input);
+                     }
+                     return false;
+                 })
+            .serializeMethod(
+                 [](std::ostream& os, std::string *closeTag,
+                    const Widget& me, unsigned int indent) {
+                     auto *entry = static_cast<TextEntry*>(me.tracker());
+                     if (entry) {
+                         entry->serialize(os, closeTag, me, indent);
+                     }
+                 });                                                  // RETURN
 }
 
 }  // namespace Wawt

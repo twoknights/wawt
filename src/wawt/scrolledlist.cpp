@@ -287,7 +287,7 @@ ScrolledList::clearSelection() noexcept
 }
 
 Widget
-ScrolledList::list(const Layout& layout) noexcept
+ScrolledList::widget() noexcept
 {
     auto rowHeight  = 2.0/d_windowSize;
     auto upOneRow   = Widget(WawtEnv::sButton, {})
@@ -345,7 +345,7 @@ ScrolledList::list(const Layout& layout) noexcept
                                     return [](double, double, bool) { };
                                 });
                                
-    return Widget(WawtEnv::sList, *this, layout)
+    return Widget(WawtEnv::sList, *this, Layout())
             .addChild(std::move(upOneRow))      // RID: 0
             .addChild(std::move(downOneRow))    // RID: 1
             .addChild(std::move(upOnePg))       // RID: 2

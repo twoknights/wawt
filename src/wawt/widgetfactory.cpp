@@ -134,113 +134,6 @@ void addDropDown(Widget             *dropDown,
     return;                                                           // RETURN
 }
 
-void adjacentTextLayout(Widget        *widget,
-                        const Widget&  parent,
-                        bool           firstPass,
-                        DrawProtocol  *adapter,
-                        TextAlign      alignment,
-                        std::size_t&   length) noexcept
-{
-    assert(widget->hasChildren());
-    assert(widget->children().front().hasText());
-
-    auto  layout      = firstPass ? widget->layout().resolveLayout(parent)
-                                  : widget->layoutData();
-    auto& firstChild  = widget->children().front();
-    auto& text        = firstChild.text();
-    auto  adjustment  = layout.d_border+1;
-    auto  width       = layout.d_bounds.d_width - 2*adjustment;
-
-    auto  concat      = String_t{};
-    auto  values      = Text::Data();
-    values.d_charSize = text.d_layout.upperLimit(layout) - 1u;
-
-    if (firstPass) {
-        concat.reserve(length + 1);
-        widget->layoutData()      = layout;
-        layout.d_upperLeft.d_x   += adjustment;
-        layout.d_upperLeft.d_y   += adjustment;
-        layout.d_bounds.d_width  -= 2*adjustment;
-        layout.d_bounds.d_height -= 2*adjustment;
-        layout.d_border           = 0;
-
-        for (auto& child : widget->children()) {
-            assert(child.hasText());
-            child.layoutData() = layout;
-            concat += child.text().d_data.view();
-            child.settings().d_successfulLayout = true;
-        }
-        auto upperLimit = values.d_charSize + 1;
-        length          = values.view().length();
-        values.d_view   = StringView_t(concat);
-
-        if (!values.resolveSizes(layout, upperLimit, adapter, std::any())) {
-            for (auto& child : widget->children()) {
-                child.settings().d_successfulLayout = false;
-            }
-            return;                                                   // RETURN
-        }
-    }
-
-    if (firstChild.settings().d_successfulLayout) {
-        // The bounds calculated above is only a lower limit, and on the
-        // second pass 'charSize' may have changed. Compute actual bounds
-        // using the options assigned to each child:
-        auto concatWidth = float{};
-
-        do {
-            (*text.d_layout.d_charSizeMap)[*text.d_layout.d_charSizeGroup]
-                = values.d_charSize;
-            concatWidth = 0;
-
-            for (auto& child : widget->children()) {
-                if (child.text().resolveLayout(child.layoutData(),
-                                               adapter,
-                                               child.options())) {
-                    auto& childData = child.text().d_data;
-                    concatWidth += childData.d_bounds.d_width;
-                }
-            }
-        } while (concatWidth > width && --values.d_charSize > 2);
-
-        if (values.d_charSize <= 2) {
-            for (auto& child : widget->children()) {
-                child.settings().d_successfulLayout = false;
-            }
-        }
-        else if (!firstPass) {
-            // Each child's layout was the full width of the concatenated
-            // text.  Now their width must be set to that required by the
-            // text fragment they contain, and the corner x position set
-            // to the position it must be in.
-            auto  xpos    = firstChild.layoutData().d_upperLeft.d_x;
-
-            if (alignment != TextAlign::eLEFT) {
-                auto space = firstChild.layoutData().d_bounds.d_width
-                                                             - concatWidth;
-
-                if (alignment == TextAlign::eCENTER) {
-                    space /= 2.0f;
-                }
-                xpos += space;
-            }
-         
-            for (auto& child : widget->children()) {
-                auto& childLayout            = child.layoutData();
-                auto& childData              = child.text().d_data;
-                auto& childWidth             = childData.d_bounds.d_width;
-
-                childData.d_upperLeft.d_x    = xpos;
-                childData.d_bounds.d_width   = childWidth;
-                childLayout.d_upperLeft.d_x  = xpos;
-                childLayout.d_bounds.d_width = childWidth;
-                xpos                        += childWidth + 1;
-            }
-        }
-    }
-    return;                                                           // RETURN
-}
-
 Widget::DownEventMethod createDropDown(GroupClickCb&& selectCb)
 {
     return
@@ -421,6 +314,112 @@ Widget::DownEventMethod makeRadioButtonDownMethod(const GroupClickCb& cb)
 
 } // unnamed namespace
 
+void adjacentTextLayout(Widget        *widget,
+                        const Widget&  parent,
+                        bool           firstPass,
+                        DrawProtocol  *adapter,
+                        TextAlign      alignment) noexcept
+{
+    assert(widget->hasChildren());
+    assert(widget->children().front().hasText());
+
+    auto  layout      = firstPass ? widget->layout().resolveLayout(parent)
+                                  : widget->layoutData();
+    auto& firstChild  = widget->children().front();
+    auto& text        = firstChild.text();
+    auto  adjustment  = layout.d_border+1;
+    auto  width       = layout.d_bounds.d_width - 2*adjustment;
+    auto  values      = Text::Data();
+    values.d_charSize = text.d_layout.upperLimit(layout) - 1u;
+
+    if (firstPass) {
+        widget->layoutData()      = layout;
+        layout.d_upperLeft.d_x   += adjustment;
+        layout.d_upperLeft.d_y   += adjustment;
+        layout.d_bounds.d_width  -= 2*adjustment;
+        layout.d_bounds.d_height -= 2*adjustment;
+        layout.d_border           = 0;
+
+        auto  concat  = String_t{};
+        concat.reserve(64);
+
+        for (auto& child : widget->children()) {
+            assert(child.hasText());
+            child.layoutData() = layout;
+            concat += child.text().d_data.view();
+            child.settings().d_successfulLayout = true;
+        }
+        auto upperLimit = values.d_charSize + 1;
+        values.d_view   = StringView_t(concat);
+
+        if (!values.resolveSizes(layout, upperLimit, adapter, std::any())) {
+            for (auto& child : widget->children()) {
+                child.settings().d_successfulLayout = false;
+            }
+            return;                                                   // RETURN
+        }
+        values.d_view = StringView_t();
+    }
+
+    if (firstChild.settings().d_successfulLayout) {
+        // The bounds calculated above is only a lower limit, and on the
+        // second pass 'charSize' may have changed. Compute actual bounds
+        // using the options assigned to each child:
+        auto concatWidth = float{};
+
+        do {
+            (*text.d_layout.d_charSizeMap)[*text.d_layout.d_charSizeGroup]
+                = values.d_charSize;
+            concatWidth = 0;
+
+            for (auto& child : widget->children()) {
+                if (child.text().resolveLayout(child.layoutData(),
+                                               adapter,
+                                               child.options())) {
+                    auto& childData = child.text().d_data;
+                    concatWidth += childData.d_bounds.d_width;
+                }
+            }
+        } while (concatWidth > width && --values.d_charSize > 2);
+
+        if (values.d_charSize <= 2) {
+            for (auto& child : widget->children()) {
+                child.settings().d_successfulLayout = false;
+            }
+        }
+        else if (!firstPass) {
+            // Each child's layout was the full width of the concatenated
+            // text.  Now their width must be set to that required by the
+            // text fragment they contain, and the corner x position set
+            // to the position it must be in.
+            auto  xpos    = firstChild.layoutData().d_upperLeft.d_x;
+
+            if (alignment != TextAlign::eLEFT) {
+                auto space = firstChild.layoutData().d_bounds.d_width
+                                                             - concatWidth;
+
+                if (alignment == TextAlign::eCENTER) {
+                    space /= 2.0f;
+                }
+                xpos += space;
+            }
+         
+            for (auto& child : widget->children()) {
+                auto& childLayout            = child.layoutData();
+                auto& childData              = child.text().d_data;
+                auto& childWidth             = childData.d_bounds.d_width;
+
+                childData.d_upperLeft.d_x    = xpos;
+                childData.d_bounds.d_width   = childWidth;
+                childLayout.d_upperLeft.d_x  = xpos;
+                childLayout.d_bounds.d_width = childWidth;
+                xpos                        += childWidth + 1;
+            }
+        }
+    }
+    return;                                                           // RETURN
+}
+
 Widget canvas(Trackee&&                        tracker,
               const Layout&                    layout,
               Widget::DrawMethod&&             customDraw,
@@ -469,68 +468,6 @@ Widget checkBox(const Layout&           layout,
             .horizontalAlign(alignment)
             .textMark(Text::BulletMark::eSQUARE,
                       alignment != TextAlign::eRIGHT);                // RETURN
-}
-
-
-Widget concatenateLabels(Trackee&&             tracker,
-                         const Layout&         resultLayout,
-                         CharSizeGroup         group,
-                         TextAlign             alignment,
-                         LabelOptionList       labels)
-{
-    auto result      = Widget(WawtEnv::sLabel,
-                              std::move(tracker),
-                              resultLayout);
-    auto noLayout    = [](Widget*,const Widget&,bool,DrawProtocol*) -> void {};
-
-    if (group && labels.size() > 0) {
-        for (auto [string, options] : labels) {
-            if (auto p1 = std::get_if<TextEntry*>(&string)) {
-                result.addChild(label(**p1,
-                                      Layout(),
-                                      (*p1)->layoutString(),
-                                      group,
-                                      TextAlign::eLEFT)
-                                .layoutMethod(noLayout)
-                                .verticalAlign(TextAlign::eBASELINE)
-                                .options(options));
-            }
-            else if (auto p2 = std::get_if<Text::View_t>(&string)) {
-                result.addChild(label(Layout(),
-                                      std::move(*p2),
-                                      group,
-                                      TextAlign::eLEFT)
-                                .layoutMethod(noLayout)
-                                .verticalAlign(TextAlign::eBASELINE)
-                                .options(options));
-            }
-            else {
-                assert(0);
-            }
-        }
-        auto length = std::size_t{32};
-        result.layoutMethod(
-            [alignment, length](Widget         *me,
-                                const Widget&   parent,
-                                bool            firstPass,
-                                DrawProtocol   *adapter) mutable -> void {
-                adjacentTextLayout(me,
-                                   parent,
-                                   firstPass,
-                                   adapter,
-                                   alignment,
-                                   length);
-            });
-    }
-    return result;                                                    // RETURN
-}
-
-Widget concatenateLabels(const Layout&         resultLayout,
-                         CharSizeGroup         group,
-                         TextAlign             alignment,
-                         LabelOptionList       labels)
-{
-    return concatenateLabels(Trackee(), resultLayout, group, alignment,labels);
 }
 
 Widget dialogBox(Trackee&&                     tracker,

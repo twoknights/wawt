@@ -75,16 +75,57 @@ Widget checkBox(const Layout&                  layout,
                 CharSizeGroup                  group      = CharSizeGroup(),
                 TextAlign                      alignment  = TextAlign::eLEFT);
 
-Widget concatenateLabels(Trackee&&             tracker,
-                         const Layout&         resultLayout,
-                         CharSizeGroup         group,
-                         TextAlign             alignment,
-                         LabelOptionList       labels);
+template<class ...TEXTWIDGET>
+Widget concatenateTextWidgets(Trackee&&        tracker,
+                              const Layout&    envelope,
+                              CharSizeGroup    group,
+                              TextAlign        horizontalAlignment,
+                              TEXTWIDGET&&...  widgets)
+{
+    static_assert(sizeof...(widgets) > 0);
 
-Widget concatenateLabels(const Layout&         resultLayout,
-                         CharSizeGroup         group,
-                         TextAlign             alignment,
-                         LabelOptionList       labels);
+    auto container   = Widget(WawtEnv::sLabel,
+                              std::move(tracker),
+                              envelope);
+    auto noLayout    = [](Widget*,const Widget&,bool,DrawProtocol*) -> void {};
+
+    if (group) {
+        extern void adjacentTextLayout(Widget        *widget,
+                                       const Widget&  parent,
+                                       bool           firstPass,
+                                       DrawProtocol  *adapter,
+                                       TextAlign      alignment) noexcept;
+
+        (container.addChild(std::move(widgets)
+                                .layout(Layout())
+                                .layoutMethod(noLayout)
+                                .horizontalAlign(TextAlign::eLEFT)
+                                .verticalAlign(TextAlign::eBASELINE)
+                                .charSizeGroup(group)), ...);
+        container.layoutMethod(
+            [horizontalAlignment](Widget         *me,
+                                  const Widget&   parent,
+                                  bool            firstPass,
+                                  DrawProtocol   *adapter) -> void {
+                adjacentTextLayout(me,
+                                   parent,
+                                   firstPass,
+                                   adapter,
+                                   horizontalAlignment);
+            });
+    }
+    return container;                                                 // RETURN
+}
+
+template<class... TEXTWIDGET>
+Widget concatenateTextWidgets(const Layout&    envelope,
+                              CharSizeGroup    group,
+                              TextAlign        alignment,
+                              TEXTWIDGET&&...  widgets)
+{
+    return concatenateTextWidgets(Trackee(), envelope, group, alignment,
+                                  std::forward<TEXTWIDGET>(widgets)...);
+}
 
 Widget dialogBox(Trackee&&                     tracker,
                  const Layout&                 dialogLayout,
