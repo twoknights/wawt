@@ -252,7 +252,7 @@ ScrolledList::upEvent(double, double y, Widget *widget) noexcept
         }
 
         if (d_clickCb) {
-            d_clickCb(d_lastRowClicked.value());
+            d_clickCb(this, d_lastRowClicked.value());
         }
     }
     return;                                                           // RETURN
@@ -557,7 +557,7 @@ ScrolledList::synchronizeView(DrawProtocol *adapter) noexcept
     for (auto row  = d_top;
               row != d_rows.end() && d_windowView.size()<d_windowSize;
             ++row) {
-        text.d_view         = StringView_t(row->first);
+        text.d_view         = row->first.d_viewFn();
         text.d_charSize     = uint16_t(5*d_rowSize/6);
 
         if (!text.view().empty()) {

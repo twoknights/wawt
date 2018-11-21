@@ -39,13 +39,13 @@ namespace Wawt {
 
 
 class ScrolledList : public Tracker {
+
   public:
-    // Return 'true' if focus is to be retained.
     // PUBLIC TYPES
-    using Item          = std::pair<String_t, bool>;
+    using Item          = std::pair<Text::View_t, bool>;
     using Items         = std::list<Item>;
     using ItemIter      = Items::iterator;
-    using OnItemClick   = std::function<void(ItemIter)>;
+    using OnItemClick   = std::function<void(ScrolledList*, ItemIter)>;
     using OptionalRow   = std::optional<ItemIter>;
 
     // PUBLIC CONSTRUCTORS
@@ -115,12 +115,12 @@ class ScrolledList : public Tracker {
 
     //! Number of rows being shown in viewed area.
     std::size_t     viewedRows()                                const noexcept{
-        return d_windowView.size();
+        return d_windowView.size(); // set in 'synchronizeView()'
     }
 
     //! Number of rows that can be shown in viewed area.
     std::size_t     viewSize()                                  const noexcept{
-        return d_windowSize;
+        return d_windowSize; // set in 'synchronizeView()'
     }
 
   private:

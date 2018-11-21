@@ -67,7 +67,8 @@ SetupScreen::createScreenPanel()
     using namespace Wawt;
     using namespace Wawt::literals;
 
-    auto changeLanguage = [this](ScrolledList::ItemIter itemIter) {
+    auto changeLanguage = [this](ScrolledList*,
+                                 ScrolledList::ItemIter itemIter) {
         auto row = std::distance(d_languageList.rows().begin(), itemIter);
         d_mapper->currentLanguage(static_cast<StringIdLookup::Language>(row));
         // Since this results in string IDs taking on new string values,

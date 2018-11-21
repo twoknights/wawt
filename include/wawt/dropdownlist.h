@@ -34,10 +34,48 @@ namespace Wawt {
 
 class DropDownList : public Tracker {
 
-    // PRIVATE MANIPULATORS
-    void            update(Widget *widget, Trackee *label)   noexcept override;
+  public:
+    // Return 'true' if focus is to be retained.
+    // PUBLIC TYPES
+    using Initializer   = std::initializer_list<Text::View_t>;
+    using Items         = ScrolledList::Items;
+    using ItemIter      = ScrolledList::ItemIter;
+    using OnSelection   = std::function<void(DropDownList*, ItemIter)>;
+    using OptionalRow   = ScrolledList::OptionalRow;
 
-    //! Return 'true' if "focus" is retained; 'false' if it is lost.
+    // PUBLIC CONSTRUCTORS
+    //! 'height' uses the base screen's "y-axis"
+    DropDownList(double              maxHeight,
+                 uint16_t            minCharactersToShow,
+                 bool                scrollbarsOnLeft = false)        noexcept;
+
+    DropDownList(double              maxHeight,
+                 Initializer         items,
+                 bool                scrollbarsOnLeft = false)        noexcept;
+
+    // PUBLIC MANIPULATORS
+    DropDownList&   onItemClick(const OnItemClick& callback)          noexcept{
+        d_clickCb = callback;
+        return *this;
+    }
+
+    Items&          rows()                                            noexcept{
+        return d_scrolledList.rows();
+    }
+
+    Widget          widget()                                          noexcept;
+
+    // PUBLIC ACCESSORS
+    const Items&    rows()                                      const noexcept{
+        return d_scrolledList.rows();
+    }
+
+    OptionalRow     selectedRow()                               const noexcept{
+        return d_selectedRow;
+    }
+
+  private:
+    // PRIVATE MANIPULATORS
     void            draw(Widget *widget, DrawProtocol *adapter)       noexcept;
 
     void            serialize(std::ostream&  os,
@@ -45,46 +83,11 @@ class DropDownList : public Tracker {
                               const Widget&  entry,
                               unsigned int   indent)                  noexcept;
 
-  public:
-    // Return 'true' if focus is to be retained.
-    // PUBLIC TYPES
-    using Items = std::vector<String_t>;
+    // PRIVATE DATA MEMBERS
+    OnItemClick         d_clickCb{};
 
-    // PUBLIC CONSTRUCTORS
-    DropDownList(uint16_t       maxRowCharacters,
-                 double         maxDropDownHeight,
-                 bool           scrollbarsOnLeft     = false,
-                 bool           alwaysShowScrollbars = false)         noexcept;
-
-    // PUBLIC MANIPULATORS
-    void            clear()                                           noexcept;
-
-    DropDownList&   itemOptions(std::any&& options)                   noexcept{
-        d_options = std::move(options);
-        return *this;
-    }
-
-    Items&          items()                                           noexcept{
-        return d_items;
-    }
-
-    bool            setSelection(const String_t& selection)           noexcept;
-
-    // PUBLIC ACCESSORS
-    const std::any& itemOptions()                               const noexcept{
-        return d_scrolledList.itemOptions();
-    }
-
-    const String_t& layoutString()                              const noexcept{
-        return d_layoutString;
-    }
-
-    const Items&    rows()                                      const noexcept{
-        return d_scrolledList.rows();
-    }
-
-  private:
-    String_t    d_layoutString;
+    ScrolledList&       d_dropDown;
+    double              height;
 };
 
 } // end Wawt namespace

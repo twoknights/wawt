@@ -76,6 +76,7 @@ class Addons : public Wawt::ScreenImpl<Addons,DrawOptions> {
         , d_list(20, Wawt::TextAlign::eCENTER, true)
         , d_enterRow(25,
                 [this](auto text, auto ch) -> bool {
+                    // Add non-empty strings to list bottom on ENTER.
                     auto string = text->entry();
                     if (ch && !string.empty()) {
                         auto it = d_list.top();
@@ -89,7 +90,8 @@ class Addons : public Wawt::ScreenImpl<Addons,DrawOptions> {
         , d_day(  2, Range{   1,   31, &d_year }, {'\t'})
         , d_year( 4, Range{2018, 2199, &d_month}, {'\t'}) {
             d_list.onItemClick(
-                [this](auto) {
+                [this](auto,auto) {
+                    // Disable 'DelSel' button if no rows selected:
                     d_buttons->children()[2]
                               .disabled(d_list.selectCount() == 0);
                 });
