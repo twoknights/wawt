@@ -237,12 +237,12 @@ ScrolledList::upEvent(double, double y, Widget *widget) noexcept
             clearSelection();
         }
         d_lastRowClicked = d_top;
-        std::advance(d_lastRowClicked.value(), row);
+        std::advance(*d_lastRowClicked, row);
 
-        std::get<1>(d_windowView[row])   ^= true;
-        d_lastRowClicked.value()->second ^= true; // non-single select: toggle
+        std::get<1>(d_windowView[row])  ^= true;
+        (*d_lastRowClicked)->d_enabled  ^= true; // non-single select: toggle
 
-        if (d_lastRowClicked.value()->second) {
+        if ((*d_lastRowClicked)->d_enabled) {
             d_selectedSet.insert(row);
             d_selectCount += 1;
         }
@@ -252,7 +252,7 @@ ScrolledList::upEvent(double, double y, Widget *widget) noexcept
         }
 
         if (d_clickCb) {
-            d_clickCb(this, d_lastRowClicked.value());
+            d_clickCb(this, *d_lastRowClicked);
         }
     }
     return;                                                           // RETURN
@@ -276,13 +276,20 @@ ScrolledList::ScrolledList(
         TextAlign                   alignment,
         bool                        scrollbarsOnLeft,
         bool                        alwaysShowScrollbars) noexcept
-: d_rows(items.begin(), items.end())
+: d_rows()
 , d_layoutString()
 , d_alignment(alignment)
 , d_scrollbarsOnLeft(scrollbarsOnLeft)
 , d_alwaysShowScrollbars(alwaysShowScrollbars)
 , d_itemOptions(WawtEnv::defaultOptions(WawtEnv::sItem))
 {
+    for (auto it = std::rbegin(items); it != std::rend(items); ++it) {
+        d_rows.emplace_front(std::move(*it));
+
+        if (d_rows.front().d_enabled) {
+            d_lastRowClicked = d_rows.begin();
+        }
+    }
 }
 
 void
@@ -305,13 +312,13 @@ ScrolledList::clearSelection() noexcept
 {
     if (d_singleSelect) {
         if (d_lastRowClicked.has_value()) {
-            d_lastRowClicked.value()->second = false;
+            (*d_lastRowClicked)->d_enabled = false;
         }
     }
     else {
         for (auto& item : d_rows) {
-            if (item.second) {
-                item.second = false;
+            if (item.d_enabled) {
+                item.d_enabled = false;
             }
         }
     }
@@ -451,19 +458,20 @@ ScrolledList::singleSelectList(bool value) noexcept
 {
     if (value != d_singleSelect) {
         if (!d_singleSelect) { // from multi-select to single select
+            // was toggled off
             if (d_lastRowClicked.has_value()
-             && !d_lastRowClicked.value()->second) { // was toggled off
+             && !(*d_lastRowClicked)->d_enabled) {
                 d_lastRowClicked.reset();
             }
 
             for (auto& item : d_rows) {
-                if (item.second) {
-                    item.second = false;
+                if (item.d_enabled) {
+                    item.d_enabled = false;
                 }
             }
 
             if (d_lastRowClicked.has_value()) {
-                d_lastRowClicked.value()->second = true;
+                (*d_lastRowClicked)->d_enabled = true;
                 d_selectCount = 1;
             }
             else {
@@ -557,18 +565,18 @@ ScrolledList::synchronizeView(DrawProtocol *adapter) noexcept
     for (auto row  = d_top;
               row != d_rows.end() && d_windowView.size()<d_windowSize;
             ++row) {
-        text.d_view         = row->first.d_viewFn();
+        text.d_view         = row->d_view.d_viewFn();
         text.d_charSize     = uint16_t(5*d_rowSize/6);
 
         if (!text.view().empty()) {
             adjustView(text, adapter, bounds, d_itemOptions);
         }
 
-        if (row->second) {
+        if (row->d_enabled) {
             d_selectedSet.insert(d_windowView.size());
         }
         d_windowView.emplace_back(text.view(),
-                                  row->second,
+                                  row->d_enabled,
                                   text.d_bounds.d_width);
     }
     auto& upOneRow   = d_widget->children()[0];

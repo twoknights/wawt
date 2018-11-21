@@ -29,6 +29,7 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace Wawt {
@@ -42,7 +43,13 @@ class ScrolledList : public Tracker {
 
   public:
     // PUBLIC TYPES
-    using Item          = std::pair<Text::View_t, bool>;
+    using UserData      = std::variant<int, unsigned int, void*, const char*>;
+
+    struct Item {
+        Text::View_t    d_view{};
+        bool            d_enabled = false;
+        UserData        d_data{};
+    };
     using Items         = std::list<Item>;
     using ItemIter      = Items::iterator;
     using OnItemClick   = std::function<void(ScrolledList*, ItemIter)>;
