@@ -25,6 +25,7 @@
 #include <wawt/wawt.h>
 #include <wawt/screen.h>
 #include <wawt/scrolledlist.h>
+#include <wawt/dropdownlist.h>
 #include <wawt/textentry.h>
 
 #include <utility>
@@ -84,10 +85,10 @@ class SetupScreen : public Wawt::ScreenImpl<SetupScreen,DrawOptions> {
     Wawt::TextEntry         d_connectEntry{35};
     Wawt::TextEntry         d_listenPortEntry{5};
     int                     d_moveTime = 10;
-    Wawt::Tracker           d_moveClock;
 
     Calls                  *d_controller;
     StringIdLookup         *d_mapper;
+    Wawt::DropDownList      d_moveClock;
     Wawt::ScrolledList      d_languageList;
 };
 

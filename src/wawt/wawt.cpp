@@ -753,33 +753,6 @@ Text::resolveLayout(const Wawt::Layout::Result&  container,
                                 //-------------
 
 // PRIVATE MEMBERS
-void
-Widget::layout(DrawProtocol       *adapter,
-               bool                firstPass,
-               const Widget&       parent)
-{
-    d_settings.d_successfulLayout = true;
-
-    call(&defaultLayout,
-         &Methods::d_layoutMethod,
-         this,
-         parent,
-         firstPass,
-         adapter);
-
-    if (hasText()) {
-        text().d_layout.d_refreshBounds = false;
-    }
-
-    auto space = std::min(d_rectangle.d_bounds.d_height,
-                          d_rectangle.d_bounds.d_width)-2*d_rectangle.d_border;
-
-    if (space > 8 && hasChildren()) {
-        for (auto& child : children()) {
-            child.layout(adapter, firstPass, *this);
-        }
-    }
-}
 
 // PUBLIC CLASS MEMBERS
 void
@@ -824,6 +797,9 @@ Widget::defaultSerialize(std::ostream&      os,
     auto& widgetName = settings.d_optionName;
     auto& widgetId   = settings.d_widgetIdValue;
 
+    if (widgetName == nullptr) {
+        return;                                                       // RETURN
+    }
     auto fmtflags = os.flags();
     os.setf(std::ios::boolalpha);
 
@@ -1419,8 +1395,8 @@ Widget::pushDialog(Widget&& child, DrawProtocol *adapter)
                                              map,
                                              d_root);
                 screen.synchronizeTextView(true);
-                screen.layout(adapter, true,  *d_root);
-                screen.layout(adapter, false, *d_root);
+                screen.resolveLayout(adapter, true,  *d_root);
+                screen.resolveLayout(adapter, false, *d_root);
                 childId = WidgetId(id, false);
             }
         }
@@ -1467,11 +1443,11 @@ Widget::resizeScreen(double width, double height, DrawProtocol *adapter)
                 }
 
                 for (auto& child : children()) {
-                    child.layout(adapter, true, *this);
+                    child.resolveLayout(adapter, true, *this);
                 }
 
                 for (auto& child : children()) {
-                    child.layout(adapter, false, *this);
+                    child.resolveLayout(adapter, false, *this);
                 }
             }
         }
@@ -1480,6 +1456,34 @@ Widget::resizeScreen(double width, double height, DrawProtocol *adapter)
         }
     }
     return;                                                           // RETURN
+}
+
+void
+Widget::resolveLayout(DrawProtocol       *adapter,
+                      bool                firstPass,
+                      const Widget&       parent)
+{
+    d_settings.d_successfulLayout = true;
+
+    call(&defaultLayout,
+         &Methods::d_layoutMethod,
+         this,
+         parent,
+         firstPass,
+         adapter);
+
+    if (hasText()) {
+        text().d_layout.d_refreshBounds = false;
+    }
+
+    auto space = std::min(d_rectangle.d_bounds.d_height,
+                          d_rectangle.d_bounds.d_width)-2*d_rectangle.d_border;
+
+    if (space > 8 && hasChildren()) {
+        for (auto& child : children()) {
+            child.resolveLayout(adapter, firstPass, *this);
+        }
+    }
 }
 
 void
@@ -1631,7 +1635,16 @@ DrawStream::getTextValues(Text::Data&      values,
     auto  height    = container.d_height;
     auto  size      = count > 0 ? width/count : height;
 
-    values.d_charSize       = size >= upperLimit ? upperLimit - 1 : size;
+    if (size > height) {
+        size = height;
+    }
+
+    if (upperLimit == 0) {
+        values.d_charSize       = size;
+    }
+    else {
+        values.d_charSize       = size >= upperLimit ? upperLimit - 1 : size;
+    }
     values.d_bounds         = { float(count*(values.d_charSize)),
                                 float(values.d_charSize) };
     return true;                                                      // RETURN

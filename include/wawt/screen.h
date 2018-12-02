@@ -491,6 +491,7 @@ ScreenImpl<Derived,Option>::setup(Types&...  args)
     try {
         auto app = reinterpret_cast<Derived*>(this);
         d_screen= app->createScreenPanel(args...).optionName(WawtEnv::sScreen);
+        d_screen.synchronizeTextView();
         d_screen.assignWidgetIds();
     }
     catch (WawtException caught) {

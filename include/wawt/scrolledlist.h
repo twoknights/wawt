@@ -34,23 +34,30 @@
 
 namespace Wawt {
 
+class DropDownList;
+
                             //===================
                             // class ScrolledList
                             //===================
 
 
 class ScrolledList : public Tracker {
+    friend class DropDownList;
 
   public:
     // PUBLIC TYPES
-    using UserData      = std::variant<int, unsigned int, void*, const char*>;
-
     struct Item {
         Text::View_t    d_view{};
-        bool            d_enabled = false;
-        UserData        d_data{};
+        bool            d_selected = false;
+
+        Item()          = default;
+
+        Item(Text::View_t&& view, bool selected = false)
+            : d_view(std::move(view)), d_selected(selected) { }
     };
-    using Items         = std::list<Item>;
+    using ItemPtr       = std::unique_ptr<Item>;
+    using Initializer   = std::initializer_list<Item>;
+    using Items         = std::list<ItemPtr>;
     using ItemIter      = Items::iterator;
     using OnItemClick   = std::function<void(ScrolledList*, ItemIter)>;
     using OptionalRow   = std::optional<ItemIter>;
@@ -61,8 +68,7 @@ class ScrolledList : public Tracker {
                  bool           scrollbarsOnLeft     = false,
                  bool           alwaysShowScrollbars = false)         noexcept;
 
-    ScrolledList(std::initializer_list<Item>
-                                items,
+    ScrolledList(Initializer    items,
                  TextAlign      alignment            = TextAlign::eCENTER,
                  bool           scrollbarsOnLeft     = false,
                  bool           alwaysShowScrollbars = false)         noexcept;
@@ -88,6 +94,11 @@ class ScrolledList : public Tracker {
     Items&          rows()                                            noexcept{
         return d_rows;
     }
+
+    void serialize(std::ostream&     os,
+                   std::string      *closeTag,
+                   const Widget&     list,
+                   unsigned int      indent)                          noexcept;
 
     ScrolledList&   singleSelectList(bool value)                      noexcept;
 

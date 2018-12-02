@@ -33,14 +33,13 @@ namespace Wawt {
 
 
 class DropDownList : public Tracker {
-
   public:
     // Return 'true' if focus is to be retained.
     // PUBLIC TYPES
-    using Initializer   = std::initializer_list<Text::View_t>;
+    using Initializer   = ScrolledList::Initializer;
     using Items         = ScrolledList::Items;
     using ItemIter      = ScrolledList::ItemIter;
-    using OnSelection   = std::function<void(DropDownList*, ItemIter)>;
+    using OnItemClick   = std::function<void(DropDownList*, ItemIter)>;
     using OptionalRow   = ScrolledList::OptionalRow;
 
     // PUBLIC CONSTRUCTORS
@@ -54,20 +53,24 @@ class DropDownList : public Tracker {
                  bool                scrollbarsOnLeft = false)        noexcept;
 
     // PUBLIC MANIPULATORS
+    void            clear()                                           noexcept{
+        d_selectedRow.reset();
+    }
+
     DropDownList&   onItemClick(const OnItemClick& callback)          noexcept{
         d_clickCb = callback;
         return *this;
     }
 
     Items&          rows()                                            noexcept{
-        return d_scrolledList.rows();
+        return d_list.rows();
     }
 
     Widget          widget()                                          noexcept;
 
     // PUBLIC ACCESSORS
     const Items&    rows()                                      const noexcept{
-        return d_scrolledList.rows();
+        return d_list.rows();
     }
 
     OptionalRow     selectedRow()                               const noexcept{
@@ -78,6 +81,8 @@ class DropDownList : public Tracker {
     // PRIVATE MANIPULATORS
     void            draw(Widget *widget, DrawProtocol *adapter)       noexcept;
 
+    void            popUpDropDown(Widget *dropDown);
+
     void            serialize(std::ostream&  os,
                               std::string   *closeTag,
                               const Widget&  entry,
@@ -86,8 +91,9 @@ class DropDownList : public Tracker {
     // PRIVATE DATA MEMBERS
     OnItemClick         d_clickCb{};
 
-    ScrolledList&       d_dropDown;
-    double              height;
+    ScrolledList        d_list;
+    double              d_maxHeight;
+    OptionalRow         d_selectedRow{};
 };
 
 } // end Wawt namespace

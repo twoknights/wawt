@@ -48,14 +48,15 @@ SetupScreen::SetupScreen(Calls *controller, StringIdLookup *mapper)
 : ScreenImpl()
 , d_controller(controller)
 , d_mapper(mapper)
+, d_moveClock(0.3, { { S("5") } , { S("10"), true } , { S("15") } })
 , d_languageList({
         { S("English"),  true  }
-      , { S("Deutsch"),  false }
-      , { S("Español"),  false }
-      , { S("Français"), false }
-      , { S("Italiano"), false }
-      , { S("Polski"),   false }
-      , { S("Pусский"),  false }
+      , { S("Deutsch")  }
+      , { S("Español")  }
+      , { S("Français") }
+      , { S("Italiano") }
+      , { S("Polski")   }
+      , { S("Pусский")  }
       })
 {
     d_languageList.singleSelectList(true);
@@ -101,20 +102,15 @@ SetupScreen::createScreenPanel()
         label({}, S(""));
 
     auto clockSetting = 
-        panel({})
-            .addChild(
-                label({{-1.0,-1.0},{ 0.6,1.0}},
-                      S("Preferred move clock setting:"),
-                      2_Sz, TextAlign::eLEFT));
-#if 0
-            .addChild(
-                dropDownList(d_moveClock,
-                             {{0.6,-1.0},{1.0,7.0}}, GroupClickCb(), 2_Sz,
-                             {S("5"), S("10"), S("15")}));
-#endif
+        concatenateTextWidgets({},
+                               2_Sz, TextAlign::eLEFT,
+                               label(Layout(),
+                                     S("Preferred move clock setting:"),
+                                     2_Sz, TextAlign::eLEFT),
+                               d_moveClock.widget());
 
     auto listenSetting =
-        concatenateTextWidgets({{-1.0,-0.9},{ 1.0,-0.6}},
+        concatenateTextWidgets({},
                                2_Sz, TextAlign::eLEFT,
                                label({}, StringId::eWaitForConnection),
                                d_listenPortEntry.widget());

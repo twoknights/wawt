@@ -104,7 +104,6 @@ inline float yorigin(const Layout::Result& layout) {
                                 // class List
                                 //-----------
 
-
 // PRIVATE METHODS
 void
 ScrolledList::draw(Widget *widget, DrawProtocol *adapter) noexcept
@@ -226,6 +225,38 @@ ScrolledList::makePageScroll(bool down) noexcept
 }
 
 void
+ScrolledList::serialize(std::ostream&  os,
+                     std::string      *closeTag,
+                     const Widget&     list,
+                     unsigned int      indent) noexcept
+{
+    Widget::defaultSerialize(os, closeTag, list, indent);
+
+    auto fmtflags = os.flags();
+    os.setf(std::ios::boolalpha);
+
+    std::string spaces(indent+2, ' ');
+
+    os << spaces
+       << "<viewPort size='" << d_windowSize << "' height='"
+       << std::round(d_rowSize) << "' top='" << d_topPos << "' scrollBars='"
+       << (d_scrollbarsOnLeft ? "left" : "right") << "' alwaysShown='"
+       << d_alwaysShowScrollbars << "'/>\n";
+
+    for (auto& ptr : d_rows) {
+        auto& [view, selected] = *ptr;
+        os << spaces << "<item selected='" << selected << "'>";
+        outputXMLescapedString(os, view.d_viewFn());
+        os << "</item>\n";
+    }
+
+    indent -= 2;
+
+    os.flags(fmtflags);
+    return;                                                           // RETURN
+}
+
+void
 ScrolledList::upEvent(double, double y, Widget *widget) noexcept
 {
     auto& layout   = widget->layoutData();
@@ -239,10 +270,10 @@ ScrolledList::upEvent(double, double y, Widget *widget) noexcept
         d_lastRowClicked = d_top;
         std::advance(*d_lastRowClicked, row);
 
-        std::get<1>(d_windowView[row])  ^= true;
-        (*d_lastRowClicked)->d_enabled  ^= true; // non-single select: toggle
+        std::get<1>(d_windowView[row])   ^= true;
+        (**d_lastRowClicked)->d_selected ^= true; // non-single select: toggle
 
-        if ((*d_lastRowClicked)->d_enabled) {
+        if ((**d_lastRowClicked)->d_selected) {
             d_selectedSet.insert(row);
             d_selectCount += 1;
         }
@@ -272,7 +303,7 @@ ScrolledList::ScrolledList(uint16_t       minCharactersToShow,
 }
 
 ScrolledList::ScrolledList(
-        std::initializer_list<Item> items,
+        Initializer                 items,
         TextAlign                   alignment,
         bool                        scrollbarsOnLeft,
         bool                        alwaysShowScrollbars) noexcept
@@ -284,9 +315,9 @@ ScrolledList::ScrolledList(
 , d_itemOptions(WawtEnv::defaultOptions(WawtEnv::sItem))
 {
     for (auto it = std::rbegin(items); it != std::rend(items); ++it) {
-        d_rows.emplace_front(std::move(*it));
+        d_rows.emplace_front(std::make_unique<Item>(std::move(*it)));
 
-        if (d_rows.front().d_enabled) {
+        if (d_rows.front()->d_selected) {
             d_lastRowClicked = d_rows.begin();
         }
     }
@@ -312,13 +343,13 @@ ScrolledList::clearSelection() noexcept
 {
     if (d_singleSelect) {
         if (d_lastRowClicked.has_value()) {
-            (*d_lastRowClicked)->d_enabled = false;
+            (**d_lastRowClicked)->d_selected = false;
         }
     }
     else {
         for (auto& item : d_rows) {
-            if (item.d_enabled) {
-                item.d_enabled = false;
+            if (item->d_selected) {
+                item->d_selected = false;
             }
         }
     }
@@ -450,6 +481,14 @@ ScrolledList::widget() noexcept
                             me->synchronizeView(adapter);
                         }
                     }
+                })
+            .serializeMethod(
+                [](std::ostream& os, std::string *closeTag,
+                   const Widget& me, unsigned int indent) {
+                    auto *list = static_cast<ScrolledList*>(me.tracker());
+                    if (list) {
+                        list->serialize(os, closeTag, me, indent);
+                    }
                 });                                                   // RETURN
 }
 
@@ -460,18 +499,18 @@ ScrolledList::singleSelectList(bool value) noexcept
         if (!d_singleSelect) { // from multi-select to single select
             // was toggled off
             if (d_lastRowClicked.has_value()
-             && !(*d_lastRowClicked)->d_enabled) {
+             && !(**d_lastRowClicked)->d_selected) {
                 d_lastRowClicked.reset();
             }
 
             for (auto& item : d_rows) {
-                if (item.d_enabled) {
-                    item.d_enabled = false;
+                if (item->d_selected) {
+                    item->d_selected = false;
                 }
             }
 
             if (d_lastRowClicked.has_value()) {
-                (*d_lastRowClicked)->d_enabled = true;
+                (**d_lastRowClicked)->d_selected = true;
                 d_selectCount = 1;
             }
             else {
@@ -565,18 +604,18 @@ ScrolledList::synchronizeView(DrawProtocol *adapter) noexcept
     for (auto row  = d_top;
               row != d_rows.end() && d_windowView.size()<d_windowSize;
             ++row) {
-        text.d_view         = row->d_view.d_viewFn();
+        text.d_view         = (*row)->d_view.d_viewFn();
         text.d_charSize     = uint16_t(5*d_rowSize/6);
 
         if (!text.view().empty()) {
             adjustView(text, adapter, bounds, d_itemOptions);
         }
 
-        if (row->d_enabled) {
+        if ((*row)->d_selected) {
             d_selectedSet.insert(d_windowView.size());
         }
         d_windowView.emplace_back(text.view(),
-                                  row->d_enabled,
+                                  (*row)->d_selected,
                                   text.d_bounds.d_width);
     }
     auto& upOneRow   = d_widget->children()[0];

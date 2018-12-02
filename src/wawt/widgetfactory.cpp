@@ -220,19 +220,25 @@ void adjacentTextLayout(Widget        *widget,
     values.d_charSize = text.d_layout.upperLimit(layout) - 1u;
 
     if (firstPass) {
+        auto minSize
+            = std::min(parent.screen()->layoutData().d_bounds.d_width,
+                       parent.screen()->layoutData().d_bounds.d_height);
         widget->layoutData()      = layout;
+
         layout.d_upperLeft.d_x   += adjustment;
         layout.d_upperLeft.d_y   += adjustment;
         layout.d_bounds.d_width  -= 2*adjustment;
         layout.d_bounds.d_height -= 2*adjustment;
-        layout.d_border           = 0;
 
         auto  concat  = String_t{};
         concat.reserve(64);
 
         for (auto& child : widget->children()) {
+            layout.d_border
+                = float(minSize * child.layout().d_thickness / 1000.0);
             assert(child.hasText());
             child.layoutData() = layout;
+
             concat += child.text().d_data.view();
             child.settings().d_successfulLayout = true;
         }
@@ -264,7 +270,8 @@ void adjacentTextLayout(Widget        *widget,
                                                adapter,
                                                child.options())) {
                     auto& childData = child.text().d_data;
-                    concatWidth += childData.d_bounds.d_width;
+                    concatWidth += childData.d_bounds.d_width
+                                 + child.layoutData().d_border;
                 }
             }
         } while (concatWidth > width && --values.d_charSize > 2);
@@ -292,15 +299,15 @@ void adjacentTextLayout(Widget        *widget,
             }
          
             for (auto& child : widget->children()) {
-                auto& childLayout            = child.layoutData();
-                auto& childData              = child.text().d_data;
-                auto& childWidth             = childData.d_bounds.d_width;
+                auto& childLayout              = child.layoutData();
+                auto& childData                = child.text().d_data;
+                auto& childWidth               = childData.d_bounds.d_width;
+                auto  border                   = 2*(childLayout.d_border+1);
 
-                childData.d_upperLeft.d_x    = xpos;
-                childData.d_bounds.d_width   = childWidth;
-                childLayout.d_upperLeft.d_x  = xpos;
-                childLayout.d_bounds.d_width = childWidth;
-                xpos                        += childWidth + 1;
+                childData.d_upperLeft.d_x      = xpos + childLayout.d_border;
+                childLayout.d_upperLeft.d_x    = xpos;
+                childLayout.d_bounds.d_width   = childWidth + border;
+                xpos                          += childWidth + border + 1;
             }
         }
     }

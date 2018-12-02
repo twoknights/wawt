@@ -333,6 +333,10 @@ class  Widget final {
         return d_rectangle;
     }
 
+    void resolveLayout(DrawProtocol       *adapter,
+                       bool                firstPass,
+                       const Widget&       parent);
+
     void      popDialog();
 
     WidgetId  pushDialog(Widget&&       child,
@@ -481,10 +485,6 @@ class  Widget final {
             defaultFn(std::forward<Args>(args)...);
         }
     }
-
-    void layout(DrawProtocol       *adapter,
-                bool                firstPass,
-                const Widget&       parent);
 
     // PRIVATE DATA MEMBERS (Note: default constructor deleted)
     Trackee             d_widgetLabel;

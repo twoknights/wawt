@@ -249,7 +249,7 @@ class Tracker {
     Widget          *d_widget           = nullptr;
     Trackee         *d_label            = nullptr;
 
-    virtual void    update(Widget *widget, Trackee *label)            noexcept{
+    void    update(Widget *widget, Trackee *label)                    noexcept{
         d_widget = widget;
         d_label  = label;
     }
@@ -262,7 +262,7 @@ class Tracker {
     Tracker(Tracker&& move);
     Tracker& operator=(Tracker&& rhs);
 
-    virtual ~Tracker();
+    ~Tracker();
 
     Widget&  operator*()                                              noexcept{
         return *d_widget;

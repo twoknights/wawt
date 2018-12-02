@@ -32,6 +32,7 @@
 #include <SFML/Window/WindowStyle.hpp>
 #include <SFML/System/Utf.hpp>
 
+#include <wawt/dropdownlist.h>
 #include <drawoptions.h>
 #include <sfmldrawadapter.h>
 
@@ -41,12 +42,12 @@
 #include <chrono>
 
 #ifdef WAWT_WIDECHAR
-#define S(str) String_t(L"" str)  // wide char strings (std::wstring)
+#define S(str) (L"" str)  // wide char strings (std::wstring)
 #define C(c) (L ## c)
 #else
 #undef  S
 #undef  C
-#define S(str) String_t(u8"" str)      // UTF8 strings  (std::string)
+#define S(str) (u8"" str)      // UTF8 strings  (std::string)
 #define C(c) (U ## c)
 #endif
 
@@ -59,6 +60,8 @@ class ViewScreen : public Wawt::ScreenImpl<ViewScreen, DrawOptions> {
     Wawt::Widget createScreenPanel();
 
     void resetWidgets() { }
+
+    Wawt::DropDownList d_moveClock{0.3, { { S("5") } , { S("10") } , { S("15") } }};
 };
 
 Wawt::Widget
@@ -70,7 +73,15 @@ ViewScreen::createScreenPanel()
     //*********************************************************************
     // START SCREEN DEFINITION
     //*********************************************************************
-    auto screen = panel();
+
+    auto clockSetting = 
+        concatenateTextWidgets({{-1.0,-1.0},{1.0,-0.8}},
+                               2_Sz, TextAlign::eLEFT,
+                               label(Layout(),
+                                     S("Preferred move clock setting:"),
+                                     2_Sz, TextAlign::eLEFT),
+                               d_moveClock.widget());
+    auto screen = panel().addChild(std::move(clockSetting));
     //*********************************************************************
     // END SCREEN DEFINITION
     //*********************************************************************
@@ -127,16 +138,23 @@ int main()
     screen.setup();
 
     std::cout << "Minimum widget size: " << sizeof(Wawt::panel()) << std::endl;
-    std::cout << "\nSerialized screen definition:\n";
-    screen.serializeScreen(std::cout);
-    std::cout.flush();
     screen.activate(WIDTH, HEIGHT);
-    std::cout << "\nAdapter view:\n";
-    Wawt::DrawStream draw;
-    screen.draw(&draw);
 
     screen.draw();
     window.display();
+
+    auto cb = screen.downEvent(780.0,10.0);
+    cb(780.0,10.0,true);
+
+    screen.draw();
+    window.display();
+
+    std::cout << "\nSerialized screen definition:\n";
+    screen.serializeScreen(std::cout);
+    std::cout.flush();
+    std::cout << "\nAdapter view:\n";
+    Wawt::DrawStream draw;
+    screen.draw(&draw);
 
     auto width  = float{WIDTH};
     auto height = float{HEIGHT};
@@ -156,8 +174,6 @@ int main()
                 width = nwidth; height = nheight;
                 sf::View view(sf::FloatRect(0, 0, width, height));
                 screen.resize(width, height);
-//        std::cout << "draw: " << std::endl;
-//        screen.draw(&draw);
 
                 window.clear();
                 window.setView(view);

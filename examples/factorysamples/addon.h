@@ -20,6 +20,7 @@
 #define FACTORYSAMPLES_ADDON_H
 
 #include <drawoptions.h>
+#include <wawt/dropdownlist.h>
 #include <wawt/layout.h>
 #include <wawt/screen.h>
 #include <wawt/scrolledlist.h>
@@ -79,23 +80,28 @@ class Addons : public Wawt::ScreenImpl<Addons,DrawOptions> {
                     // Add non-empty strings to list bottom on ENTER.
                     auto string = text->entry();
                     if (ch && !string.empty()) {
-                        auto it = d_list.top();
-                        d_list.rows().emplace_back(string, false);
+                        auto it  = d_list.top();
+                        auto ptr
+                           = std::make_unique<Wawt::ScrolledList::Item>(string,
+                                                                        false);
+                        d_list.rows().emplace_back(std::move(ptr));
                         d_list.top(it);
                         text->entry(S(""));
                     }
                     return true;
                 })
-        , d_month(2, Range{   1,   12, &d_day  }, {'\t'})
+        , d_month(2.0, {
+                { S("Jan") }, { S("Feb") }, { S("Mar") }, { S("Apr") },
+                { S("May") }, { S("Jun") }, { S("Jul") }, { S("Aug") },
+                { S("Sep") }, { S("Oct") }, { S("Nov") }, { S("Dec") } })
         , d_day(  2, Range{   1,   31, &d_year }, {'\t'})
-        , d_year( 4, Range{2018, 2199, &d_month}, {'\t'}) {
+        , d_year( 4, Range{2018, 2199 }) {
             d_list.onItemClick(
                 [this](auto,auto) {
                     // Disable 'DelSel' button if no rows selected:
                     d_buttons->children()[2]
                               .disabled(d_list.selectCount() == 0);
                 });
-            d_month.inputVerifier(&Range::isDigit).autoEnter(true);
               d_day.inputVerifier(&Range::isDigit).autoEnter(true);
              d_year.inputVerifier(&Range::isDigit).autoEnter(true);
     }
@@ -109,7 +115,7 @@ class Addons : public Wawt::ScreenImpl<Addons,DrawOptions> {
         d_buttons->children()[2].disabled(true);
         d_list.clear();
         d_enterRow.entry(S(""));
-        d_month.entry(S(""));
+        d_month.clear();
         d_day.entry(S(""));
         d_year.entry(S(""));
     }
@@ -121,7 +127,7 @@ private:
     Wawt::Tracker       d_buttons;
     Wawt::ScrolledList  d_list;
     Wawt::TextEntry     d_enterRow;
-    Wawt::TextEntry     d_month;
+    Wawt::DropDownList  d_month;
     Wawt::TextEntry     d_day;
     Wawt::TextEntry     d_year;
 };
@@ -135,8 +141,9 @@ Addons::createScreenPanel()
         [this](Widget *) -> void {
             auto string = d_enterRow.entry();
             if (!string.empty()) {
-                auto it = d_list.top();
-                d_list.rows().emplace_front(string, false);
+                auto it  = d_list.top();
+                auto ptr = std::make_unique<ScrolledList::Item>(string, false);
+                d_list.rows().emplace_front(std::move(ptr));
                 d_list.top(it);
                 d_enterRow.entry(S(""));
                 d_enterRow->focus(&*d_enterRow);
@@ -147,7 +154,8 @@ Addons::createScreenPanel()
             auto string = d_enterRow.entry();
             if (!string.empty()) {
                 auto it = d_list.top();
-                d_list.rows().emplace_back(string, false);
+                auto ptr = std::make_unique<ScrolledList::Item>(string, false);
+                d_list.rows().emplace_back(std::move(ptr));
                 d_list.top(it);
                 d_enterRow.entry(S(""));
                 d_enterRow->focus(&*d_enterRow);
@@ -158,7 +166,7 @@ Addons::createScreenPanel()
             for (auto it  = d_list.rows().begin();
                       it != d_list.rows().end(); ) {
                 auto top = d_list.top();
-                if (it->second) {
+                if ((*it)->d_selected) {
                     bool newTop = it == top;
                     it = d_list.rows().erase(it);
                     if (newTop) {
