@@ -65,7 +65,9 @@ class SetupScreen : public Wawt::ScreenImpl<SetupScreen,DrawOptions> {
     };
 
     // PUBLIC CONSTRUCTORS
-    SetupScreen(Calls *controller, StringIdLookup *mapper);
+    SetupScreen(Calls              *controller,
+                StringIdLookup     *mapper,
+                Wawt::IpcProtocol  *ipc);
 
     // PUBLIC MANIPULATORS
     // Called by 'WawtScreenImpl::setup()':

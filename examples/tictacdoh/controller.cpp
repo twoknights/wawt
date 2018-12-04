@@ -165,7 +165,8 @@ Controller::startup()
 {
     d_setupScreen = d_router.create<SetupScreen>("Setup Screen",
                                                  this,
-                                                 d_mapper);
+                                                 d_mapper,
+                                                 d_ipc);
     //d_gameScreen  = d_router.create<GameScreen>("Game Screen", this);
     /* ... additional screens here ...*/
 
@@ -185,6 +186,7 @@ Controller::showSetupScreen()
 void
 Controller::startGame(int)
 {
+    // game screen:
     d_router.activate<SetupScreen>(d_setupScreen);
 }
 

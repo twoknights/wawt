@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef WAWT_IPCPROTOCOL_H
-#define WAWT_IPCPROTOCOL_H
+#ifndef WAWT_IPCQUEUE_H
+#define WAWT_IPCQUEUE_H
 
 #include <any>
 #include <atomic>
@@ -35,7 +35,7 @@
 #include <thread>
 #include <unordered_map>
 
-#include "ipcprotocol.h"
+#include "wawt/ipcprotocol.h"
 
 namespace Wawt {
 
@@ -141,9 +141,9 @@ class IpcQueue
 
     bool            localEnqueue(IpcMessage&&   message);
     
-    bool            openAdapter(String_t     *diagnostics,
-                                IpcMessage    dropMessage,
-                                IpcMessage    handshakeMessage = IpcMessage());
+    bool            handShakes(String_t     *diagnostics,
+                               IpcMessage    dropMessage,
+                               IpcMessage    handshakeMessage = IpcMessage());
 
     void            reset(); // closes adapter too.
 
@@ -171,8 +171,9 @@ class IpcQueue
 
     // PRIVATE MANIPULATORS
     void channelUpdate(IpcProtocol::ChannelId        id,
-                       IpcProtocol::ChannelChange    status,
+                       IpcProtocol::ChannelChange    changeTo,
                        IpcProtocol::ChannelMode      mode);
+
     void processMessage(IpcProtocol::ChannelId id, IpcMessage&& message);
 
     void timerThread();
@@ -263,3 +264,9 @@ IpcUtilities::parseMessage(const IpcMessage&        message,
     }
     return false;
 }
+
+} // end Wawt namespace
+
+#endif
+
+// vim: ts=4:sw=4:et:ai

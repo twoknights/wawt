@@ -224,7 +224,13 @@ SfmlIpcAdapter::acceptChannels(String_t        *diagnostic,
                                std::any         configuration)
                                                              noexcept
 {
-    return configureAdapter(diagnostic, configuration, true);
+    int  internalId;
+    auto rc = configureAdapter(diagnostic, &internalId, configuration, true);
+
+    if (rc == ChannelStatus::ePENDING && !open(diagnostic, internalId)) {
+        rc = ChannelStatus::eUNKNOWN;
+    }
+    return rc;                                                        // RETURN
 }
 
 void
@@ -325,7 +331,12 @@ IpcProtocol::ChannelStatus
 SfmlIpcAdapter::createNewChannel(String_t    *diagnostic,
                                  std::any     configuration) noexcept
 {
-    return configureAdapter(diagnostic, configuration, false);
+    int  internalId;
+    auto rc = configureAdapter(diagnostic, &internalId, configuration, false);
+
+    if (rc == ChannelStatus::ePENDING && !open(diagnostic, internalId)) {
+        rc = ChannelStatus::eUNKNOWN;
+    }
 }
 
 
@@ -346,6 +357,7 @@ SfmlIpcAdapter::installCallbacks(ChannelCb       connectionUpdate,
 
 IpcProtocol::ChannelStatus
 SfmlIpcAdapter::configureAdapter(Wawt::String_t *diagnostic,
+                                 int             internalId,
                                  std::any        address,
                                  bool            listen) noexcept
 {
@@ -449,8 +461,8 @@ SfmlIpcAdapter::configureAdapter(Wawt::String_t *diagnostic,
                                        std::pair(port_us, ipAddress),
                                        d_channelCb,
                                        d_messageCb);
-    connection->d_self = connection; // to keep "alive" until startConnection
-    d_connections[id] = connection; // a weak pointer.
+    connection->d_self = connection; // to keep "alive" until "opened".
+    d_connections[*channelId = id] = connection; // a weak pointer.
 
     return ChannelStatus::ePENDING;                                 // RETURN
 }
@@ -639,7 +651,7 @@ SfmlIpcAdapter::sendMessage(ChannelId id, MessageChain&& chain) noexcept
 }
 
 bool
-SfmlIpcAdapter::openAdapter(Wawt::String_t *diagnostic) noexcept
+SfmlIpcAdapter::open(Wawt::String_t *diagnostic, int internalId) noexcept
 {
     auto guard = std::unique_lock(d_lock);
 
@@ -647,7 +659,7 @@ SfmlIpcAdapter::openAdapter(Wawt::String_t *diagnostic) noexcept
         *diagnostic = S("IPC is shutting down.");
         return false;                                                 // RETURN
     }
-    auto it = d_connections.begin(); // TBF
+    auto it = d_connections.find(internalId);
 
     if (it == d_connections.end()) {
         *diagnostic = S("Invalid connection identifier.");
@@ -661,6 +673,7 @@ SfmlIpcAdapter::openAdapter(Wawt::String_t *diagnostic) noexcept
         return false;                                                 // RETURN
     }
     connection->d_self.reset(); // Now connection deletes when threads exit.
+
     try {
         connection->d_writer = std::thread( [this, connection] {
                                                 writeMsgLoop(connection.get());

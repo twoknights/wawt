@@ -49,6 +49,8 @@ Wawt::StringView_t english(StringId id) {
           return S("Play using 'X' marker.");
       case StringId::ePlayAsO:
           return S("Play using 'O' marker.");
+      case StringId::eMoveClock:
+          return S("Preferred move clock setting:");
       default: abort();
     };
 }
@@ -67,6 +69,8 @@ Wawt::StringView_t german(StringId id) {
           return S("Spielen Sie mit der 'X' Markierung.");
       case StringId::ePlayAsO:
           return S("Spielen Sie mit der 'O' Markierung.");
+      case StringId::eMoveClock:
+          return S("Bevorzugte Bewegungszeiteinstellung:");
       default: abort();
     };
 }
@@ -85,6 +89,8 @@ Wawt::StringView_t spanish(StringId id) {
           return S("Juega usando el marcador 'X'.");
       case StringId::ePlayAsO:
           return S("Juega usando el marcador 'O'.");
+      case StringId::eMoveClock:
+          return S("Ajuste de reloj de movimiento preferido:");
       default: abort();
     };
 }
@@ -103,6 +109,8 @@ Wawt::StringView_t french(StringId id) {
           return S("Jouer avec le marqueur 'X'.");
       case StringId::ePlayAsO:
           return S("Jouer avec le marqueur 'O'.");
+      case StringId::eMoveClock:
+          return S("Réglage du temps de mouvement préféré:");
       default: abort();
     };
 }
@@ -121,6 +129,8 @@ Wawt::StringView_t italian(StringId id) {
           return S("Gioca usando il marcatore 'X'.");
       case StringId::ePlayAsO:
           return S("Gioca usando il marcatore 'O'.");
+      case StringId::eMoveClock:
+          return S("Impostazione del tempo di movimento preferita:");
       default: abort();
     };
 }
@@ -139,6 +149,8 @@ Wawt::StringView_t polish(StringId id) {
           return S("Zagraj za pomocą znacznika 'X'.");
       case StringId::ePlayAsO:
           return S("Zagraj za pomocą znacznika 'O'.");
+      case StringId::eMoveClock:
+          return S("Preferowane ustawienie czasu ruchu:");
       default: abort();
     };
 }
@@ -157,6 +169,8 @@ Wawt::StringView_t russian(StringId id) {
           return S("Играйте с помощью маркера «X».");
       case StringId::ePlayAsO:
           return S("Играйте с помощью маркера «O».");
+      case StringId::eMoveClock:
+          return S("Предпочтительная установка тактовых импульсов:");
       default: abort();
     };
 }

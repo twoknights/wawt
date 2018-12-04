@@ -21,6 +21,7 @@
 
 #include <wawt/wawt.h>
 #include <wawt/eventrouter.h>
+#include <wawt/ipcprotocol.h>
 
 #include "stringid.h"
 //#include "gamescreen.h"
@@ -42,8 +43,9 @@ class Controller : public SetupScreen::Calls/*, public GameScreen::Calls*/ {
 
     // PUBLIC CONSTRUCTORS
     Controller(Wawt::EventRouter&     router,
-               StringIdLookup        *mapper)
-        : d_router(router), d_mapper(mapper) { d_cancel = false; }
+               StringIdLookup        *mapper,
+               Wawt::IpcProtocol     *ipc)
+        : d_router(router), d_ipc(ipc), d_mapper(mapper) { d_cancel = false; }
 
     ~Controller();
 
@@ -72,6 +74,7 @@ class Controller : public SetupScreen::Calls/*, public GameScreen::Calls*/ {
     std::thread         d_gameThread;
     std::atomic_bool    d_cancel;
     Wawt::EventRouter&  d_router;
+    Wawt::IpcProtocol  *d_ipc;
     StringIdLookup     *d_mapper;
 };
 

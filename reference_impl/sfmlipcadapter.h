@@ -47,9 +47,9 @@ class SfmlIpcAdapter : public Wawt::IpcProtocol {
     // PUBLIC DESTRUCTORS
     ~SfmlIpcAdapter();
 
-    // PUBLIC WawtIpcAdapter INTERFACE
+    // PUBLIC Wawt::IpcProtocol INTERFACE
 
-    // Synchronously configure the adapter to accept channels created by peers.
+    //! Configure the adapter to accept channels created by peers.
     ChannelStatus   acceptChannels(Wawt::String_t  *diagnostic,
                                    std::any         configuration)
                                                              noexcept override;
@@ -60,7 +60,7 @@ class SfmlIpcAdapter : public Wawt::IpcProtocol {
     //! Asynchronous close of a channel.
     void            closeChannel(ChannelId      id)          noexcept override;
 
-    //! Synchronously configure a channel to a peer that is accepting channels.
+    //! Configure a channel to a peer that is accepting channels.
     ChannelStatus   createNewChannel(Wawt::String_t    *diagnostic,
                                      std::any           configuration)
                                                              noexcept override;
@@ -68,9 +68,6 @@ class SfmlIpcAdapter : public Wawt::IpcProtocol {
     void            installCallbacks(ChannelCb  channelUpdate,
                                      MessageCb  receivedMessage)
                                                              noexcept override;
-
-    //! Enables the asynchronous creation of new channels.
-    bool            openAdapter(Wawt::String_t *diagnostic)  noexcept override;
 
     //! Asynchronous call to send a message on a channel
     bool            sendMessage(ChannelId       id,
@@ -97,8 +94,12 @@ class SfmlIpcAdapter : public Wawt::IpcProtocol {
                         Connection                 *connection);
 
     ChannelStatus configureAdapter(Wawt::String_t *diagnostic,
+                                   int            *internalId,
                                    std::any        address,
                                    bool            listen) noexcept;
+
+    //! Enables the asynchronous creation of new channels.
+    bool        open(Wawt::String_t *diagnostic, int internalId) noexcept;
 
     void        readMsgLoop(Connection             *connection);
 

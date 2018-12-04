@@ -54,18 +54,18 @@ class  DrawProtocol {
                                 const std::any&  options)           noexcept=0;
 };
 
-                                //=================
-                                // class DrawStream
-                                //=================
+                                //===============
+                                // class DrawMock
+                                //===============
 
-class  DrawStream : public DrawProtocol {
+class  DrawMock : public DrawProtocol {
     std::ostream&   d_os;
   public:
-    DrawStream();
+    DrawMock();
 
-    DrawStream(std::ostream& os) : d_os(os) { }
+    DrawMock(std::ostream& os) : d_os(os) { }
 
-    ~DrawStream() { }
+    ~DrawMock() { }
 
     bool  draw(const Layout::Result&     box,
                const Widget::Settings&   settings)           noexcept override;

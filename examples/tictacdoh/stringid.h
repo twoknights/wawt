@@ -30,6 +30,7 @@ enum class StringId {
   , eConnectToOpponent
   , ePlayAsX
   , ePlayAsO
+  , eMoveClock
 };
 
 class StringIdLookup : public Wawt::WawtEnv::Translator {

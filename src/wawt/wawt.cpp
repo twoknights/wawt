@@ -1537,19 +1537,19 @@ Widget::text() const noexcept
     return d_text ? *d_text : s_emptyText;
 }
 
-                                //-----------
-                                // class Draw
-                                //-----------
+                                //---------------
+                                // class DrawMock
+                                //---------------
 
 
-DrawStream::DrawStream()
+DrawMock::DrawMock()
 : d_os(std::cout)
 {
 }
 
 bool
-DrawStream::draw(const Wawt::Layout::Result& box,
-                 const Widget::Settings&     settings) noexcept
+DrawMock::draw(const Wawt::Layout::Result& box,
+               const Widget::Settings&     settings) noexcept
 {
     auto  spaces     = Indent(0);
     auto  widgetName = settings.d_optionName;
@@ -1582,8 +1582,8 @@ DrawStream::draw(const Wawt::Layout::Result& box,
 }
 
 bool
-DrawStream::draw(const Text::Data&        text,
-                 const Widget::Settings&  settings) noexcept
+DrawMock::draw(const Text::Data&        text,
+               const Widget::Settings&  settings) noexcept
 {
     auto  spaces     = Indent(0);
     auto  widgetName = settings.d_optionName;
@@ -1621,10 +1621,10 @@ DrawStream::draw(const Text::Data&        text,
 }
 
 bool
-DrawStream::getTextValues(Text::Data&      values,
-                          const Bounds&    container,
-                          uint16_t         upperLimit,
-                          const std::any&)    noexcept
+DrawMock::getTextValues(Text::Data&      values,
+                        const Bounds&    container,
+                        uint16_t         upperLimit,
+                        const std::any&)    noexcept
 {
     auto  count     = values.view().length();
 

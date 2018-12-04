@@ -27,6 +27,7 @@
 
 #include <sfmldrawadapter.h>
 #include <sfmleventloop.h>
+#include <sfmlipcadapter.h>
 
 #include <fontconfig/fontconfig.h>
 
@@ -86,7 +87,8 @@ int main()
                                      &drawAdapter,
                                      &idMapper);
     auto router      = Wawt::EventRouter();
-    auto controller  = Controller(router, &idMapper);
+    auto ipc         = SfmlIpcAdapter(0);
+    auto controller  = Controller(router, &idMapper, &ipc);
     auto shutdown    = [&controller]() {
                            return controller.shutdown();
                        };

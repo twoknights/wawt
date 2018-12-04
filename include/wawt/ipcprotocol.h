@@ -176,6 +176,7 @@ class IpcProtocol
     // Calling thread must not hold locks.
     using MessageCb         = std::function<void(ChannelId, IpcMessage&&)>;
 
+    //! Configure the adapter to accept channels created by peers.
     virtual ChannelStatus   acceptChannels(String_t       *diagnostic,
                                            std::any        configuration)
                                                                     noexcept=0;
@@ -186,7 +187,7 @@ class IpcProtocol
     //! Asynchronous close of a channel.
     virtual void            closeChannel(ChannelId    id)           noexcept=0;
 
-    //! Synchronous call. If adapter permits, may be called more than once.
+    //! Configure a channel to a peer that is accepting channels.
     virtual ChannelStatus   createNewChannel(String_t       *diagnostic,
                                              std::any        configuration)
                                                                     noexcept=0;
@@ -194,9 +195,6 @@ class IpcProtocol
     virtual void            installCallbacks(ChannelCb       channelUpdate,
                                              MessageCb       receivedMessage)
                                                                     noexcept=0;
-
-    //! Enables the asynchronous creation of new channel.
-    virtual bool            openAdapter(String_t *diagnostic)       noexcept=0;
 
     //! Asynchronous call to send a message on a channel
     virtual bool            sendMessage(ChannelId           id,

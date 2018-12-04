@@ -44,10 +44,13 @@ namespace {
                             // class SetupScreen
                             //------------------
 
-SetupScreen::SetupScreen(Calls *controller, StringIdLookup *mapper)
+SetupScreen::SetupScreen(Calls              *controller,
+                         StringIdLookup     *mapper,
+                         Wawt::IpcProtocol  *ipc)
 : ScreenImpl()
 , d_controller(controller)
 , d_mapper(mapper)
+, d_ipc(ipc)
 , d_moveClock(0.3, { { S("5") } , { S("10"), true } , { S("15") } })
 , d_languageList({
         { S("English"),  true  }
@@ -94,7 +97,7 @@ SetupScreen::createScreenPanel()
             .addChild(
                 pushButton({{},{-0.95,-0.95}, Layout::Vertex::eUPPER_LEFT},
                            [this](auto) { d_screen.serialize(std::cout);
-                                          Wawt::DrawStream draw;
+                                          Wawt::DrawMock draw;
                                           d_screen.draw(&draw); },
                            S("*")));
 
@@ -104,8 +107,7 @@ SetupScreen::createScreenPanel()
     auto clockSetting = 
         concatenateTextWidgets({},
                                2_Sz, TextAlign::eLEFT,
-                               label(Layout(),
-                                     S("Preferred move clock setting:"),
+                               label(Layout(), StringId::eMoveClock,
                                      2_Sz, TextAlign::eLEFT),
                                d_moveClock.widget());
 

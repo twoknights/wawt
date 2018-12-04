@@ -23,12 +23,10 @@
 #include <string>
 
 using namespace std::literals::chrono_literals;
+using namespace Wawt::literals;
+using namespace Wawt;
 
 namespace {
-
-using IpcQueue    = WawtIpcQueue;
-using IpcUtilties = WawtIpcUtiltiies;
-using EventRouter = WawtEventRouter;
 
 const char disconnectFmt[]      = "Disconnected";
 const char gameSettingsFmt[]    = "Settings: %d %d";
