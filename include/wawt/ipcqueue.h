@@ -36,6 +36,7 @@
 #include <unordered_map>
 
 #include "wawt/ipcprotocol.h"
+#include "wawt/ipcsession.h"
 
 namespace Wawt {
 
@@ -43,35 +44,32 @@ namespace Wawt {
                                // class IpcQueue
                                //===============
 
-
 class IpcQueue
 {
   public:
     // PUBLIC TYPES
-    class  Session;
-
     struct Shutdown { };                    ///< Shutdown exception.
 
     using Header                = std::unique_ptr<char[]>;
 
-    using   SessionId = uint32_t;
-    static constexpr SessionId kLOCAL_SSNID = UINT32_MAX;
-
     // Methods are NOT thread-safe
     class ReplyQueue {
         friend class IpcQueue;
-        mutable std::weak_ptr<Session>  d_session;
-        bool                            d_winner;
-        SessionId                       d_sessionId;
-        mutable std::atomic_flag        d_flag;
+        mutable std::weak_ptr<IpcSession>  d_session;
+        bool                               d_winner;
+        IpcSession::Id                     d_sessionId;
+        mutable std::atomic_flag           d_flag;
 
-        const Session *safeGet() const;
+        const IpcSession *safeGet() const;
 
       public:
         // PUBLIC CONSTRUCTORS
-        ReplyQueue(const std::shared_ptr<Session>&      session,
-                   bool                                 winner,
-                   int                                  sessionId);
+
+        //! Local reply queue.
+        ReplyQueue();
+
+        ReplyQueue(const std::shared_ptr<IpcSession>&   session,
+                   bool                                 winner);
 
         ReplyQueue(ReplyQueue&&         copy);
 
@@ -101,7 +99,7 @@ class IpcQueue
         bool            isClosed()                              const noexcept;
 
         bool            isLocal()                               const noexcept{
-            return d_sessionId == kLOCAL_SSNID;
+            return d_sessionId == IpcSession::kLOCAL_SSNID;
         }
 
         bool            operator==(const ReplyQueue&    rhs)    const noexcept{
@@ -114,20 +112,14 @@ class IpcQueue
     };
     friend class ReplyQueue;
 
-    enum class MessageType {
-          eDROP
-        , eDIGEST
-        , eDATA
-        , eDIGESTED_DATA
-    };
-    using MessageNumber = uint32_t;
+    using MessageType   = IpcSessionManager::MessageType;
     using Indication    = std::tuple<ReplyQueue, IpcMessage, MessageType>;
     using TimerId       = uint32_t;
 
     static constexpr TimerId kINVALID_TIMERID = UINT32_MAX;
 
     // PUBLIC CONSTRUCTORS
-    IpcQueue(IpcProtocol *adapter);
+    IpcQueue();
     ~IpcQueue();
 
     // PUBLIC MANIPULATORS
@@ -140,21 +132,18 @@ class IpcQueue
                                         std::chrono::milliseconds   delay);
 
     bool            localEnqueue(IpcMessage&&   message);
-    
-    bool            handShakes(String_t     *diagnostics,
-                               IpcMessage    dropMessage,
-                               IpcMessage    handshakeMessage = IpcMessage());
 
-    void            reset(); // closes adapter too.
+    void            remoteEnqueue(std::shared_ptr<IpcSession> session,
+                                  MessageType                 msgtype,
+                                  IpcMessage&&                message);
+
+    void            reset(); // flushes queued messages.
 
     Indication      waitForIndication();
 
   private:
-    // PRIVATE TYPES
-    struct CryptoPrng;
 
-    using SessionMap    = std::unordered_map<SessionId,
-                                             std::shared_ptr<Session>>;
+    // PRIVATE TYPES
     using TimerMap      = std::unordered_map<TimerId, IpcMessage>;
     using Clock         = std::chrono::high_resolution_clock;
     using TimerPair     = std::pair<Clock::time_point,TimerId>;
@@ -170,100 +159,23 @@ class IpcQueue
                                               decltype(&timerCompare)>;
 
     // PRIVATE MANIPULATORS
-    void channelUpdate(IpcProtocol::ChannelId        id,
-                       IpcProtocol::ChannelChange    changeTo,
-                       IpcProtocol::ChannelMode      mode);
-
-    void processMessage(IpcProtocol::ChannelId id, IpcMessage&& message);
-
     void timerThread();
 
     // PRIVATE DATA MEMBERS
 
-    CryptoPrng                     *d_prng_p    = nullptr;
     bool                            d_opened    = false; // adapter was opened
     bool                            d_shutdown  = false;
     IpcProtocol                    *d_adapter   = nullptr;
     std::mutex                      d_lock{};
     std::condition_variable         d_signal{};
     std::deque<Indication>          d_incoming{};
-    SessionMap                      d_sessionMap{};
     TimerId                         d_timerId   = 0;
     TimerMap                        d_timerIdMap{};
     TimerQueue                      d_timerQueue{timerCompare};
     std::condition_variable         d_timerSignal{};
     std::thread                     d_timerThread;
-    IpcMessage                      d_handshake{};
-    IpcMessage                      d_dropMessage{};
     IpcProtocol::ChannelId          d_startupId{};
 };
-
-                           //===================
-                           // class IpcUtilities
-                           //===================
-
-struct IpcUtilities
-{
-    using string_view   = std::string_view;
-    using MessageNumber = IpcQueue::MessageNumber;
-
-    template<typename... Args>
-    IpcMessage      formatMessage(const char *format, Args&&... args);
-
-    template<typename... Args>
-    bool            parseMessage(const IpcMessage&  message,
-                                 const char        *format,
-                                 Args&&...          args);
-
-    MessageNumber   messageNumber(const IpcMessage& message);
-
-    bool            verifyDigestPair(const IpcMessage&    digest,
-                                     const IpcMessage&    digestMessage);
-};
-
-template<typename... Args>
-IpcMessage
-IpcUtilities::formatMessage(const char *format, Args&&... args)
-{
-    constexpr int NUMARGS = sizeof...(Args);
-
-    if constexpr(NUMARGS == 0) {
-        auto size   = std::strlen(format) + 1;
-        auto buffer = std::make_unique<char[]>(size);
-        std::memcpy(buffer.get(), format, size);
-        return {std::move(buffer), size, 0};
-    }
-    else {
-        auto size   = std::snprintf(nullptr, 0, format,
-                                             std::forward<Args>(args)...) + 1;
-        auto buffer = std::make_unique<char[]>(size);
-        std::snprintf(buffer.get(), size, format, std::forward<Args>(args)...);
-        return {std::move(buffer), size, 0};
-    }
-}
-
-template<typename... Args>
-inline bool
-IpcUtilities::parseMessage(const IpcMessage&        message,
-                           const char              *format,
-                           Args&&...                args)
-{
-    // A received message always consists of one message fragment.
-    // It should also have a EOS at the end (see 'formatMessage').
-    constexpr int NUMARGS = sizeof...(Args);
-
-    if (!message.empty()) {
-        if constexpr(NUMARGS == 0) {
-            return !std::strncmp(message.cbegin(), format, message.length());
-        }
-        else {
-            return NUMARGS == std::sscanf(message.cbegin(),
-                                          format,
-                                          std::forward<Args>(args)...);
-        }
-    }
-    return false;
-}
 
 } // end Wawt namespace
 

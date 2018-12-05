@@ -21,115 +21,15 @@
 
 #include <any>
 #include <cstdint>
-#include <cstring>
-#include <deque>
 #include <forward_list>
 #include <functional>
 #include <memory>
 #include <string>
 
-#include "wawt.h"
+#include "wawt/wawt.h"
+#include "wawt/ipcmessage.h"
 
 namespace Wawt {
-
-struct IpcMessage {
-    // PUBLIC DATA MEMBERS
-    std::unique_ptr<char[]>     d_data{};
-    uint16_t                    d_size      = 0;
-    uint16_t                    d_offset    = 0;
-
-    // PUBLIC CONSTRUCTORS
-    IpcMessage()                            = default;
-    IpcMessage(IpcMessage&&)                = default;
-
-    IpcMessage(std::unique_ptr<char[]>&&    data,
-               uint16_t                     size,
-               uint16_t                     offset);
-    IpcMessage(const std::string_view& data);
-    IpcMessage(const char* data, uint16_t length);
-    IpcMessage(const IpcMessage& copy);
-
-    // PUBLIC MANIPULATORS
-    IpcMessage& operator=(IpcMessage&&) = default;
-    IpcMessage& operator=(const IpcMessage& rhs);
-
-    void        reset()                           noexcept {
-        d_data.reset();
-        d_size = d_offset = 0;
-    }
-
-    char  *data()                                 noexcept {
-        return d_data.get() + d_offset;
-    }
-
-    // PUBLIC ACCESSORS
-    const char  *cbegin()                   const noexcept {
-        return d_data.get() + d_offset;
-    }
-
-    bool         empty()                    const noexcept {
-        return length() == 0;
-    }
-
-    const char  *cend()                     const noexcept {
-        return d_data.get() + d_size;
-    }
-
-    uint16_t        length()                const noexcept {
-        return d_size - d_offset;
-    }
-
-    explicit operator std::string_view()    const noexcept {
-        return std::string_view(cbegin(), length());
-    }
-};
-
-inline
-IpcMessage::IpcMessage(std::unique_ptr<char[]>&&    data,
-                       uint16_t                     size,
-                       uint16_t                     offset)
-: d_data(std::move(data))
-, d_size(size)
-, d_offset(offset)
-{
-}
-
-inline
-IpcMessage::IpcMessage(const std::string_view& data)
-: d_data(std::make_unique<char[]>(data.size()))
-, d_size(data.size())
-{
-    data.copy(d_data.get(), d_size);
-}
-
-inline
-IpcMessage::IpcMessage(const char* data, uint16_t length)
-: d_data(std::make_unique<char[]>(length))
-, d_size(length)
-{
-    std::memcpy(d_data.get(), data, length);
-}
-
-inline
-IpcMessage::IpcMessage(const IpcMessage& copy)
-: d_data(std::make_unique<char[]>(copy.d_size))
-, d_size(copy.d_size)
-, d_offset(copy.d_offset)
-{
-    std::memcpy(d_data.get(), copy.d_data.get(), d_size);
-}
-
-inline
-IpcMessage& IpcMessage::operator=(const IpcMessage& rhs)
-{
-    if (this != &rhs) {
-        d_data      = std::make_unique<char[]>(rhs.d_size);
-        d_size      = rhs.d_size;
-        d_offset    = rhs.d_offset;
-        std::memcpy(d_data.get(), rhs.d_data.get(), d_size);
-    }
-    return *this;                                                     // RETURN
-}
 
                                 //==================
                                 // class IpcProtocol
@@ -161,6 +61,24 @@ class IpcProtocol
         constexpr operator uint32_t()                          const noexcept {
             return (d_adapterId << 8)|d_internalId;
         }
+
+        constexpr bool operator==(const ChannelId& rhs)        const noexcept {
+            return uint32_t(*this) == uint32_t(rhs);
+        }
+
+        constexpr bool operator!=(const ChannelId& rhs)        const noexcept {
+            return uint32_t(*this) != uint32_t(rhs);
+        }
+
+        constexpr bool operator<(const ChannelId& rhs)         const noexcept {
+            return uint32_t(*this) < uint32_t(rhs);
+        }
+    };
+
+    struct ChannelIdHash {
+        std::size_t operator()(const ChannelId& id)            const noexcept {
+            return std::hash<unsigned int>{}(uint32_t(id));
+        };
     };
 
     // PUBLIC CLASS MEMBERS

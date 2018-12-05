@@ -337,6 +337,7 @@ SfmlIpcAdapter::createNewChannel(String_t    *diagnostic,
     if (rc == ChannelStatus::ePENDING && !open(diagnostic, internalId)) {
         rc = ChannelStatus::eUNKNOWN;
     }
+    return rc;                                                        // RETURN
 }
 
 
@@ -357,7 +358,7 @@ SfmlIpcAdapter::installCallbacks(ChannelCb       connectionUpdate,
 
 IpcProtocol::ChannelStatus
 SfmlIpcAdapter::configureAdapter(Wawt::String_t *diagnostic,
-                                 int             internalId,
+                                 int            *internalId,
                                  std::any        address,
                                  bool            listen) noexcept
 {
@@ -462,7 +463,7 @@ SfmlIpcAdapter::configureAdapter(Wawt::String_t *diagnostic,
                                        d_channelCb,
                                        d_messageCb);
     connection->d_self = connection; // to keep "alive" until "opened".
-    d_connections[*channelId = id] = connection; // a weak pointer.
+    d_connections[*internalId = id] = connection; // a weak pointer.
 
     return ChannelStatus::ePENDING;                                 // RETURN
 }
