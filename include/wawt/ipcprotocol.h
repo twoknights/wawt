@@ -20,6 +20,7 @@
 #define WAWT_IPCPROTOCOL_H
 
 #include <any>
+#include <atomic>
 #include <cstdint>
 #include <forward_list>
 #include <functional>
@@ -43,83 +44,69 @@ class IpcProtocol
 {
   public:
     // PUBLIC TYPES
-    enum class ChannelStatus { ePENDING, eMALFORMED, eINVALID, eUNKNOWN  };
-    enum class ChannelChange { eREADY, eDROP, eCLOSE, eERROR, ePROTO };
-    enum class ChannelMode   { eCREATOR, eACCEPTOR };
+    class Channel {
+      public:
+        // PUBLIC TYPES
+        enum State  { eREADY, eDROP, eCLOSE, eERROR, ePROTO };
 
-    struct ChannelId {
-        uint32_t        d_adapterId  : 8,
-                        d_internalId : 24;
+        using MessageChain      = std::forward_list<IpcMessage>;
+        using MessageCb         = std::function<void(IpcMessage&&)>;
+        using StateCb           = std::function<void(State)>;
 
-        // PUBLIC CONSTRUCTORS
-        constexpr ChannelId() : d_adapterId(0xFF), d_internalId(0xFFFFFF) { }
+        virtual                ~Channel() { }
 
-        constexpr ChannelId(int adapter, int internal)
-            : d_adapterId(adapter), d_internalId(internal) { }
+        //! Asynchronous close of a channel.
+        virtual void            closeChannel()                      noexcept=0;
 
-        // PUBLIC ACCESSORS
-        constexpr operator uint32_t()                          const noexcept {
-            return (d_adapterId << 8)|d_internalId;
-        }
+        virtual void            completeSetup(MessageCb&&    receivedMessage,
+                                              StateCb&&      channelClose)
+                                                                    noexcept=0;
 
-        constexpr bool operator==(const ChannelId& rhs)        const noexcept {
-            return uint32_t(*this) == uint32_t(rhs);
-        }
+        //! Asynchronous call to send a message on a channel
+        virtual bool            sendMessage(MessageChain&&  chain)  noexcept=0;
 
-        constexpr bool operator!=(const ChannelId& rhs)        const noexcept {
-            return uint32_t(*this) != uint32_t(rhs);
-        }
-
-        constexpr bool operator<(const ChannelId& rhs)         const noexcept {
-            return uint32_t(*this) < uint32_t(rhs);
-        }
+        virtual State           state()                       const noexcept=0;
     };
 
-    struct ChannelIdHash {
-        std::size_t operator()(const ChannelId& id)            const noexcept {
-            return std::hash<unsigned int>{}(uint32_t(id));
+    class Provider {
+      public:
+        // PUBLIC TYPES
+        struct SetupBase {
+            enum Status { eINPROGRESS
+                        , eCANCELED
+                        , eMALFORMED
+                        , eINVALID
+                        , eERROR
+                        , eFINISH };
+            std::atomic<Status>                d_setupStatus;
+            std::atomic<String_t::value_type>  d_diagnostic;
         };
+
+        using SetupTicket = std::shared_ptr<SetupBase>;
+        using ChannelPtr  = std::weak_ptr<Channel>;
+        using SetupCb     = std::function<void(ChannelPtr,SetupTicket)>;
+
+        virtual bool            acceptChannels(String_t    *diagnostic,
+                                               SetupTicket  ticket,
+                                               std::any     configuration,
+                                               SetupCb&&    channelSetupDone)
+                                                                    noexcept=0;
+
+        // On return, setup is not "in-progress", but may have "finished".
+        virtual bool            cancelSetup(const SetupTicket& ticket)
+                                                                    noexcept=0;
+
+        //! Create a channel to a peer that is accepting channels.
+        virtual bool            createNewChannel(String_t    *diagnostic,
+                                                 SetupTicket  ticket,
+                                                 std::any     configuration,
+                                                 SetupCb&&    channelSetupDone)
+                                                                    noexcept=0;
+
+        // Asynchronous cancel of all pending channels. No new ones permitted.
+        virtual void            shutdown()                          noexcept=0;
     };
-
-    // PUBLIC CLASS MEMBERS
-    static const ChannelId kINVALID_ID;
-
-    using MessageChain      = std::forward_list<IpcMessage>;
-
-    // Calling thread must not hold locks.
-    using ChannelCb         = std::function<void(ChannelId,
-                                                 ChannelChange,
-                                                 ChannelMode)>;
-
-    // Calling thread must not hold locks.
-    using MessageCb         = std::function<void(ChannelId, IpcMessage&&)>;
-
-    //! Configure the adapter to accept channels created by peers.
-    virtual ChannelStatus   acceptChannels(String_t       *diagnostic,
-                                           std::any        configuration)
-                                                                    noexcept=0;
-
-    // Asynchronous close of all channels. No new ones permitted.
-    virtual void            closeAdapter()                          noexcept=0;
-
-    //! Asynchronous close of a channel.
-    virtual void            closeChannel(ChannelId    id)           noexcept=0;
-
-    //! Configure a channel to a peer that is accepting channels.
-    virtual ChannelStatus   createNewChannel(String_t       *diagnostic,
-                                             std::any        configuration)
-                                                                    noexcept=0;
-
-    virtual void            installCallbacks(ChannelCb       channelUpdate,
-                                             MessageCb       receivedMessage)
-                                                                    noexcept=0;
-
-    //! Asynchronous call to send a message on a channel
-    virtual bool            sendMessage(ChannelId           id,
-                                        MessageChain&&      chain)  noexcept=0;
 };
-
-constexpr IpcProtocol::ChannelId IpcProtocol::kINVALID_ID;
 
 } // end Wawt namespace
 

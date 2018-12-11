@@ -23,7 +23,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
-#include <unordered_map>
+#include <unordered_set>
 
 #include "wawt/ipcprotocol.h"
 
@@ -36,9 +36,9 @@ namespace Wawt {
 class IpcSession {
   public:
     // PUBLIC TYPES
-    using  Id            = uint32_t;
     using  MessageNumber = IpcMessage::MessageNumber;
-    using  MessageChain  = IpcProtocol::MessageChain;
+    using  MessageChain  = IpcProtocol::Channel::MessageChain;
+    using  ChannelPtr    = IpcProtocol::Provider::ChannelPtr;
 
     enum class State {
           eWAITING_ON_CONNECT
@@ -48,60 +48,51 @@ class IpcSession {
         , eWAITING_ON_DISC
     };
 
+    enum class MessageType { eDROP
+                           , eDIGEST
+                           , eDATA
+                           , eDIGESTED_DATA };
+
+    using MessageCb = std::function<void(MessageType               msgtype,
+                                         IpcMessage&&              message)>;
+
     // PUBLIC CONSTANTS
-    static constexpr Id kLOCAL_SSNID = UINT32_MAX;
 
     // PUBLIC CONSTRUCTORS
     IpcSession(const IpcSession&)                 = delete;
     IpcSession& operator=(const IpcSession&)      = delete;
 
-    IpcSession(const IpcMessage&         handshake,
-               uint32_t                  random1,
+    IpcSession(uint32_t                  random1,
                uint32_t                  random2,
-               IpcProtocol              *adapter,
-               IpcProtocol::ChannelId    id,
-               IpcProtocol::ChannelMode  mode);
+               ChannelPtr                channel,
+               bool                      initiated);
 
     // PUBLIC MANIPULATORS
-    MessageNumber nextSalt() {
-        return ++d_sendSalt;
-    }
-
-    bool enqueue(MessageChain&& chain, bool close) {
-        auto ret = d_state == State::eOPEN
-                && d_adapter->sendMessage(d_channelId, std::move(chain));
-        if (ret && close) {
-            d_state = State::eWAITING_ON_DISC;
-        }
-        return ret;
-    }
+    bool enqueue(MessageChain&& chain, bool close);
 
     void lock() {
         d_lock.lock();
     }
 
-    MessageChain getStartupDigest();
+    MessageNumber nextSalt() {
+        return ++d_sendSalt;
+    }
+
+    void receivedMessage(IpcMessage&& message);
 
     void setClosed() {
         d_state = State::eWAITING_ON_DISC;
     }
 
-    MessageChain saveStartupDigest(MessageNumber  initialValue,
-                                   IpcMessage&&   receivedDigest);
+    void shutdown();
 
-    bool verifyStartupMessage(MessageNumber         digestValue,
-                              uint32_t              random,
-                              const IpcMessage&     message);
+    void startHandshake(IpcMessage&& handshake, MessageCb&& messageCb);
 
     void unlock() {
         d_lock.unlock();
     }
 
     // PUBLIC ACCESSORS
-    Id    sessionId() const {
-        return d_channelId;
-    }
-
     State state() const {
         return d_state;
     }
@@ -111,79 +102,100 @@ class IpcSession {
     }
 
   private:
+    // PRIVATE MANIPULATORS
+    void saveStartupDigest(MessageNumber  initialValue,
+                           IpcMessage&&   receivedDigest);
+
+    bool verifyStartupMessage(MessageNumber         digestValue,
+                              uint32_t              random,
+                              const IpcMessage&     message);
+
     // PRIVATE DATA MEMBERS
     State                           d_state     = State::eWAITING_ON_CONNECT;
     bool                            d_winner    = false;
     MessageNumber                   d_sendSalt  = 0;
     std::mutex                      d_lock{};
+    MessageCb                       d_messageCb{};
     IpcMessage                      d_digest{};     // digest from downstream
-    IpcMessage                      d_handshake;    // handshake from upstream
+    IpcMessage                      d_handshake{};  // to be sent downstream
+
     MessageNumber                   d_rcvSalt;
-    IpcProtocol                    *d_adapter;
-    IpcProtocol::ChannelId          d_channelId;
     uint32_t                        d_random;
-    IpcProtocol::ChannelMode        d_mode;
+    ChannelPtr                      d_channel;
+    bool                            d_initiated;
 };
 
                            //========================
-                           // class IpcSessionManager
+                           // class IpcSessionFactory
                            //========================
 
 
-class IpcSessionManager {
+class IpcSessionFactory {
   public:
     // PUBLIC TYPES
-    enum class MessageType {
-          eDROP
-        , eDIGEST
-        , eDATA
-        , eDIGESTED_DATA
-    };
+    using SessionPtr  = std::weak_ptr<IpcSession>;
+    using MessageType = IpcSession::MessageType;
+    using MessageCb   = std::function<void(const SessionPtr&,
+                                           MessageType,
+                                           IpcMessage&&)>;
 
-    using MessageCb = std::function<void(std::shared_ptr<IpcSession> session,
-                                         MessageType                 msgtype,
-                                         IpcMessage&&                message)>;
+    struct SessionStartup {
+        MessageCb   d_messageCb;
+        IpcMessage  d_dropIndication;
+        IpcMessage  d_handshakeMessage;
+    };
+    using StartupPtr  = std::unique_ptr<SessionStartup>;
+    using SetupTicket = IpcProtocol::Provider::SetupTicket;
+    using SetupUpdate = std::function<StartupPtr(bool success,
+                                                 SetupTicket,
+                                                 const String_t&)>;
 
     // PUBLIC CONSTRUCTORS
-    IpcSessionManager(IpcProtocol *adapter, MessageCb&&  messageCb);
+    IpcSessionFactory(IpcProtocol::Provider *adapter);
 
     // PUBLIC DESTRUCTORS
-    ~IpcSessionManager();
+    ~IpcSessionFactory();
 
     // PUBLIC MANIPULATORS
-    bool            handShakes(String_t     *diagnostics,
-                               IpcMessage    dropMessage,
-                               IpcMessage    handshakeMessage = IpcMessage());
+    SetupTicket     acceptChannels(String_t        *diagnostic,
+                                   std::any         configuration,
+                                   SetupUpdate&&    completion)       noexcept;
 
-    void            reset();
+    bool            cancelSetup(const SetupTicket& handle)            noexcept;
+
+    SetupTicket     createNewChannel(String_t        *diagnostic,
+                                     std::any         configuration,
+                                     SetupUpdate&&    completion)     noexcept;
+
+    void            shutdown()                                        noexcept;
 
   private:
     // PRIVATE TYPES
     struct CryptoPrng;
-    using SessionMap    = std::unordered_map<IpcProtocol::ChannelId,
-                                             std::shared_ptr<IpcSession>,
-                                             IpcProtocol::ChannelIdHash>;
+
+    struct Setup : IpcProtocol::Provider::SetupBase {
+        SetupUpdate             d_setupUpdate;
+
+        Setup(SetupUpdate&& completion)
+            : d_setupUpdate(std::move(completion)) { }
+    };
+    using SessionSet    = std::unordered_set<std::shared_ptr<IpcSession>>;
 
     // PRVIATE MANIPULATORS
-    void channelUpdate(IpcProtocol::ChannelId      id,
-                       IpcProtocol::ChannelChange  changeTo,
-                       IpcProtocol::ChannelMode    mode);
+    //! Called on connection success or failure (i.e. cancelation);
+    void channelSetup(IpcProtocol::Provider::ChannelPtr  channel,
+                      IpcProtocol::Provider::SetupTicket ticket) noexcept;
 
-    void processMessage(IpcProtocol::ChannelId id, IpcMessage&& message);
-
-    bool verifyStartupMessage(IpcMessage::MessageNumber  digestValue,
-                              uint32_t                   random,
-                              const IpcMessage&          message);
+    //! Called when connection is lost.
+    void sessionClose(SessionSet::value_type       session,
+                      IpcProtocol::Channel::State  reason) noexcept;
 
     // PRIVATE DATA MEMBERS
-    CryptoPrng                     *d_prng_p    = nullptr;
-    bool                            d_opened    = false;
     std::mutex                      d_lock{};
-    IpcMessage                      d_handshake{};
-    IpcMessage                      d_dropMessage{};
-    SessionMap                      d_sessionMap{};
-    IpcProtocol                    *d_adapter;
-    MessageCb                       d_messageCb;
+    SessionSet                      d_sessionSet{};
+    IpcProtocol::Provider          *d_adapter;
+    bool                            d_opened;
+    CryptoPrng                     *d_prng_p;
 };
 
 } // end Wawt namespace

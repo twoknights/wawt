@@ -23,6 +23,7 @@
 
 #include <SFML/Network/TcpSocket.hpp>
 
+#include <atomic>
 #include <condition_variable>
 #include <deque>
 #include <functional>
@@ -30,103 +31,144 @@
 #include <mutex>
 #include <memory>
 #include <regex>
+#include <thread>
 
-                            //=====================
-                            // class SfmlIpcAdapter
-                            //=====================
+                            //=======================
+                            // class SfmlIpV4Provider
+                            //=======================
 
-class SfmlIpcAdapter : public Wawt::IpcProtocol {
+class SfmlIpV4Provider : public Wawt::IpcProtocol::Provider {
   public:
     // PUBLIC TYPES
+    using Task     = std::function<void()>;
+    using CancelCb = std::function<void()>;
 
     // PUBLIC CLASS MEMBERS
 
     // PUBLIC CONSTRUCTORS
-    SfmlIpcAdapter(uint8_t adapterId) : d_adapterId(adapterId) { }
 
     // PUBLIC DESTRUCTORS
-    ~SfmlIpcAdapter();
 
-    // PUBLIC Wawt::IpcProtocol INTERFACE
+    // PUBLIC Wawt::IpcProtocol::Provider INTERFACE
+    bool            acceptChannels(Wawt::String_t  *diagnostic,
+                                   SetupTicket      ticket,
+                                   std::any         configuration,
+                                   SetupCb&&        channelSetupDone)
+                                                           noexcept override;
 
-    //! Configure the adapter to accept channels created by peers.
-    ChannelStatus   acceptChannels(Wawt::String_t  *diagnostic,
-                                   std::any         configuration)
-                                                             noexcept override;
+    // On return, setup is not "in-progress", but may have "finished".
+    bool            cancelSetup(const SetupTicket& ticket) noexcept override;
 
-    // Asynchronous close of all channels. No new ones permitted.
-    void            closeAdapter()                           noexcept override;
+    //! Create a channel to a peer that is accepting channels.
+    bool            createNewChannel(Wawt::String_t  *diagnostic,
+                                     SetupTicket      ticket,
+                                     std::any         configuration,
+                                     SetupCb&&        channelSetupDone)
+                                                           noexcept override;
 
-    //! Asynchronous close of a channel.
-    void            closeChannel(ChannelId      id)          noexcept override;
+    // Asynchronous cancel of all pending channels. No new ones permitted.
+    void            shutdown()                             noexcept override;
 
-    //! Configure a channel to a peer that is accepting channels.
-    ChannelStatus   createNewChannel(Wawt::String_t    *diagnostic,
-                                     std::any           configuration)
-                                                             noexcept override;
+    // PUBLIC MANIPULATORS
+    void            addTicket(const SetupTicket&    ticket,
+                              unsigned short        port,
+                              const CancelCb&       cancel) noexcept;
 
-    void            installCallbacks(ChannelCb  channelUpdate,
-                                     MessageCb  receivedMessage)
-                                                             noexcept override;
+    bool            start(Wawt::String_t       *diagnostic,
+                          SetupTicket           ticket,
+                          const SetupCb&        channelSetupDone,
+                          const sf::IpAddress&  ipAddress,
+                          unsigned short        port) noexcept;
 
-    //! Asynchronous call to send a message on a channel
-    bool            sendMessage(ChannelId       id,
-                                MessageChain&&  chain)       noexcept override;
+    bool            start(Wawt::String_t                   *diagnostic,
+                          const SetupTicket&                ticket,
+                          const SetupCb&                    channelSetupDone,
+                          std::shared_ptr<sf::TcpListener>  listener) noexcept;
 
     // PUBLIC ACCESSORS
-    unsigned short listenPort() const { return 0; }
-
-
+    unsigned short listenPort(const SetupTicket& ticket) const noexcept;
 
   private:
     // PRIVATE TYPES
-    struct  Connection;
-
-    using   ConnectionPtr           = std::weak_ptr<Connection>;
-    using   ConnectionMap           = std::map<int,ConnectionPtr>;
+    using   TicketCb   = std::pair<unsigned short, std::function<void()>>;
+    using   TicketMap  = std::unordered_map<SetupTicket,TicketCb>;
 
     // PRIVATE MANIPULATORS
-    void        accept(Connection                  *connection,
-                       sf::TcpListener             *listener);
 
-    void        connect(sf::IpAddress               ipV4,
-                        unsigned short              port,
-                        Connection                 *connection);
+    // PRIVATE DATA
+    mutable std::mutex              d_lock{};
+    TicketMap                       d_tickets{};
+    std::condition_variable         d_signalSetupThread{};
+    bool                            d_shutdown      = false;
+};
 
-    ChannelStatus configureAdapter(Wawt::String_t *diagnostic,
-                                   int            *internalId,
-                                   std::any        address,
-                                   bool            listen) noexcept;
+                            //====================
+                            // class SfmlTcpSocket
+                            //====================
 
-    //! Enables the asynchronous creation of new channels.
-    bool        open(Wawt::String_t *diagnostic, int internalId) noexcept;
+class SfmlTcpSocket : public Wawt::IpcProtocol::Channel {
+  public:
+    // PUBLIC TYPES
+    using Task        = SfmlIpV4Provider::Task;
+    using SetupTicket = SfmlIpV4Provider::SetupTicket;
 
-    void        readMsgLoop(Connection             *connection);
+    // PUBLIC CLASS MEMBERS
 
-    std::size_t readSizeHdr(sf::SocketSelector&     select,
-                            Connection             *connection);
+    // PUBLIC CONSTRUCTORS
+    SfmlTcpSocket();
 
-    void        readMsg(sf::SocketSelector&         select,
-                        Connection                 *connection,
-                        uint16_t                    msgSize);
+    // PUBLIC DESTRUCTORS
+    ~SfmlTcpSocket();
 
-    bool        writeMsg(Connection                *connection,
-                         const char                *message,
-                         uint16_t                   msgSize);
+    // PUBLIC Wawt::IpcProtocol::Channel INTERFACE
+    void            closeChannel()                      noexcept override;
 
-    void        writeMsgLoop(Connection            *connection);
+    void            completeSetup(MessageCb&&    receivedMessage,
+                                  StateCb&&      channelClose)
+                                                        noexcept override;
 
+    //! Asynchronous call to send a message on a channel
+    bool            sendMessage(MessageChain&&  chain)  noexcept override;
+
+    State           state()                       const noexcept override;
+
+    // PUBLIC MANIPULATORS
+    bool            connect(sf::IpAddress ipAddress, unsigned short port);
+
+    void            readMsgLoop();
+
+    sf::TcpSocket&  socket() {
+        return d_socket;
+    }
+
+    bool            start(Wawt::String_t       *diagnostic,
+                          const SetupTicket&    ticket,
+                          const Task&           readerTask,
+                          const Task&           writerTask);
+
+    void            writeMsgLoop();
+
+  private:
+    // PRIVATE TYPES
+
+    // PRIVATE MANIPULATORS
+    std::size_t readSizeHdr(sf::SocketSelector& select);
+
+    void        readMsg(sf::SocketSelector&     select,
+                        uint16_t               msgSize);
+
+    State       writeMsg(const char *message, uint16_t msgSize);
 
     // PRIVATE DATA
     std::mutex                      d_lock{};
-    ChannelCb                       d_channelCb{};
+    std::thread                     d_reader{};
+    std::thread                     d_writer{};
+    sf::TcpSocket                   d_socket{};
+    std::condition_variable         d_signalWriteThread{};
+    std::deque<MessageChain>        d_writeQ{};
     MessageCb                       d_messageCb{};
-    ConnectionMap                   d_connections{};
-    bool                            d_shutdown      = false;
-    int                             d_next          = 0;
-    std::regex                      d_pattern{ // 1=ip|port 2=port|""
-          R"(^([a-z\.\-\d]+)(?:\:(\d+))?$)"};
-    uint8_t                         d_adapterId;
+    StateCb                         d_stateCb{};
+    std::atomic<State>              d_state;
 };
 
 #endif

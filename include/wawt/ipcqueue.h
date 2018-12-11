@@ -56,8 +56,8 @@ class IpcQueue
     class ReplyQueue {
         friend class IpcQueue;
         mutable std::weak_ptr<IpcSession>  d_session;
+        bool                               d_isLocal;
         bool                               d_winner;
-        IpcSession::Id                     d_sessionId;
         mutable std::atomic_flag           d_flag;
 
         const IpcSession *safeGet() const;
@@ -68,8 +68,8 @@ class IpcQueue
         //! Local reply queue.
         ReplyQueue();
 
-        ReplyQueue(const std::shared_ptr<IpcSession>&   session,
-                   bool                                 winner);
+        ReplyQueue(const std::weak_ptr<IpcSession>&   session,
+                   bool                               winner);
 
         ReplyQueue(ReplyQueue&&         copy);
 
@@ -99,20 +99,12 @@ class IpcQueue
         bool            isClosed()                              const noexcept;
 
         bool            isLocal()                               const noexcept{
-            return d_sessionId == IpcSession::kLOCAL_SSNID;
-        }
-
-        bool            operator==(const ReplyQueue&    rhs)    const noexcept{
-            return d_sessionId == rhs.d_sessionId;
-        }
-
-        bool            operator!=(const ReplyQueue&    rhs)    const noexcept{
-            return d_sessionId != rhs.d_sessionId;
+            return d_isLocal;
         }
     };
     friend class ReplyQueue;
 
-    using MessageType   = IpcSessionManager::MessageType;
+    using MessageType   = IpcSession::MessageType;
     using Indication    = std::tuple<ReplyQueue, IpcMessage, MessageType>;
     using TimerId       = uint32_t;
 
@@ -133,9 +125,9 @@ class IpcQueue
 
     bool            localEnqueue(IpcMessage&&   message);
 
-    void            remoteEnqueue(std::shared_ptr<IpcSession> session,
-                                  MessageType                 msgtype,
-                                  IpcMessage&&                message);
+    void            remoteEnqueue(std::weak_ptr<IpcSession> session,
+                                  MessageType               msgtype,
+                                  IpcMessage&&              message);
 
     void            reset(); // flushes queued messages.
 
@@ -174,7 +166,6 @@ class IpcQueue
     TimerQueue                      d_timerQueue{timerCompare};
     std::condition_variable         d_timerSignal{};
     std::thread                     d_timerThread;
-    IpcProtocol::ChannelId          d_startupId{};
 };
 
 } // end Wawt namespace

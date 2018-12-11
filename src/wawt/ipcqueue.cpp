@@ -78,33 +78,33 @@ IpcMessage makePrefix(uint32_t salt, uint16_t dataSize, char type) {
 // PUBLIC CONSTRUCTORS
 IpcQueue::ReplyQueue::ReplyQueue()
 : d_session()
+, d_isLocal(true)
 , d_winner(false)
-, d_sessionId(IpcSession::kLOCAL_SSNID)
 {
     d_flag.clear();
 }
 
-IpcQueue::ReplyQueue::ReplyQueue(const std::shared_ptr<IpcSession>&  session,
-                                 bool                                winner)
+IpcQueue::ReplyQueue::ReplyQueue(const std::weak_ptr<IpcSession>&  session,
+                                 bool                              winner)
 : d_session(session)
+, d_isLocal(false)
 , d_winner(winner)
-, d_sessionId(session->sessionId())
 {
     d_flag.clear();
 }
 
 IpcQueue::ReplyQueue::ReplyQueue(const ReplyQueue& copy)
 : d_session(copy.d_session)
+, d_isLocal(copy.d_isLocal)
 , d_winner(copy.d_winner)
-, d_sessionId(copy.d_sessionId)
 {
     d_flag.clear();
 }
 
 IpcQueue::ReplyQueue::ReplyQueue(ReplyQueue&& copy)
 : d_session(std::move(copy.d_session))
+, d_isLocal(copy.d_isLocal)
 , d_winner(copy.d_winner)
-, d_sessionId(copy.d_sessionId)
 {
     d_flag.clear();
 }
@@ -116,8 +116,8 @@ IpcQueue::ReplyQueue::operator=(const ReplyQueue& rhs)
 {
     if (this != &rhs) {
         d_session     = rhs.d_session;
+        d_isLocal     = rhs.d_isLocal;
         d_winner      = rhs.d_winner;
-        d_sessionId   = rhs.d_sessionId;
         d_flag.clear();
     }
     return *this;
@@ -128,8 +128,8 @@ IpcQueue::ReplyQueue::operator=(ReplyQueue&& rhs)
 {
     if (this != &rhs) {
         d_session     = std::move(rhs.d_session);
+        d_isLocal     = rhs.d_isLocal;
         d_winner      = rhs.d_winner;
-        d_sessionId   = rhs.d_sessionId;
         d_flag.clear();
     }
     return *this;
@@ -148,7 +148,7 @@ IpcQueue::ReplyQueue::enqueue(IpcMessage&&            message,
 
         if (copy) {
             auto guard  = std::unique_lock(*copy);
-            auto chain  = IpcProtocol::MessageChain{};
+            auto chain  = IpcProtocol::Channel::MessageChain{};
             chain.emplace_front(std::move(message));
 
             if (header) {
@@ -184,7 +184,7 @@ IpcQueue::ReplyQueue::enqueueDigest(Header             *header,
 
         if (copy) {
             *header     = std::make_unique<char[]>(IpcMessageUtil::prefixsz);
-            auto chain  = IpcProtocol::MessageChain{};
+            auto chain  = IpcProtocol::Channel::MessageChain{};
 
             auto guard = std::unique_lock(*copy);
             auto salt  = copy->nextSalt();
@@ -219,7 +219,7 @@ IpcQueue::ReplyQueue::closeQueue() noexcept
 
     if (copy) {
         auto guard  = std::lock_guard(*copy);
-        auto chain  = IpcProtocol::MessageChain{};
+        auto chain  = IpcProtocol::Channel::MessageChain{};
 
         auto salt   = copy->nextSalt();
         chain.emplace_front(makePrefix(salt, 0, IpcMessageUtil::kCLOSE));
@@ -239,7 +239,7 @@ IpcQueue::ReplyQueue::isClosed() const noexcept
         auto guard  = std::lock_guard(*copy);
 
         if (copy->state() == IpcSession::State::eOPEN) {
-            return false;                                            // RETURN
+            return false;                                             // RETURN
         }
         copy.reset();
 
@@ -247,7 +247,7 @@ IpcQueue::ReplyQueue::isClosed() const noexcept
         d_session.reset();
         d_flag.clear();
     }
-    return true;                                                     // RETURN
+    return true;                                                      // RETURN
 }
 
                                //---------------
@@ -256,12 +256,14 @@ IpcQueue::ReplyQueue::isClosed() const noexcept
 
 // PRIVATE MEMBERS
 void
-IpcQueue::remoteEnqueue(std::shared_ptr<IpcSession> session,
+IpcQueue::remoteEnqueue(std::weak_ptr<IpcSession>   session,
                         MessageType                 msgtype,
                         IpcMessage&&                message)
 {
     auto guard = std::unique_lock(d_lock);
-    d_incoming.emplace_back(ReplyQueue(session, session->winner()),
+    auto ssn   = session.lock();
+    assert(ssn);
+    d_incoming.emplace_back(ReplyQueue(session, ssn->winner()),
                             std::move(message),
                             msgtype);
     d_signal.notify_all();
