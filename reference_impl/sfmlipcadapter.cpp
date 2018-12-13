@@ -481,7 +481,7 @@ SfmlIpV4Provider::addTicket(const SetupTicket&    ticket,
                             unsigned short        port,
                             const CancelCb&       cancel) noexcept
 {
-    auto guard = std::unique_lock(d_lock);
+    auto guard = std::lock_guard(d_lock);
     d_tickets.try_emplace(ticket, port, cancel);
     d_signalSetupThread.notify_one();
 }
@@ -519,6 +519,8 @@ SfmlIpV4Provider::start(String_t             *diagnostic,
                 socket->readMsgLoop();
             }
             assert(socket->state() != IpcProtocol::Channel::eREADY);
+            socket.reset();
+            decrementCaptureCount();
         };
     return socket->start(diagnostic, ticket, readerTask, writerTask); // RETURN
 }
@@ -576,6 +578,7 @@ SfmlIpV4Provider::start(String_t                         *diagnostic,
             channelSetupDone(socket, ticket);
             listener->close();
             cancelSetup(ticket); // just to cleanup
+            decrementCaptureCount();
         };
     auto listen = std::thread();
 
@@ -595,15 +598,27 @@ SfmlIpV4Provider::start(String_t                         *diagnostic,
 }
 
 // PUBLIC MEMBERS
+SfmlIpV4Provider::~SfmlIpV4Provider()
+{
+    shutdown();
+    // Can't proceed until all threads with lambdas that captured
+    // the 'this' pointer have exited:
+    auto guard = std::unique_lock(d_lock);
+
+    while (d_thisCaptures > 0) {
+        d_signalShutdownThread.wait(guard);
+    }
+}
+
 bool
 SfmlIpV4Provider::acceptChannels(String_t    *diagnostic,
                                  SetupTicket  ticket,
-                                 std::any     configuration,
                                  SetupCb&&    channelSetupDone) noexcept
 {
-    auto guard     = std::unique_lock(d_lock);
-    auto ipAddress = sf::IpAddress();
-    auto port      = uint16_t{};
+    auto  guard         = std::unique_lock(d_lock);
+    auto  ipAddress     = sf::IpAddress();
+    auto  port          = uint16_t{};
+    auto& configuration = ticket->d_configuration;
 
     if (d_tickets.count(ticket) > 0) {
         *diagnostic = S("Ticket already pending.");
@@ -635,6 +650,7 @@ SfmlIpV4Provider::acceptChannels(String_t    *diagnostic,
                       ticket,
                       channelSetupDone,
                       socket)) {
+                d_thisCaptures += 1; // "Listener" captures a copy 'this'
                 d_signalSetupThread.wait(guard);
                 return true;                                          // RETURN
             }
@@ -668,12 +684,12 @@ SfmlIpV4Provider::cancelSetup(const SetupTicket& ticket) noexcept
 bool
 SfmlIpV4Provider::createNewChannel(String_t    *diagnostic,
                                    SetupTicket  ticket,
-                                   std::any     configuration,
                                    SetupCb&&    channelSetupDone) noexcept
 {
-    auto guard     = std::unique_lock(d_lock);
-    auto ipAddress = sf::IpAddress();
-    auto port      = uint16_t{};
+    auto  guard         = std::unique_lock(d_lock);
+    auto  ipAddress     = sf::IpAddress();
+    auto  port          = uint16_t{};
+    auto& configuration = ticket->d_configuration;
 
     if (d_tickets.count(ticket) > 0) {
         *diagnostic = S("Ticket already pending.");
@@ -702,12 +718,22 @@ SfmlIpV4Provider::createNewChannel(String_t    *diagnostic,
                       channelSetupDone,
                       ipAddress,
                       port)) {
+                d_thisCaptures += 1; // "Reader" captures a copy 'this'
                 d_signalSetupThread.wait(guard);
                 return true;                                          // RETURN
             }
         }
     }
     return false;                                                     // RETURN
+}
+
+void
+SfmlIpV4Provider::decrementCaptureCount() noexcept
+{
+    auto guard = std::lock_guard(d_lock);
+    d_thisCaptures -= 1;
+    d_signalShutdownThread.notify_one();
+    return;                                                           // RETURN
 }
 
 unsigned short

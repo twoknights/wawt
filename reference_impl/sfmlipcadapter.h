@@ -48,11 +48,11 @@ class SfmlIpV4Provider : public Wawt::IpcProtocol::Provider {
     // PUBLIC CONSTRUCTORS
 
     // PUBLIC DESTRUCTORS
+    ~SfmlIpV4Provider();
 
     // PUBLIC Wawt::IpcProtocol::Provider INTERFACE
     bool            acceptChannels(Wawt::String_t  *diagnostic,
                                    SetupTicket      ticket,
-                                   std::any         configuration,
                                    SetupCb&&        channelSetupDone)
                                                            noexcept override;
 
@@ -62,7 +62,6 @@ class SfmlIpV4Provider : public Wawt::IpcProtocol::Provider {
     //! Create a channel to a peer that is accepting channels.
     bool            createNewChannel(Wawt::String_t  *diagnostic,
                                      SetupTicket      ticket,
-                                     std::any         configuration,
                                      SetupCb&&        channelSetupDone)
                                                            noexcept override;
 
@@ -73,6 +72,8 @@ class SfmlIpV4Provider : public Wawt::IpcProtocol::Provider {
     void            addTicket(const SetupTicket&    ticket,
                               unsigned short        port,
                               const CancelCb&       cancel) noexcept;
+
+    void            decrementCaptureCount() noexcept;
 
     bool            start(Wawt::String_t       *diagnostic,
                           SetupTicket           ticket,
@@ -99,6 +100,8 @@ class SfmlIpV4Provider : public Wawt::IpcProtocol::Provider {
     mutable std::mutex              d_lock{};
     TicketMap                       d_tickets{};
     std::condition_variable         d_signalSetupThread{};
+    std::condition_variable         d_signalShutdownThread{};
+    unsigned int                    d_thisCaptures  = 0u;
     bool                            d_shutdown      = false;
 };
 
