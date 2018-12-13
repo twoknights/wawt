@@ -38,7 +38,8 @@ class IpcSession {
     // PUBLIC TYPES
     using  MessageNumber = IpcMessage::MessageNumber;
     using  MessageChain  = IpcProtocol::Channel::MessageChain;
-    using  ChannelPtr    = IpcProtocol::Provider::ChannelPtr;
+    using  ChannelPtr    = IpcProtocol::ChannelPtr;
+    using  PeerId        = uint64_t;
 
     enum class State {
           eWAITING_ON_CONNECT
@@ -62,57 +63,57 @@ class IpcSession {
     IpcSession(const IpcSession&)                 = delete;
     IpcSession& operator=(const IpcSession&)      = delete;
 
-    IpcSession(uint32_t                  random1,
-               uint32_t                  random2,
+    IpcSession(uint32_t                  random,
                ChannelPtr                channel,
-               bool                      initiated);
+               bool                      initiated)                  noexcept;
 
     // PUBLIC MANIPULATORS
-    bool enqueue(MessageChain&& chain, bool close);
+    bool enqueue(MessageChain&& chain, bool close)                   noexcept;
 
-    void lock() {
+    void lock()                                                      noexcept {
         d_lock.lock();
     }
 
-    MessageNumber nextSalt() {
+    MessageNumber nextSalt()                                         noexcept {
         return ++d_sendSalt;
     }
 
-    void receivedMessage(IpcMessage&& message);
+    void receivedMessage(IpcMessage&& message)                       noexcept;
 
-    void setClosed() {
+    void setClosed()                                                 noexcept {
         d_state = State::eWAITING_ON_DISC;
     }
 
-    void shutdown();
+    void shutdown()                                                  noexcept;
 
-    void startHandshake(IpcMessage&& handshake, MessageCb&& messageCb);
+    void startHandshake(PeerId        peerId,
+                        IpcMessage&&  handshake,
+                        MessageCb&&   messageCb)                     noexcept;
 
-    void unlock() {
+    void unlock()                                                    noexcept {
         d_lock.unlock();
     }
 
     // PUBLIC ACCESSORS
-    State state() const {
+    State state()                                              const noexcept {
         return d_state;
     }
 
-    bool winner() const {
-        return d_winner;
+    PeerId peerId()                                            const noexcept {
+        return d_peerId;
     }
 
   private:
     // PRIVATE MANIPULATORS
     void saveStartupDigest(MessageNumber  initialValue,
-                           IpcMessage&&   receivedDigest);
+                           IpcMessage&&   receivedDigest)            noexcept;
 
     bool verifyStartupMessage(MessageNumber         digestValue,
-                              uint32_t              random,
-                              const IpcMessage&     message);
+                              PeerId                peerId,
+                              const IpcMessage&     message)         noexcept;
 
     // PRIVATE DATA MEMBERS
     State                           d_state     = State::eWAITING_ON_CONNECT;
-    bool                            d_winner    = false;
     MessageNumber                   d_sendSalt  = 0;
     std::mutex                      d_lock{};
     MessageCb                       d_messageCb{};
@@ -121,6 +122,7 @@ class IpcSession {
 
     MessageNumber                   d_rcvSalt;
     uint32_t                        d_random;
+    PeerId                          d_peerId;
     ChannelPtr                      d_channel;
     bool                            d_initiated;
 };
@@ -133,6 +135,7 @@ class IpcSession {
 class IpcSessionFactory {
   public:
     // PUBLIC TYPES
+    using PeerId      = IpcSession::PeerId;
     using SessionPtr  = std::weak_ptr<IpcSession>;
     using MessageType = IpcSession::MessageType;
     using MessageCb   = std::function<void(const SessionPtr&,
@@ -169,33 +172,32 @@ class IpcSessionFactory {
 
     void            shutdown()                                        noexcept;
 
+    // PUBLIC ACCESSORS
+    PeerId          peerId()                                    const noexcept;
+
   private:
     // PRIVATE TYPES
-    struct CryptoPrng;
+    using SetupBase = IpcProtocol::Provider::SetupBase;
+    using SetupCb   = IpcProtocol::Provider::SetupCb;
 
-    struct Setup : IpcProtocol::Provider::SetupBase {
+    struct Completor;
+
+    struct Setup : SetupBase {
         SetupUpdate             d_setupUpdate;
 
-        Setup(SetupUpdate&& completion)
-            : d_setupUpdate(std::move(completion)) { }
+        Setup(std::any&& configuration, SetupUpdate&& completion)
+            : SetupBase(std::move(configuration))
+            , d_setupUpdate(std::move(completion)) { }
     };
-    using SessionSet    = std::unordered_set<std::shared_ptr<IpcSession>>;
 
     // PRVIATE MANIPULATORS
-    //! Called on connection success or failure (i.e. cancelation);
-    void channelSetup(IpcProtocol::Provider::ChannelPtr  channel,
-                      IpcProtocol::Provider::SetupTicket ticket) noexcept;
-
-    //! Called when connection is lost.
-    void sessionClose(SessionSet::value_type       session,
-                      IpcProtocol::Channel::State  reason) noexcept;
+    SetupCb         makeSetupCb();
 
     // PRIVATE DATA MEMBERS
     std::mutex                      d_lock{};
-    SessionSet                      d_sessionSet{};
     IpcProtocol::Provider          *d_adapter;
     bool                            d_opened;
-    CryptoPrng                     *d_prng_p;
+    std::shared_ptr<Completor>      d_completor;
 };
 
 } // end Wawt namespace

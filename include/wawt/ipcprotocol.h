@@ -68,6 +68,8 @@ class IpcProtocol
         virtual State           state()                       const noexcept=0;
     };
 
+    using ChannelPtr  = std::weak_ptr<Channel>;
+
     class Provider {
       public:
         // PUBLIC TYPES
@@ -78,17 +80,21 @@ class IpcProtocol
                         , eINVALID
                         , eERROR
                         , eFINISH };
-            std::atomic<Status>                d_setupStatus;
-            std::atomic<String_t::value_type>  d_diagnostic;
+            std::atomic<Status>                 d_setupStatus{};
+            const std::any                      d_configuration;
+
+            SetupBase(std::any&& configuration)
+                : d_configuration(std::move(configuration)) {
+                    d_setupStatus = eINPROGRESS;
+                }
         };
 
         using SetupTicket = std::shared_ptr<SetupBase>;
-        using ChannelPtr  = std::weak_ptr<Channel>;
-        using SetupCb     = std::function<void(ChannelPtr,SetupTicket)>;
+        using SetupCb     = std::function<void(const ChannelPtr&,
+                                               const SetupTicket&)>;
 
         virtual bool            acceptChannels(String_t    *diagnostic,
                                                SetupTicket  ticket,
-                                               std::any     configuration,
                                                SetupCb&&    channelSetupDone)
                                                                     noexcept=0;
 
@@ -99,7 +105,6 @@ class IpcProtocol
         //! Create a channel to a peer that is accepting channels.
         virtual bool            createNewChannel(String_t    *diagnostic,
                                                  SetupTicket  ticket,
-                                                 std::any     configuration,
                                                  SetupCb&&    channelSetupDone)
                                                                     noexcept=0;
 

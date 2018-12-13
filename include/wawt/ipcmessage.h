@@ -157,6 +157,7 @@ struct IpcMessageUtil
 
     static constexpr int  hdrsz    = int(sizeof(char) + sizeof(uint16_t));
     static constexpr int  numsz    = int(sizeof(uint32_t));
+    static constexpr int  longsz   = int(sizeof(uint64_t));
     static constexpr int  saltsz   = hdrsz    + numsz;
     static constexpr int  prefixsz = saltsz   + hdrsz;
 
@@ -166,9 +167,9 @@ struct IpcMessageUtil
                            const char **p,
                            const char  *end) {
         if (end - *p >= hdrsz) {
-            auto a = *p;
+            auto a = reinterpret_cast<const uint8_t*>(*p);
             *type = a[0];
-            *size = (uint8_t(a[1]) << 8) | uint8_t(a[2]);
+            *size = (uint16_t(a[1]) << 8) | uint16_t(a[2]);
             *p += hdrsz;
             return true;
         }
@@ -177,10 +178,23 @@ struct IpcMessageUtil
 
     static bool extractValue(uint32_t *value, const char **p, const char *end){
         if (end - *p >= numsz) {
-            auto a = *p;
-            *value = (uint8_t(a[0]) << 24) | (uint8_t(a[1]) << 16)
-                   | (uint8_t(a[2]) <<  8) |  uint8_t(a[3]);
+            auto a = reinterpret_cast<const uint8_t*>(*p);
+            *value = (uint32_t(a[0]) << 24) | (uint32_t(a[1]) << 16)
+                   | (uint32_t(a[2]) <<  8) |  uint32_t(a[3]);
             *p += numsz;
+            return true;
+        }
+        return false;
+    }
+
+    static bool extractValue(uint64_t *value, const char **p, const char *end){
+        if (end - *p >= longsz) {
+            auto a = reinterpret_cast<const uint8_t*>(*p);
+            *value = (uint64_t(a[0]) << 56) | (uint64_t(a[1]) << 48)
+                   | (uint64_t(a[2]) << 40) | (uint64_t(a[3]) << 32)
+                   | (uint64_t(a[4]) << 24) | (uint64_t(a[5]) << 16)
+                   | (uint64_t(a[6]) <<  8) |  uint64_t(a[7]);
+            *p += longsz;
             return true;
         }
         return false;
@@ -188,6 +202,7 @@ struct IpcMessageUtil
 
     static bool extractSalt(uint32_t *salt, const char **p, const char *end);
 
+    //! 'size' is the length of the data following header + 'hdrsz'
     static char *initHeader(char *p, uint16_t size, char type) {
         *p++    =  type;
         *p++    =  char(size >>  8);
@@ -202,7 +217,13 @@ struct IpcMessageUtil
         *p++    = char(value);
         return p;
     }
+ 
+    static char *initValue(char *p, uint64_t value) {
+        p    = initValue(p, uint32_t(value >> 32));
+        return initValue(p, uint32_t(value));
+    }
 
+    //! 'size' is the length of the data that follows the prefix.
     static char *initPrefix(char *p, uint32_t salt, uint16_t size, char type);
 
     template<typename... Args>

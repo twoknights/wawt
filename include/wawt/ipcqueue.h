@@ -51,13 +51,14 @@ class IpcQueue
     struct Shutdown { };                    ///< Shutdown exception.
 
     using Header                = std::unique_ptr<char[]>;
+    using PeerId                = IpcSession::PeerId;
 
     // Methods are NOT thread-safe
     class ReplyQueue {
         friend class IpcQueue;
         mutable std::weak_ptr<IpcSession>  d_session;
         bool                               d_isLocal;
-        bool                               d_winner;
+        PeerId                             d_peerId;
         mutable std::atomic_flag           d_flag;
 
         const IpcSession *safeGet() const;
@@ -69,7 +70,7 @@ class IpcQueue
         ReplyQueue();
 
         ReplyQueue(const std::weak_ptr<IpcSession>&   session,
-                   bool                               winner);
+                   IpcSession::PeerId                 peerId);
 
         ReplyQueue(ReplyQueue&&         copy);
 
@@ -92,14 +93,14 @@ class IpcQueue
         void            closeQueue()                                  noexcept;
 
         // PUBLIC ACCESSORS
-        bool            tossResult()                            const noexcept{
-            return d_winner;
-        }
-
         bool            isClosed()                              const noexcept;
 
         bool            isLocal()                               const noexcept{
             return d_isLocal;
+        }
+
+        PeerId          peerId()                                const noexcept{
+            return d_peerId;
         }
     };
     friend class ReplyQueue;
