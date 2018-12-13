@@ -53,7 +53,7 @@ IpcMessageUtil::extractSalt(uint32_t *salt, const char **p, const char *end)
     if (extractHdr(&type, &size, p, end)
      && type == kSALT
      && size == saltsz) {
-        if (salt) {
+        if (salt) { // just skip over if salt == nulptr
             extractValue(salt, p, end);
         }
         return true;
@@ -64,15 +64,16 @@ IpcMessageUtil::extractSalt(uint32_t *salt, const char **p, const char *end)
 char *
 IpcMessageUtil::initPrefix(char *p, uint32_t salt, uint16_t size, char type)
 {
-    size   += hdrsz;
-
+    // "prefix" consists of a "salt" header + value, and a 'type' header whose
+    // payload is of length 'size' and will be appended to 'p' on return.
     p       = initHeader(p, sizeof(salt), kSALT);
     p       = initValue( p, salt);
-    p       = initHeader(p, size, type);
+    p       = initHeader(p, hdrsz + size, type);
+    // Return: kSALT+4[0,1]+salt[0,1,2,3]+type+size[0,1] -> 10 octets
     return p;
 }
 
-IpcMessage::MessageNumber
+IpcMessage::MessageNumber // AKA salt
 IpcMessageUtil::messageNumber(const IpcMessage& message)
 {
     auto salt   = uint32_t{};
@@ -89,13 +90,15 @@ bool
 IpcMessageUtil::verifyDigestPair(const IpcMessage&       digest,
                                  const IpcMessage&       digestMessage)
 {
-
+    // 'digestMessage' has all protocol skipped over. Recover the "prefix"
+    // which contains the message's salt value and was used in computing the
+    // hash value found in 'digest'.
     if (digestMessage.d_offset < prefixsz) {
         assert(!"Message missing header.");
         return false;                                                 // RETURN
     }
     auto msglength  = digestMessage.length();
-    auto data       = digestMessage.cbegin() - prefixsz;
+    auto data       = digestMessage.cbegin() - prefixsz; // recover prefix
     auto datalng    = msglength + prefixsz;
 
     uint32_t salt1, salt2;

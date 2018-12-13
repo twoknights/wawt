@@ -79,16 +79,16 @@ IpcMessage makePrefix(uint32_t salt, uint16_t dataSize, char type) {
 IpcQueue::ReplyQueue::ReplyQueue()
 : d_session()
 , d_isLocal(true)
-, d_winner(false)
+, d_peerId(0)
 {
     d_flag.clear();
 }
 
 IpcQueue::ReplyQueue::ReplyQueue(const std::weak_ptr<IpcSession>&  session,
-                                 bool                              winner)
+                                 IpcSession::PeerId                peerId)
 : d_session(session)
 , d_isLocal(false)
-, d_winner(winner)
+, d_peerId(peerId)
 {
     d_flag.clear();
 }
@@ -96,7 +96,7 @@ IpcQueue::ReplyQueue::ReplyQueue(const std::weak_ptr<IpcSession>&  session,
 IpcQueue::ReplyQueue::ReplyQueue(const ReplyQueue& copy)
 : d_session(copy.d_session)
 , d_isLocal(copy.d_isLocal)
-, d_winner(copy.d_winner)
+, d_peerId(copy.d_peerId)
 {
     d_flag.clear();
 }
@@ -104,7 +104,7 @@ IpcQueue::ReplyQueue::ReplyQueue(const ReplyQueue& copy)
 IpcQueue::ReplyQueue::ReplyQueue(ReplyQueue&& copy)
 : d_session(std::move(copy.d_session))
 , d_isLocal(copy.d_isLocal)
-, d_winner(copy.d_winner)
+, d_peerId(copy.d_peerId)
 {
     d_flag.clear();
 }
@@ -117,7 +117,7 @@ IpcQueue::ReplyQueue::operator=(const ReplyQueue& rhs)
     if (this != &rhs) {
         d_session     = rhs.d_session;
         d_isLocal     = rhs.d_isLocal;
-        d_winner      = rhs.d_winner;
+        d_peerId        = rhs.d_peerId;
         d_flag.clear();
     }
     return *this;
@@ -129,7 +129,7 @@ IpcQueue::ReplyQueue::operator=(ReplyQueue&& rhs)
     if (this != &rhs) {
         d_session     = std::move(rhs.d_session);
         d_isLocal     = rhs.d_isLocal;
-        d_winner      = rhs.d_winner;
+        d_peerId        = rhs.d_peerId;
         d_flag.clear();
     }
     return *this;
@@ -263,7 +263,7 @@ IpcQueue::remoteEnqueue(std::weak_ptr<IpcSession>   session,
     auto guard = std::unique_lock(d_lock);
     auto ssn   = session.lock();
     assert(ssn);
-    d_incoming.emplace_back(ReplyQueue(session, ssn->winner()),
+    d_incoming.emplace_back(ReplyQueue(session, ssn->peerId()),
                             std::move(message),
                             msgtype);
     d_signal.notify_all();
