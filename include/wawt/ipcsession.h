@@ -23,11 +23,12 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
-#include <unordered_set>
 
 #include "wawt/ipcprotocol.h"
 
 namespace Wawt {
+
+struct IpcSessionCompletor;
 
                                 //=================
                                 // class IpcSession
@@ -39,6 +40,8 @@ class IpcSession {
     using  MessageNumber = IpcMessage::MessageNumber;
     using  MessageChain  = IpcProtocol::Channel::MessageChain;
     using  ChannelPtr    = IpcProtocol::ChannelPtr;
+    using  CompletorPtr  = std::weak_ptr<IpcSessionCompletor>;
+    using  SelfPtr       = std::weak_ptr<IpcSession>;
     using  PeerId        = uint64_t;
 
     enum class State {
@@ -54,8 +57,15 @@ class IpcSession {
                            , eDATA
                            , eDIGESTED_DATA };
 
-    using MessageCb = std::function<void(MessageType               msgtype,
-                                         IpcMessage&&              message)>;
+    using MessageCb   = std::function<void(const SelfPtr&,
+                                           MessageType,
+                                           IpcMessage&&)>;
+    struct SessionStartup {
+        MessageCb   d_messageCb;
+        IpcMessage  d_dropIndication;
+        IpcMessage  d_handshakeMessage;
+    };
+    using StartupPtr  = std::unique_ptr<SessionStartup>;
 
     // PUBLIC CONSTANTS
 
@@ -65,9 +75,12 @@ class IpcSession {
 
     IpcSession(uint32_t                  random,
                ChannelPtr                channel,
+               CompletorPtr              completor,
                bool                      initiated)                  noexcept;
 
     // PUBLIC MANIPULATORS
+    void dropIndication(IpcProtocol::Channel::State state)           noexcept;
+
     bool enqueue(MessageChain&& chain, bool close)                   noexcept;
 
     void lock()                                                      noexcept {
@@ -86,9 +99,9 @@ class IpcSession {
 
     void shutdown()                                                  noexcept;
 
-    void startHandshake(PeerId        peerId,
-                        IpcMessage&&  handshake,
-                        MessageCb&&   messageCb)                     noexcept;
+    void startHandshake(const SelfPtr&     self,
+                        PeerId             peerId,
+                        StartupPtr&&       finishSetup)              noexcept;
 
     void unlock()                                                    noexcept {
         d_lock.unlock();
@@ -104,6 +117,8 @@ class IpcSession {
     }
 
   private:
+    // PRIVATE TYPES
+
     // PRIVATE MANIPULATORS
     void saveStartupDigest(MessageNumber  initialValue,
                            IpcMessage&&   receivedDigest)            noexcept;
@@ -120,10 +135,13 @@ class IpcSession {
     IpcMessage                      d_digest{};     // digest from downstream
     IpcMessage                      d_handshake{};  // to be sent downstream
 
+    SelfPtr                         d_self{};
+    PeerId                          d_peerId{};
+    StartupPtr                      d_upstream{};
+
     MessageNumber                   d_rcvSalt;
-    uint32_t                        d_random;
-    PeerId                          d_peerId;
     ChannelPtr                      d_channel;
+    CompletorPtr                    d_completor;
     bool                            d_initiated;
 };
 
@@ -142,16 +160,10 @@ class IpcSessionFactory {
                                            MessageType,
                                            IpcMessage&&)>;
 
-    struct SessionStartup {
-        MessageCb   d_messageCb;
-        IpcMessage  d_dropIndication;
-        IpcMessage  d_handshakeMessage;
-    };
-    using StartupPtr  = std::unique_ptr<SessionStartup>;
     using SetupTicket = IpcProtocol::Provider::SetupTicket;
-    using SetupUpdate = std::function<StartupPtr(bool success,
-                                                 SetupTicket,
-                                                 const String_t&)>;
+    using SetupUpdate = std::function<IpcSession::StartupPtr(bool success,
+                                                             SetupTicket,
+                                                             const String_t&)>;
 
     // PUBLIC CONSTRUCTORS
     IpcSessionFactory(IpcProtocol::Provider *adapter);
@@ -173,14 +185,15 @@ class IpcSessionFactory {
     void            shutdown()                                        noexcept;
 
     // PUBLIC ACCESSORS
-    PeerId          peerId()                                    const noexcept;
+    PeerId          localPeerId()                               const noexcept;
 
   private:
-    // PRIVATE TYPES
-    using SetupBase = IpcProtocol::Provider::SetupBase;
-    using SetupCb   = IpcProtocol::Provider::SetupCb;
+    friend class IpcSessionCompletor;
 
-    struct Completor;
+    // PRIVATE TYPES
+    using CompletorPtr = std::shared_ptr<IpcSessionCompletor>;
+    using SetupBase    = IpcProtocol::Provider::SetupBase;
+    using SetupCb      = IpcProtocol::Provider::SetupCb;
 
     struct Setup : SetupBase {
         SetupUpdate             d_setupUpdate;
@@ -191,13 +204,13 @@ class IpcSessionFactory {
     };
 
     // PRVIATE MANIPULATORS
-    SetupCb         makeSetupCb();
+    SetupCb         makeSetupCb()                                     noexcept;
 
     // PRIVATE DATA MEMBERS
     std::mutex                      d_lock{};
     IpcProtocol::Provider          *d_adapter;
     bool                            d_opened;
-    std::shared_ptr<Completor>      d_completor;
+    CompletorPtr                    d_completor;
 };
 
 } // end Wawt namespace
