@@ -101,7 +101,7 @@ class SfmlIpV4Provider : public Wawt::IpcProtocol::Provider {
     TicketMap                       d_tickets{};
     std::condition_variable         d_signalSetupThread{};
     std::condition_variable         d_signalShutdownThread{};
-    unsigned int                    d_thisCaptures  = 0u;
+    int                             d_thisCaptures  = 0;
     bool                            d_shutdown      = false;
 };
 

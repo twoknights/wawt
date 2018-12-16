@@ -45,12 +45,10 @@ namespace {
                             //------------------
 
 SetupScreen::SetupScreen(Calls              *controller,
-                         StringIdLookup     *mapper,
-                         Wawt::IpcProtocol  *ipc)
+                         StringIdLookup     *mapper)
 : ScreenImpl()
 , d_controller(controller)
 , d_mapper(mapper)
-, d_ipc(ipc)
 , d_moveClock(0.3, { { S("5") } , { S("10"), true } , { S("15") } })
 , d_languageList({
         { S("English"),  true  }

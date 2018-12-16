@@ -50,87 +50,49 @@ Controller::~Controller()
 }
 
 Controller::StatusPair
-Controller::accept(const Wawt::String_t& address)
+Controller::establishConnection(bool listen, const Wawt::String_t& address)
 {
+    auto  diagnostic = Wawt::String_t{};
+    auto  completion =
+        [this] (Wawt::IpcMessage       *dropIndication,
+                Wawt::IpcMessage       *handshake,
+                const Ticket,
+                bool                    success,
+                const Wawt::String_t&   message) -> bool {
+            std::unique_lock guard(d_cbLock);
+            //TBD: set ipc messages
+            d_setupTicket.reset();
+            return d_router.call(d_setupScreen,
+                                 &SetupScreen::connectionResult,
+                                 success,
+                                 message).value_or(false);
+        };
+    d_setupTicket  = d_ipc->remoteSetup(&diagnostic,
+                                        listen,
+                                        address,
+                                        completion);
+
+    if (d_setupTicket) {
+        if (listen) {
+            diagnostic = S("Expecting connection on port: ")
+                       + Wawt::toString(d_listenPort(d_setupTicket));
+        }
+        else {
+            diagnostic = S("Attempting to connect to opponent.");
+        }
+    }
+    return {!!d_setupTicket, diagnostic};                             // RETURN
 }
 
 void
 Controller::cancel()
 {
     std::lock_guard<std::mutex> guard(d_cbLock);
-    //d_ipc->closeChannel(d_currentId);
-}
 
-#if 0
-void
-Controller::connectionChange(Wawt::IpcProtocol::ChannelId,
-                             Wawt::IpcProtocol::ChannelStatus)
-{
-    // Note: no other connection update for 'id' can be delivered
-    // until this function returns.
-    std::lock_guard<std::mutex> guard(d_cbLock);
-
-    if (d_currentId == id) {
-        if (Wawt::IpcProtocol::ChannelStatus::eOK == status) {
-            d_cbLock.unlock();
-
-            auto callRet = d_router.call(d_setupScreen,
-                                         &SetupScreen::connectionResult,
-                                         true,
-                                         S("Connection established."));
-            d_cbLock.lock();
-
-            if (!callRet) {
-                // No longer interested in this connection's updates.
-                d_ipc->closeConnection(id);
-            }
-            return;                                                   // RETURN
-        }
-        d_currentId = WawtIpcProtocol::kINVALID_ID;
-
-        if (WawtIpcProtocol::ConnectionStatus::eCLOSED == status) {
-            d_cbLock.unlock();
-            d_router.call(d_setupScreen,
-                          &SetupScreen::connectionResult,
-                          false,
-                          S("Connect attempt cancelled."));
-            d_cbLock.lock();
-        }
-        // TBD: DISCONNECT
+    if (d_setupTicket) {
+        d_ipc->cancelRemoteSetup(d_setupTicket);
+        d_setupTicket.reset();
     }
-    return;                                                           // RETURN
-}
-#endif
-
-Controller::StatusPair
-Controller::connect(const Wawt::String_t&)
-{
-#if 0
-    Wawt::String_t           diagnostic;
-
-    Wawt::IpcProtocol::ChannelId id;
-
-    auto status = d_ipc->prepareConnection(&diagnostic,
-                                           &id,
-                                           [this](auto cid, auto info) {
-                                              connectionChange(cid, info);
-                                           },
-                                           [this](auto, auto) {
-                                           },
-                                           connectString);
-
-    if (WawtIpcProtocol::AddressStatus::eOK != status) {
-        return {false, diagnostic};
-    }
-    std::lock_guard<std::mutex> guard(d_cbLock);
-
-    if (!d_ipc->startConnection(&diagnostic, id)) {
-        return {false, diagnostic};
-    }
-    d_currentId = id;
-#endif
-
-    return {true, S("Attempting to connect to opponent.")};           // RETURN
 }
 
 bool
@@ -148,7 +110,7 @@ Controller::shutdown()
                    .addChild(
                         pushButtonGrid({{-1.0, 0.5}, {1.0, 0.9}}, -1.0, 1_Sz,
                                        {{S("Yes"), [this](auto) {
-                                             //d_ipc->closeAll();
+                                             d_ipc->shutdown();
                                              d_router.discardAlert();
                                              // event-loop checks the router
                                              // shutdown flag (do this last):
@@ -165,8 +127,7 @@ Controller::startup()
 {
     d_setupScreen = d_router.create<SetupScreen>("Setup Screen",
                                                  this,
-                                                 d_mapper,
-                                                 d_ipc);
+                                                 d_mapper);
     //d_gameScreen  = d_router.create<GameScreen>("Game Screen", this);
     /* ... additional screens here ...*/
 

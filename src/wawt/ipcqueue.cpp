@@ -23,6 +23,7 @@
 
 #include <cassert>
 #include <cstring>
+#include <exception>
 #include <forward_list>
 #include <memory>
 #include <mutex>
@@ -256,21 +257,21 @@ IpcQueue::ReplyQueue::isClosed() const noexcept
 
 // PRIVATE MEMBERS
 void
-IpcQueue::remoteEnqueue(std::weak_ptr<IpcSession>   session,
-                        MessageType                 msgtype,
-                        IpcMessage&&                message)
+IpcQueue::remoteEnqueue(const std::weak_ptr<IpcSession>&  session,
+                        MessageType                       msgtype,
+                        IpcMessage&&                      message) noexcept
 {
     auto guard = std::unique_lock(d_lock);
     auto ssn   = session.lock();
     assert(ssn);
     d_incoming.emplace_back(ReplyQueue(session, ssn->peerId()),
                             std::move(message),
-                            msgtype);
-    d_signal.notify_all();
+                            msgtype); // tuple & replyQueue don't throw
+    d_signalWaitThread.notify_all();
 }
 
 void
-IpcQueue::timerThread()
+IpcQueue::timerThread() noexcept
 {
     auto guard = std::unique_lock(d_lock);
 
@@ -278,7 +279,7 @@ IpcQueue::timerThread()
         auto now  = Clock::now();
 
         if (d_timerQueue.empty() || now < d_timerQueue.top().first) {
-            d_timerSignal.wait_until(guard, d_timerQueue.top().first);
+            d_signalTimerThread.wait_until(guard, d_timerQueue.top().first);
             continue;                                               // CONTINUE
         }
 
@@ -297,33 +298,49 @@ IpcQueue::timerThread()
     return;                                                           // RETURN
 }
 
-// PUBLIC CONSTRUCTORS
 
 // PUBLIC MEMBERS
+IpcQueue::IpcQueue(IpcProtocol::Provider *adapter) noexcept
+: d_factory(adapter)
+{
+}
+
+IpcQueue::~IpcQueue()
+{
+    shutdown();
+}
+
 bool
-IpcQueue::cancelDelayedEnqueue(TimerId timerId)
+IpcQueue::cancelDelayedEnqueue(TimerId timerId) noexcept
 {
     if (!d_shutdown) {
         auto guard      = std::lock_guard(d_lock);
-        return d_timerIdMap.erase(timerId) > 0;
+        return d_timerIdMap.erase(timerId) > 0; // compare doesn't throw
     }
     return false;                                                     // RETURN
 }
 
+bool
+IpcQueue::cancelRemoteSetup(const HandlePtr& handle) noexcept
+{
+    return d_factory.cancelSetup(handle);                             // RETURN
+}
+
 IpcQueue::TimerId
 IpcQueue::delayedLocalEnqueue(IpcMessage&&              message,
-                              std::chrono::milliseconds delay)
+                              std::chrono::milliseconds delay) noexcept
 {
+    auto guard      = std::lock_guard(d_lock);
+
     if (!d_shutdown) {
         auto expiresAt  = Clock::now() + delay;
-        auto guard      = std::lock_guard(d_lock);
 
         d_timerIdMap.emplace(++d_timerId, std::move(message));
         d_timerQueue.emplace(expiresAt, d_timerId);
 
         if (d_timerQueue.top().second == d_timerId) {
             if (d_timerThread.joinable()) {
-                d_timerSignal.notify_one();
+                d_signalTimerThread.notify_one();
             }
             else {
                 try {
@@ -331,7 +348,7 @@ IpcQueue::delayedLocalEnqueue(IpcMessage&&              message,
                 }
                 catch (...) {
                     assert(!"Failed to start timer.");
-                    throw;
+                    std::terminate();
                 }
             }
         }
@@ -341,7 +358,7 @@ IpcQueue::delayedLocalEnqueue(IpcMessage&&              message,
 }
 
 bool
-IpcQueue::localEnqueue(IpcMessage&& message)
+IpcQueue::localEnqueue(IpcMessage&& message) noexcept
 {
     auto guard = std::unique_lock(d_lock);
 
@@ -349,17 +366,67 @@ IpcQueue::localEnqueue(IpcMessage&& message)
         d_incoming.emplace_back(ReplyQueue(),
                                 std::move(message),
                                 MessageType::eDATA);
-        d_signal.notify_all();
+        d_signalWaitThread.notify_all();
     }
     return !d_shutdown;                                               // RETURN
 }
 
+IpcQueue::HandlePtr
+IpcQueue::remoteSetup(String_t        *diagnostic,
+                      bool             acceptConfiguration,
+                      std::any         configuration,
+                      SetupComplete&&  completion) noexcept
+{
+    auto completeSetup =
+        [this, cb = std::move(completion)]
+                (IpcSession::MessageCb *messageCb,
+                 IpcMessage            *drop,
+                 IpcMessage            *handshake,
+                 const HandlePtr&       handle,
+                 const String_t&        msg) {
+            auto guard = std::unique_lock(d_lock);
+
+            if (d_shutdown) {
+                return false;
+            }
+
+            if (messageCb) {
+                // On shutdown, the session will be in the disconnect state.
+                // It will not use the following lambda to forward messages,
+                // so the 'this' captured can be assumed to be always valid.
+                *messageCb =
+                    [this](const std::weak_ptr<IpcSession>&  session,
+                           MessageType                       msgtype,
+                           IpcMessage&&                      message) -> void {
+                        remoteEnqueue(session, msgtype, std::move(message));
+                    };
+            }
+            guard.release();
+            return cb(drop, handshake, handle, !!drop, msg);
+        };
+
+    return d_factory.channelSetup(diagnostic,
+                                  acceptConfiguration,
+                                  configuration,
+                                  completeSetup);                     // RETURN
+}
+
 void
-IpcQueue::reset()
+IpcQueue::shutdown() noexcept
 {
     auto guard = std::unique_lock(d_lock);
+    auto tmp   = TimerQueue(timerCompare);
+    d_shutdown = true;
+    d_factory.shutdown();
     d_incoming.clear();
-    d_signal.notify_all();
+    d_timerQueue.swap(tmp);
+    d_timerIdMap.clear();
+    d_signalTimerThread.notify_all();
+    d_signalWaitThread.notify_all();
+
+    if (d_timerThread.joinable()) {
+        d_timerThread.join();
+    }
     return;                                                           // RETURN
 }
 
@@ -370,7 +437,7 @@ IpcQueue::waitForIndication()
 
     while (!d_shutdown) {
         if (d_incoming.empty()) {
-            d_signal.wait(guard);
+            d_signalWaitThread.wait(guard);
         }
         else {
             auto indication = std::move(d_incoming.front());

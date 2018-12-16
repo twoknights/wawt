@@ -120,11 +120,11 @@ IpcMessage makeHandshake(uint32_t           random1,
 
 } // unnamed namespace
 
-                    //===========================
-                    // struct IpcSessionCompletor
-                    //===========================
+                    //========================
+                    // struct IpcSessionHelper
+                    //========================
 
-struct IpcSessionCompletor : std::enable_shared_from_this<IpcSessionCompletor>{
+struct IpcSessionHelper : std::enable_shared_from_this<IpcSessionHelper> {
     using SessionSet    = std::unordered_set<std::shared_ptr<IpcSession>>;
     using MessageType   = IpcSession::MessageType;
 
@@ -134,7 +134,7 @@ struct IpcSessionCompletor : std::enable_shared_from_this<IpcSessionCompletor>{
     IpcSession::PeerId                           d_peerId{};
 
     // PUBLIC CONSTRUCTOR
-    IpcSessionCompletor() {
+    IpcSessionHelper() {
         d_peerId = (uint64_t(random32()) << 32)| uint64_t(random32());
     }
 
@@ -179,7 +179,7 @@ struct IpcSessionCompletor : std::enable_shared_from_this<IpcSessionCompletor>{
 };
 
 void
-IpcSessionCompletor::channelSetup(
+IpcSessionHelper::channelSetup(
         const IpcProtocol::ChannelPtr&             channel_wp,
         const IpcProtocol::Provider::SetupTicket&  ticket) noexcept
 {
@@ -197,22 +197,27 @@ IpcSessionCompletor::channelSetup(
         }
     }
     else if (!channel) {
-        pending->d_setupUpdate(false, ticket, diagnostic(ticket));
+        pending->d_setupUpdate(nullptr,
+                               nullptr,
+                               nullptr,
+                               ticket,
+                               diagnostic(ticket));
     }
     else {
-        auto startUp = pending->d_setupUpdate(true, ticket, S(""));
-
-        if (!startUp) {
+        auto initiated = ticket->d_setupStatus == 
+                                    IpcProtocol::Provider::SetupBase::eFINISH;
+        auto session   = std::make_shared<IpcSession>(random32(),
+                                                      channel_wp,
+                                                      weak_from_this(),
+                                                      initiated);
+        if (!pending->d_setupUpdate(&session->d_messageCb,
+                                    &session->d_dropIndication,
+                                    &session->d_handshake,
+                                    ticket,
+                                    S(""))) {
             channel->closeChannel();
         }
         else {
-            auto initiated = ticket->d_setupStatus == 
-                                    IpcProtocol::Provider::SetupBase::eFINISH;
-            auto random    = random32();
-            auto session   = std::make_shared<IpcSession>(random,
-                                                          channel_wp,
-                                                          weak_from_this(),
-                                                          initiated);
             auto ssnWeak   = std::weak_ptr<IpcSession>(session);
 
             d_sessionSet.insert(session);
@@ -231,7 +236,7 @@ IpcSessionCompletor::channelSetup(
                             ssn->dropIndication(state);
                         }
                     });
-            session->startHandshake(session, d_peerId, std::move(startUp));
+            session->startHandshake(session, d_peerId);
         }
     }
     return;                                                           // RETURN
@@ -279,7 +284,7 @@ IpcSession::verifyStartupMessage(IpcMessage::MessageNumber  digestValue,
 // PUBLIC MEMBERS
 IpcSession::IpcSession(uint32_t      random,
                        ChannelPtr    channel,
-                       CompletorPtr  completor,
+                       HelperPtr     completor,
                        bool          initiated)
                                                                     noexcept
 : d_rcvSalt(random)
@@ -296,14 +301,15 @@ IpcSession::dropIndication(IpcProtocol::Channel::State) noexcept
     auto  guard     = std::unique_lock(d_lock);
     auto  completor = d_completor.lock();
 
+    if (state() == State::eOPEN) {
+        d_messageCb(d_self,
+                    MessageType::eDROP,
+                    std::move(d_dropIndication));
+    }
+    guard.release();
+
     if (completor) {
         completor->removeSession(d_self.lock());
-    }
-
-    if (state() == State::eOPEN) {
-        d_upstream->d_messageCb(d_self,
-                                MessageType::eDROP,
-                                std::move(d_upstream->d_dropIndication));
     }
     return;                                                           // RETURN
 }
@@ -333,7 +339,6 @@ IpcSession::receivedMessage(IpcMessage&& message) noexcept
     auto  peerId    = PeerId{}; // only set when kSTARTUP message is processed
     auto  type      = char{};
     auto  channel   = d_channel.lock();
-    auto& messageCb = d_upstream->d_messageCb;
 
     assert(channel); // otherwise, who is calling this method?
 
@@ -360,7 +365,10 @@ IpcSession::receivedMessage(IpcMessage&& message) noexcept
                 message.d_offset += IpcMessageUtil::prefixsz + sizeof(peerId);
 
                 if (message.length() > 0) {
-                    messageCb(d_self, MessageType::eDATA, std::move(message));
+                    guard.release();
+                    d_messageCb(d_self,
+                                MessageType::eDATA,
+                                std::move(message));
                 }
                 assert(state() == State::eOPEN);
             }
@@ -398,7 +406,8 @@ IpcSession::receivedMessage(IpcMessage&& message) noexcept
 
             if (!close) {
                 if (message.length() > 0) {
-                    messageCb(d_self, msgtype, std::move(message));
+                    guard.release();
+                    d_messageCb(d_self, msgtype, std::move(message));
                 }
                 else {
                     close = true;
@@ -425,21 +434,19 @@ IpcSession::receivedMessage(IpcMessage&& message) noexcept
 void
 IpcSession::shutdown() noexcept
 {
+    auto  guard     = std::unique_lock(d_lock);
+    d_state         = State::eWAITING_ON_DISC;
+
     if (auto channel = d_channel.lock()) {
-        d_lock.lock();
         channel->closeChannel();
-        d_lock.unlock();
     }
     return;                                                           // RETURN
 }
 
 void
-IpcSession::startHandshake(const SelfPtr&     self,
-                           PeerId             peerId,
-                           StartupPtr&&       finishSetup) noexcept
+IpcSession::startHandshake(const SelfPtr& self, PeerId peerId) noexcept
 {
     assert(d_state == State::eWAITING_ON_CONNECT);
-    d_upstream     = std::move(finishSetup);
     d_self         = self;
 
     auto channel   = d_channel.lock();
@@ -447,7 +454,7 @@ IpcSession::startHandshake(const SelfPtr&     self,
     d_state        = State::eWAITING_ON_DIGEST;
     d_handshake    = makeHandshake(d_rcvSalt,
                                    peerId,
-                                   std::move(d_upstream->d_handshakeMessage));
+                                   std::move(d_handshake));
     auto chain     = MessageChain{};
     auto hash      = CryptoPP::SHA256{};
     hash.Update(reinterpret_cast<const uint8_t*>(d_handshake.cbegin()),
@@ -465,8 +472,7 @@ IpcSession::startHandshake(const SelfPtr&     self,
 // PUBLIC MEMBERS
 IpcSessionFactory::IpcSessionFactory(IpcProtocol::Provider *adapter)
 : d_adapter(adapter)
-, d_opened(true)
-, d_completor(std::make_shared<IpcSessionCompletor>())
+, d_completor(std::make_shared<IpcSessionHelper>())
 {
 }
 
@@ -475,63 +481,53 @@ IpcSessionFactory::~IpcSessionFactory()
     shutdown();
 }
 
-IpcSessionFactory::SetupTicket
-IpcSessionFactory::acceptChannels(String_t        *diagnostic,
-                                  std::any         configuration,
-                                  SetupUpdate&&    completion) noexcept
-{
-    auto guard   = std::unique_lock(d_lock);
-    auto handle  = std::shared_ptr<Setup>();
-
-    if (d_opened) {
-        handle  = std::make_shared<Setup>(std::move(configuration),
-                                          std::move(completion));
-
-        if (!d_adapter->acceptChannels(diagnostic, handle, makeSetupCb())) {
-            handle.reset();
-        }
-    }
-    return handle;                                                    // RETURN
-}
-
 bool
-IpcSessionFactory::cancelSetup(const SetupTicket& handle) noexcept
+IpcSessionFactory::cancelSetup(const BaseTicket& handle) noexcept
 {
     return d_adapter->cancelSetup(handle);                            // RETURN
 }
 
-IpcSessionFactory::SetupTicket
-IpcSessionFactory::createNewChannel(String_t        *diagnostic,
-                                    std::any         configuration,
-                                    SetupUpdate&&    completion) noexcept
+IpcSessionFactory::BaseTicket
+IpcSessionFactory::channelSetup(String_t        *diagnostic,
+                                bool             acceptConfiguration,
+                                std::any         configuration,
+                                SetupUpdate&&    completion) noexcept
 {
     auto guard   = std::unique_lock(d_lock);
     auto handle  = std::shared_ptr<Setup>();
 
-    if (d_opened) {
-        handle   = std::make_shared<Setup>(std::move(configuration),
-                                           std::move(completion));
+    if (!d_shutdown) {
+        handle         = std::make_shared<Setup>(std::move(configuration),
+                                                 std::move(completion));
 
-        if (!d_adapter->createNewChannel(diagnostic, handle, makeSetupCb())) {
-            handle.reset();
+        auto completor = std::weak_ptr<IpcSessionHelper>(d_completor);
+        auto setupCb   = 
+            [completor] (const IpcProtocol::ChannelPtr&             channel,
+                         const IpcProtocol::Provider::SetupTicket&  ticket) {
+                if (auto p = completor.lock()) {
+                    p->channelSetup(channel, ticket);
+                }
+                else if (auto ch = channel.lock()) {
+                    ch->closeChannel();
+                }
+            };
+
+        if (acceptConfiguration) {
+            if (!d_adapter->acceptChannels(diagnostic,
+                                           handle,
+                                           std::move(setupCb))) {
+                handle.reset();
+            }
+        }
+        else {
+            if (!d_adapter->createNewChannel(diagnostic,
+                                             handle,
+                                             std::move(setupCb))) {
+                handle.reset();
+            }
         }
     }
     return handle;                                                    // RETURN
-}
-
-IpcProtocol::Provider::SetupCb
-IpcSessionFactory::makeSetupCb() noexcept
-{
-    auto completor = std::weak_ptr<IpcSessionCompletor>(d_completor);
-    return [completor] (const IpcProtocol::ChannelPtr&             channel,
-                        const IpcProtocol::Provider::SetupTicket&  ticket) {
-        if (auto p = completor.lock()) {
-            p->channelSetup(channel, ticket);
-        }
-        else if (auto ch = channel.lock()) {
-            ch->closeChannel();
-        }
-    };                                                                // RETURN
 }
 
 IpcSession::PeerId
@@ -545,8 +541,8 @@ IpcSessionFactory::shutdown() noexcept
 {
     auto guard = std::unique_lock(d_lock);
 
-    if (d_opened) {
-        d_opened = false;
+    if (!d_shutdown) {
+        d_shutdown = true;
         d_adapter->shutdown(); // cancels all pending setups
         d_completor->shutdown();
         d_completor.reset();

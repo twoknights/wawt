@@ -106,32 +106,40 @@ class IpcQueue
     friend class ReplyQueue;
 
     using MessageType   = IpcSession::MessageType;
+    using HandlePtr     = IpcSessionFactory::BaseTicket;
     using Indication    = std::tuple<ReplyQueue, IpcMessage, MessageType>;
+    using SetupComplete = std::function<bool(IpcMessage *,
+                                             IpcMessage *,
+                                             const HandlePtr&,
+                                             bool  success,
+                                             const String_t&)>;
     using TimerId       = uint32_t;
 
     static constexpr TimerId kINVALID_TIMERID = UINT32_MAX;
 
     // PUBLIC CONSTRUCTORS
-    IpcQueue();
+    IpcQueue(IpcProtocol::Provider *adapter) noexcept;
     ~IpcQueue();
 
     // PUBLIC MANIPULATORS
-    IpcProtocol       *adapter() {
-        return d_adapter;
-    }
-    bool            cancelDelayedEnqueue(TimerId id);
+    bool            cancelDelayedEnqueue(TimerId id)                  noexcept;
+
+    bool            cancelRemoteSetup(const HandlePtr& handle)        noexcept;
 
     TimerId         delayedLocalEnqueue(IpcMessage&&                message,
-                                        std::chrono::milliseconds   delay);
+                                        std::chrono::milliseconds   delay)
+                                                                      noexcept;
 
-    bool            localEnqueue(IpcMessage&&   message);
+    bool            localEnqueue(IpcMessage&&   message)              noexcept;
 
-    void            remoteEnqueue(std::weak_ptr<IpcSession> session,
-                                  MessageType               msgtype,
-                                  IpcMessage&&              message);
+    HandlePtr       remoteSetup(String_t        *diagnostic,
+                                bool             acceptConfiguration,
+                                std::any         configuration,
+                                SetupComplete&&  completion)          noexcept;
 
-    void            reset(); // flushes queued messages.
+    void            shutdown()                                        noexcept;
 
+    // Can throw 'Shutdown' exception.
     Indication      waitForIndication();
 
   private:
@@ -152,21 +160,25 @@ class IpcQueue
                                               decltype(&timerCompare)>;
 
     // PRIVATE MANIPULATORS
-    void timerThread();
+    void remoteEnqueue(const std::weak_ptr<IpcSession>& session,
+                       MessageType                      msgtype,
+                       IpcMessage&&                     message)  noexcept;
+
+    void timerThread() noexcept;
 
     // PRIVATE DATA MEMBERS
 
     bool                            d_opened    = false; // adapter was opened
     bool                            d_shutdown  = false;
-    IpcProtocol                    *d_adapter   = nullptr;
     std::mutex                      d_lock{};
-    std::condition_variable         d_signal{};
+    std::condition_variable         d_signalWaitThread{};
     std::deque<Indication>          d_incoming{};
     TimerId                         d_timerId   = 0;
     TimerMap                        d_timerIdMap{};
     TimerQueue                      d_timerQueue{timerCompare};
-    std::condition_variable         d_timerSignal{};
+    std::condition_variable         d_signalTimerThread{};
     std::thread                     d_timerThread;
+    IpcSessionFactory               d_factory;
 };
 
 } // end Wawt namespace

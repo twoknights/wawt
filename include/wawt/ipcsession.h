@@ -28,7 +28,7 @@
 
 namespace Wawt {
 
-struct IpcSessionCompletor;
+struct IpcSessionHelper;
 
                                 //=================
                                 // class IpcSession
@@ -40,7 +40,7 @@ class IpcSession {
     using  MessageNumber = IpcMessage::MessageNumber;
     using  MessageChain  = IpcProtocol::Channel::MessageChain;
     using  ChannelPtr    = IpcProtocol::ChannelPtr;
-    using  CompletorPtr  = std::weak_ptr<IpcSessionCompletor>;
+    using  HelperPtr     = std::weak_ptr<IpcSessionHelper>;
     using  SelfPtr       = std::weak_ptr<IpcSession>;
     using  PeerId        = uint64_t;
 
@@ -60,13 +60,6 @@ class IpcSession {
     using MessageCb   = std::function<void(const SelfPtr&,
                                            MessageType,
                                            IpcMessage&&)>;
-    struct SessionStartup {
-        MessageCb   d_messageCb;
-        IpcMessage  d_dropIndication;
-        IpcMessage  d_handshakeMessage;
-    };
-    using StartupPtr  = std::unique_ptr<SessionStartup>;
-
     // PUBLIC CONSTANTS
 
     // PUBLIC CONSTRUCTORS
@@ -75,7 +68,7 @@ class IpcSession {
 
     IpcSession(uint32_t                  random,
                ChannelPtr                channel,
-               CompletorPtr              completor,
+               HelperPtr                 completor,
                bool                      initiated)                  noexcept;
 
     // PUBLIC MANIPULATORS
@@ -99,9 +92,7 @@ class IpcSession {
 
     void shutdown()                                                  noexcept;
 
-    void startHandshake(const SelfPtr&     self,
-                        PeerId             peerId,
-                        StartupPtr&&       finishSetup)              noexcept;
+    void startHandshake(const SelfPtr& self, PeerId peerId)          noexcept;
 
     void unlock()                                                    noexcept {
         d_lock.unlock();
@@ -117,6 +108,7 @@ class IpcSession {
     }
 
   private:
+    friend struct IpcSessionHelper;
     // PRIVATE TYPES
 
     // PRIVATE MANIPULATORS
@@ -132,16 +124,16 @@ class IpcSession {
     MessageNumber                   d_sendSalt  = 0;
     std::mutex                      d_lock{};
     MessageCb                       d_messageCb{};
-    IpcMessage                      d_digest{};     // digest from downstream
+    IpcMessage                      d_dropIndication{}; // to be sent upstream
     IpcMessage                      d_handshake{};  // to be sent downstream
+    IpcMessage                      d_digest{};     // digest from downstream
 
     SelfPtr                         d_self{};
     PeerId                          d_peerId{};
-    StartupPtr                      d_upstream{};
 
     MessageNumber                   d_rcvSalt;
     ChannelPtr                      d_channel;
-    CompletorPtr                    d_completor;
+    HelperPtr                       d_completor;
     bool                            d_initiated;
 };
 
@@ -153,6 +145,7 @@ class IpcSession {
 class IpcSessionFactory {
   public:
     // PUBLIC TYPES
+    using BaseTicket  = IpcProtocol::Provider::SetupTicket;
     using PeerId      = IpcSession::PeerId;
     using SessionPtr  = std::weak_ptr<IpcSession>;
     using MessageType = IpcSession::MessageType;
@@ -160,10 +153,11 @@ class IpcSessionFactory {
                                            MessageType,
                                            IpcMessage&&)>;
 
-    using SetupTicket = IpcProtocol::Provider::SetupTicket;
-    using SetupUpdate = std::function<IpcSession::StartupPtr(bool success,
-                                                             SetupTicket,
-                                                             const String_t&)>;
+    using SetupUpdate = std::function<bool(MessageCb*,
+                                           IpcMessage* drop,
+                                           IpcMessage* handshake,
+                                           const BaseTicket&,
+                                           const String_t&)>;
 
     // PUBLIC CONSTRUCTORS
     IpcSessionFactory(IpcProtocol::Provider *adapter);
@@ -172,15 +166,12 @@ class IpcSessionFactory {
     ~IpcSessionFactory();
 
     // PUBLIC MANIPULATORS
-    SetupTicket     acceptChannels(String_t        *diagnostic,
-                                   std::any         configuration,
-                                   SetupUpdate&&    completion)       noexcept;
+    bool            cancelSetup(const BaseTicket& handle)             noexcept;
 
-    bool            cancelSetup(const SetupTicket& handle)            noexcept;
-
-    SetupTicket     createNewChannel(String_t        *diagnostic,
-                                     std::any         configuration,
-                                     SetupUpdate&&    completion)     noexcept;
+    BaseTicket      channelSetup(String_t        *diagnostic,
+                                 bool             acceptConfiguration,
+                                 std::any         configuration,
+                                 SetupUpdate&&    completion)         noexcept;
 
     void            shutdown()                                        noexcept;
 
@@ -188,10 +179,10 @@ class IpcSessionFactory {
     PeerId          localPeerId()                               const noexcept;
 
   private:
-    friend class IpcSessionCompletor;
+    friend struct IpcSessionHelper;
 
     // PRIVATE TYPES
-    using CompletorPtr = std::shared_ptr<IpcSessionCompletor>;
+    using HelperPtr    = std::shared_ptr<IpcSessionHelper>;
     using SetupBase    = IpcProtocol::Provider::SetupBase;
     using SetupCb      = IpcProtocol::Provider::SetupCb;
 
@@ -204,13 +195,13 @@ class IpcSessionFactory {
     };
 
     // PRVIATE MANIPULATORS
-    SetupCb         makeSetupCb()                                     noexcept;
 
     // PRIVATE DATA MEMBERS
     std::mutex                      d_lock{};
+    bool                            d_shutdown = false;
+
     IpcProtocol::Provider          *d_adapter;
-    bool                            d_opened;
-    CompletorPtr                    d_completor;
+    HelperPtr                       d_completor;
 };
 
 } // end Wawt namespace

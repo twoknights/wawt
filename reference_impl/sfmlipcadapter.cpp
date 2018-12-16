@@ -732,7 +732,10 @@ SfmlIpV4Provider::decrementCaptureCount() noexcept
 {
     auto guard = std::lock_guard(d_lock);
     d_thisCaptures -= 1;
-    d_signalShutdownThread.notify_one();
+
+    if (d_shutdown) {
+        d_signalShutdownThread.notify_one();
+    }
     return;                                                           // RETURN
 }
 

@@ -23,6 +23,7 @@
 
 #include <wawt/wawt.h>
 #include <wawt/eventrouter.h>
+#include <wawt/ipcqueue.h>
 #include <wawt/wawtenv.h>
 
 #include <sfmldrawadapter.h>
@@ -87,8 +88,14 @@ int main()
                                      &drawAdapter,
                                      &idMapper);
     auto router      = Wawt::EventRouter();
-    auto ipc         = SfmlIpcAdapter(0);
-    auto controller  = Controller(router, &idMapper, &ipc);
+    auto tcp         = SfmlIpV4Provider();
+    auto queue       = Wawt::IpcQueue(&tcp);
+    auto listenPort  =
+        [&tcp](const Wawt::IpcProtocol::Provider::SetupTicket& ticket) {
+            return tcp.listenPort(ticket);
+        };
+
+    auto controller  = Controller(router, &idMapper, &queue, listenPort);
     auto shutdown    = [&controller]() {
                            return controller.shutdown();
                        };

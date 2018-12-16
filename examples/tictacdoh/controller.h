@@ -21,7 +21,7 @@
 
 #include <wawt/wawt.h>
 #include <wawt/eventrouter.h>
-#include <wawt/ipcprotocol.h>
+#include <wawt/ipcqueue.h>
 
 #include "stringid.h"
 //#include "gamescreen.h"
@@ -37,26 +37,32 @@
                             //=================
 
 class Controller : public SetupScreen::Calls/*, public GameScreen::Calls*/ {
+    // Controller for a two player turn based game.
   public:
     // PUBLIC TYPES
     using Handle = Wawt::EventRouter::Handle;
+    using Ticket = Wawt::IpcQueue::HandlePtr;
+    using ListenPortFn = std::function<unsigned short(const Ticket&)>;
 
     // PUBLIC CONSTRUCTORS
-    Controller(Wawt::EventRouter&     router,
-               StringIdLookup        *mapper,
-               Wawt::IpcProtocol     *ipc)
-        : d_router(router), d_ipc(ipc), d_mapper(mapper) { d_cancel = false; }
+    Controller(Wawt::EventRouter&        router,
+               StringIdLookup           *mapper,
+               Wawt::IpcQueue           *ipc,
+               const ListenPortFn&       listenPort)
+        : d_router(router)
+        , d_mapper(mapper)
+        , d_ipc(ipc)
+        , d_listenPort(listenPort) { d_cancel = false; }
 
     ~Controller();
 
     // SetupScreen::Calls Interface:
-    StatusPair  accept(const Wawt::String_t& address)        override;
+    StatusPair  establishConnection(bool                   listen,
+                                    const Wawt::String_t&  address)   override;
 
-    void        cancel()                                     override;
+    void        cancel()                                              override;
 
-    StatusPair  connect(const Wawt::String_t& address)       override;
-
-    void        startGame(int)                               override;
+    void        startGame(int)                                        override;
 
     // GameScreen::Calls Interface:
 
@@ -68,14 +74,17 @@ class Controller : public SetupScreen::Calls/*, public GameScreen::Calls*/ {
     void startup();
 
   private:
-    std::mutex          d_cbLock;
-    Handle              d_setupScreen;
-    Handle              d_gameScreen;
-    std::thread         d_gameThread;
-    std::atomic_bool    d_cancel;
-    Wawt::EventRouter&  d_router;
-    Wawt::IpcProtocol  *d_ipc;
-    StringIdLookup     *d_mapper;
+    std::mutex                d_cbLock{};
+    Handle                    d_setupScreen{};
+    Handle                    d_gameScreen{};
+    std::thread               d_gameThread{};
+    Ticket                    d_setupTicket{};
+
+    std::atomic_bool          d_cancel;
+    Wawt::EventRouter&        d_router;
+    StringIdLookup           *d_mapper;
+    Wawt::IpcQueue           *d_ipc;
+    ListenPortFn              d_listenPort;
 };
 
 #endif

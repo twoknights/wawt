@@ -55,19 +55,17 @@ class SetupScreen : public Wawt::ScreenImpl<SetupScreen,DrawOptions> {
 
         virtual ~Calls() { }
 
-        virtual StatusPair accept(const Wawt::String_t& address)        = 0;
+        virtual StatusPair establishConnection(bool                   listen,
+                                               const Wawt::String_t&  address)
+                                                                        = 0;
 
         virtual void       cancel()                                     = 0;
-
-        virtual StatusPair connect(const Wawt::String_t& address)       = 0;
 
         virtual void       startGame(int)                               = 0;
     };
 
     // PUBLIC CONSTRUCTORS
-    SetupScreen(Calls              *controller,
-                StringIdLookup     *mapper,
-                Wawt::IpcProtocol  *ipc);
+    SetupScreen(Calls *controller, StringIdLookup *mapper);
 
     // PUBLIC MANIPULATORS
     // Called by 'WawtScreenImpl::setup()':
