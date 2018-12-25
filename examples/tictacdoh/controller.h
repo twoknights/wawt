@@ -24,7 +24,7 @@
 #include <wawt/ipcqueue.h>
 
 #include "stringid.h"
-//#include "gamescreen.h"
+#include "gamescreen.h"
 #include "setupscreen.h"
 
 #include <atomic>
@@ -36,7 +36,7 @@
                             // class Controller
                             //=================
 
-class Controller : public SetupScreen::Calls/*, public GameScreen::Calls*/ {
+class Controller : public SetupScreen::Calls, public GameScreen::Calls {
     // Controller for a two player turn based game.
   public:
     // PUBLIC TYPES
@@ -58,7 +58,8 @@ class Controller : public SetupScreen::Calls/*, public GameScreen::Calls*/ {
 
     // SetupScreen::Calls Interface:
     StatusPair  establishConnection(bool                   listen,
-                                    const Wawt::String_t&  address)   override;
+                                    const Wawt::String_t&  address,
+                                    const Wawt::String_t&  moveTime)  override;
 
     void        cancel()                                              override;
 
@@ -66,7 +67,7 @@ class Controller : public SetupScreen::Calls/*, public GameScreen::Calls*/ {
 
     // GameScreen::Calls Interface:
 
-    // void        showSetupScreen()                            override;
+    void        showSetupScreen()                                     override;
 
     // PUBLIC MANIPULATORS
     bool shutdown();

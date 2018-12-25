@@ -306,7 +306,7 @@ IpcSession::dropIndication(IpcProtocol::Channel::State) noexcept
                     MessageType::eDROP,
                     std::move(d_dropIndication));
     }
-    guard.release();
+    guard.release()->unlock();
 
     if (completor) {
         completor->removeSession(d_self.lock());
@@ -365,7 +365,7 @@ IpcSession::receivedMessage(IpcMessage&& message) noexcept
                 message.d_offset += IpcMessageUtil::prefixsz + sizeof(peerId);
 
                 if (message.length() > 0) {
-                    guard.release();
+                    guard.release()->unlock();
                     d_messageCb(d_self,
                                 MessageType::eDATA,
                                 std::move(message));
@@ -406,7 +406,7 @@ IpcSession::receivedMessage(IpcMessage&& message) noexcept
 
             if (!close) {
                 if (message.length() > 0) {
-                    guard.release();
+                    guard.release()->unlock();
                     d_messageCb(d_self, msgtype, std::move(message));
                 }
                 else {

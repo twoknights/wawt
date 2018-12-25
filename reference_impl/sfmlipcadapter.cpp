@@ -518,7 +518,7 @@ SfmlIpV4Provider::start(String_t             *diagnostic,
             if (socket && socket->state() == IpcProtocol::Channel::eREADY) {
                 socket->readMsgLoop();
             }
-            assert(socket->state() != IpcProtocol::Channel::eREADY);
+            assert(!socket || socket->state() != IpcProtocol::Channel::eREADY);
             socket.reset();
             decrementCaptureCount();
         };
@@ -593,6 +593,7 @@ SfmlIpV4Provider::start(String_t                         *diagnostic,
         *diagnostic = S("Failed to start listener.");
         return false;                                                 // RETURN
     }
+    listen.detach();
     *diagnostic = S("");
     return true;                                                      // RETURN
 }
@@ -673,7 +674,7 @@ SfmlIpV4Provider::cancelSetup(const SetupTicket& ticket) noexcept
         if (ticket->d_setupStatus.compare_exchange_strong(
                     expected,
                     SetupBase::eCANCELED)) {
-            guard.release();
+            guard.release()->unlock();
             cancelCb();
             return true;                                              // RETURN
         }
@@ -751,7 +752,7 @@ SfmlIpV4Provider::listenPort(const SetupTicket& ticket) const noexcept
 void
 SfmlIpV4Provider::shutdown() noexcept
 {
-    auto guard = std::lock_guard(d_lock);
+    auto guard = std::unique_lock(d_lock);
 
     if (!d_shutdown) {
         d_shutdown = true;

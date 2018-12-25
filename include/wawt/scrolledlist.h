@@ -112,6 +112,8 @@ class ScrolledList : public Tracker {
         return d_itemOptions;
     }
 
+    StringView_t    lastLabelClicked()                          const noexcept;
+
     OptionalRow     lastRowClicked()                            const noexcept{
         return d_lastRowClicked; 
     }

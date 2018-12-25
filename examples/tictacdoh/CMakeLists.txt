@@ -8,6 +8,7 @@ link_libraries(${GCOVLIB} ${CMAKE_THREAD_LIBS_INIT})
 include_directories(../../reference_impl)
 
 add_executable(tictacdoh stringid.cpp
+                         gamescreen.cpp
                          setupscreen.cpp
                          controller.cpp
                          sfmlmain.cpp)

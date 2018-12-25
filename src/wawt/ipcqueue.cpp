@@ -401,7 +401,7 @@ IpcQueue::remoteSetup(String_t        *diagnostic,
                         remoteEnqueue(session, msgtype, std::move(message));
                     };
             }
-            guard.release();
+            guard.release()->unlock();
             return cb(drop, handshake, handle, !!drop, msg);
         };
 

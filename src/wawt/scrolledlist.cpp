@@ -363,133 +363,14 @@ ScrolledList::clearSelection() noexcept
     return;                                                           // RETURN
 }
 
-Widget
-ScrolledList::widget() noexcept
+StringView_t
+ScrolledList::lastLabelClicked() const noexcept
 {
-    auto rowHeight  = 0.25;
-    auto upOneRow   = Widget(WawtEnv::sButton, {})
-                        .downEventMethod(makeScroll(false))
-                        .textMark(Text::BulletMark::eUPARROW);
-                        
-    auto downOneRow = Widget(WawtEnv::sButton, {})
-                        .downEventMethod(makeScroll(true))
-                        .textMark(Text::BulletMark::eDOWNARROW);
-    
-    if (d_scrollbarsOnLeft) {
-        auto offset = -1.0 + rowHeight;
-
-          upOneRow.layout({{  -1.0,   -1.0},
-                           {offset, offset},
-                           Layout::Vertex::eUPPER_LEFT,
-                           0});
-        downOneRow.layout({{  -1.0,-offset},
-                           {offset,    1.0},
-                           Layout::Vertex::eLOWER_LEFT,
-                           0});
+    if (d_lastRowClicked.has_value()) {
+        auto& itemPtr = **d_lastRowClicked;
+        return itemPtr->d_view.d_viewFn();                            // RETURN
     }
-    else {
-        auto offset = 1.0 - rowHeight;
-
-          upOneRow.layout({{offset,   -1.0},
-                           {   1.0,-offset},
-                           Layout::Vertex::eUPPER_RIGHT,
-                           0});
-        downOneRow.layout({{offset, offset},
-                           {   1.0,    1.0},
-                           Layout::Vertex::eLOWER_RIGHT,
-                           0});
-    }
-    // Scrollbar consists of two buttons with a scroll box sandwiched
-    // in between.  The layout of the component pieces (below) is adjusted
-    // on each call to 'synchronizeView()'.  Note that the initial layout
-    // below is appropriate for an empty list (zero height page buttons).
-    auto upOnePg    = Widget(WawtEnv::sButton,
-                             {{-1.0, 1.0, 0_wr},
-                              { 1.0, 1.0, 0_wr}, // Y modified in sync. view.
-                              0})
-                        .downEventMethod(makePageScroll(false));
-                        
-    auto downOnePg  = Widget(WawtEnv::sButton,
-                             {{-1.0,-1.0, 1_wr}, // Y modified in sync. view.
-                              { 1.0,-1.0, 1_wr},
-                              0})
-                        .downEventMethod(makePageScroll(true));
-                        
-    auto scrollBox  = Widget(WawtEnv::sScrollbox,
-                             {{-1.0, 1.0, 2_wr}, { 1.0,-1.0, 3_wr}, 0})
-                        .downEventMethod( // eat down events
-                                [] (double, double, Widget*, Widget*) {
-                                    return [](double, double, bool) { };
-                                });
-                               
-    return Widget(WawtEnv::sList, *this, Layout())
-            .addChild(std::move(upOneRow))      // RID: 0
-            .addChild(std::move(downOneRow))    // RID: 1
-            .addChild(std::move(upOnePg))       // RID: 2
-            .addChild(std::move(downOnePg))     // RID: 3
-            .addChild(std::move(scrollBox))     // RID: 4
-            .downEventMethod(
-                [](double, double, Widget* list, Widget*) -> EventUpCb {
-                    auto cb = EventUpCb();
-
-                    if (list->tracker()) {
-                        cb= [list](double x, double y, bool up) -> void {
-                                if (up && list->inside(x, y)) {
-                                    auto me = list->tracker();
-
-                                    if (me) {
-                                        static_cast<ScrolledList*>(me)
-                                                        ->upEvent(x, y, list);
-                                    }
-                                }
-                            };
-                    }
-                    return cb;
-                })
-            .drawMethod(
-                [](Widget *list, DrawProtocol *adapter) {
-                    auto me = static_cast<ScrolledList*>(list->tracker());
-
-                    if (me) {
-                        me->draw(list, adapter);
-                    }
-                })
-            .layoutMethod(
-                [](Widget        *list,
-                   const Widget&  parent,
-                   bool           firstPass,
-                   DrawProtocol  *adapter) -> void {
-                    auto me = static_cast<ScrolledList*>(list->tracker());
-
-                    if (me) {
-                        if (firstPass) {
-                            Widget::defaultLayout(list, parent, true, adapter);
-                            auto& data   = list->layoutData();
-                            auto  window = me->viewSize();
-                            auto  size   = (data.d_bounds.d_height
-                                                     - 2.*data.d_border
-                                                     - kSPACING)/window
-                                            - kSPACING;
-                            if (size < 4) {
-                                me->d_rowSize  = 0;
-                            }
-                            else {
-                                me->d_rowSize  = size;
-                            }
-                        }
-                        else {
-                            me->synchronizeView(adapter);
-                        }
-                    }
-                })
-            .serializeMethod(
-                [](std::ostream& os, std::string *closeTag,
-                   const Widget& me, unsigned int indent) {
-                    auto *list = static_cast<ScrolledList*>(me.tracker());
-                    if (list) {
-                        list->serialize(os, closeTag, me, indent);
-                    }
-                });                                                   // RETURN
+    return S("");                                                     // RETURN
 }
 
 ScrolledList&
@@ -669,6 +550,135 @@ ScrolledList::top(ItemIter topItem) noexcept
     }
     d_windowView.clear();
     d_selectedSet.clear();
+}
+
+Widget
+ScrolledList::widget() noexcept
+{
+    auto rowHeight  = 0.25;
+    auto upOneRow   = Widget(WawtEnv::sButton, {})
+                        .downEventMethod(makeScroll(false))
+                        .textMark(Text::BulletMark::eUPARROW);
+                        
+    auto downOneRow = Widget(WawtEnv::sButton, {})
+                        .downEventMethod(makeScroll(true))
+                        .textMark(Text::BulletMark::eDOWNARROW);
+    
+    if (d_scrollbarsOnLeft) {
+        auto offset = -1.0 + rowHeight;
+
+          upOneRow.layout({{  -1.0,   -1.0},
+                           {offset, offset},
+                           Layout::Vertex::eUPPER_LEFT,
+                           0});
+        downOneRow.layout({{  -1.0,-offset},
+                           {offset,    1.0},
+                           Layout::Vertex::eLOWER_LEFT,
+                           0});
+    }
+    else {
+        auto offset = 1.0 - rowHeight;
+
+          upOneRow.layout({{offset,   -1.0},
+                           {   1.0,-offset},
+                           Layout::Vertex::eUPPER_RIGHT,
+                           0});
+        downOneRow.layout({{offset, offset},
+                           {   1.0,    1.0},
+                           Layout::Vertex::eLOWER_RIGHT,
+                           0});
+    }
+    // Scrollbar consists of two buttons with a scroll box sandwiched
+    // in between.  The layout of the component pieces (below) is adjusted
+    // on each call to 'synchronizeView()'.  Note that the initial layout
+    // below is appropriate for an empty list (zero height page buttons).
+    auto upOnePg    = Widget(WawtEnv::sButton,
+                             {{-1.0, 1.0, 0_wr},
+                              { 1.0, 1.0, 0_wr}, // Y modified in sync. view.
+                              0})
+                        .downEventMethod(makePageScroll(false));
+                        
+    auto downOnePg  = Widget(WawtEnv::sButton,
+                             {{-1.0,-1.0, 1_wr}, // Y modified in sync. view.
+                              { 1.0,-1.0, 1_wr},
+                              0})
+                        .downEventMethod(makePageScroll(true));
+                        
+    auto scrollBox  = Widget(WawtEnv::sScrollbox,
+                             {{-1.0, 1.0, 2_wr}, { 1.0,-1.0, 3_wr}, 0})
+                        .downEventMethod( // eat down events
+                                [] (double, double, Widget*, Widget*) {
+                                    return [](double, double, bool) { };
+                                });
+                               
+    return Widget(WawtEnv::sList, *this, Layout())
+            .addChild(std::move(upOneRow))      // RID: 0
+            .addChild(std::move(downOneRow))    // RID: 1
+            .addChild(std::move(upOnePg))       // RID: 2
+            .addChild(std::move(downOnePg))     // RID: 3
+            .addChild(std::move(scrollBox))     // RID: 4
+            .downEventMethod(
+                [](double, double, Widget* list, Widget*) -> EventUpCb {
+                    auto cb = EventUpCb();
+
+                    if (list->tracker()) {
+                        cb= [list](double x, double y, bool up) -> void {
+                                if (up && list->inside(x, y)) {
+                                    auto me = list->tracker();
+
+                                    if (me) {
+                                        static_cast<ScrolledList*>(me)
+                                                        ->upEvent(x, y, list);
+                                    }
+                                }
+                            };
+                    }
+                    return cb;
+                })
+            .drawMethod(
+                [](Widget *list, DrawProtocol *adapter) {
+                    auto me = static_cast<ScrolledList*>(list->tracker());
+
+                    if (me) {
+                        me->draw(list, adapter);
+                    }
+                })
+            .layoutMethod(
+                [](Widget        *list,
+                   const Widget&  parent,
+                   bool           firstPass,
+                   DrawProtocol  *adapter) -> void {
+                    auto me = static_cast<ScrolledList*>(list->tracker());
+
+                    if (me) {
+                        if (firstPass) {
+                            Widget::defaultLayout(list, parent, true, adapter);
+                            auto& data   = list->layoutData();
+                            auto  window = me->viewSize();
+                            auto  size   = (data.d_bounds.d_height
+                                                     - 2.*data.d_border
+                                                     - kSPACING)/window
+                                            - kSPACING;
+                            if (size < 4) {
+                                me->d_rowSize  = 0;
+                            }
+                            else {
+                                me->d_rowSize  = size;
+                            }
+                        }
+                        else {
+                            me->synchronizeView(adapter);
+                        }
+                    }
+                })
+            .serializeMethod(
+                [](std::ostream& os, std::string *closeTag,
+                   const Widget& me, unsigned int indent) {
+                    auto *list = static_cast<ScrolledList*>(me.tracker());
+                    if (list) {
+                        list->serialize(os, closeTag, me, indent);
+                    }
+                });                                                   // RETURN
 }
 
 }  // namespace Wawt

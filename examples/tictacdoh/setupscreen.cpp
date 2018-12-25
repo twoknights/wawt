@@ -47,6 +47,14 @@ namespace {
 SetupScreen::SetupScreen(Calls              *controller,
                          StringIdLookup     *mapper)
 : ScreenImpl()
+, d_connectEntry(35,
+    [this](Wawt::TextEntry *textEntry, Wawt::Char_t) -> bool {
+        return entryCallback(false, textEntry);
+    })
+, d_listenPortEntry(5,
+    [this](Wawt::TextEntry *textEntry, Wawt::Char_t) -> bool {
+        return entryCallback(true, textEntry);
+    })
 , d_controller(controller)
 , d_mapper(mapper)
 , d_moveClock(0.3, { { S("5") } , { S("10"), true } , { S("15") } })
@@ -61,6 +69,52 @@ SetupScreen::SetupScreen(Calls              *controller,
       })
 {
     d_languageList.singleSelectList(true);
+}
+
+void
+SetupScreen::cancelConnect(bool success, bool listen)
+{
+    d_controller->cancel();
+
+    if (listen) {
+        d_listenPortEntry.entry(S(""));
+    }
+    else {
+        d_connectEntry.entry(S(""));
+    }
+
+    if (!success) {
+        dropModalDialogBox();
+    }
+    return;                                                           // RETURN
+}
+
+void
+SetupScreen::connectionResult(bool success, const Wawt::String_t& message)
+{
+    using namespace Wawt;
+    using namespace Wawt::literals;
+
+    auto closeAction =
+        [this, success](Widget *widget) {
+            widget->popDialog();
+            if (success) {
+                auto timeout = d_moveClock.selectedLabel();
+                d_controller->startGame(std::stoi(timeout.data()));
+            }
+            else {
+                d_listenPortEntry.entry(S(""));
+                d_connectEntry.entry(S(""));
+            }
+        };
+    auto buttons = pushButtonGrid({}, 5.0, kNOGROUP,
+                                  {{S("Close"), closeAction }});
+    auto dialog = dialogBox(
+            Layout().scale(0.33, 0.33),
+            std::move(buttons),
+            { { S("") }, {message, 1_Sz} });
+    addModalDialogBox(std::move(dialog));
+    return;                                                           // RETURN
 }
 
 Wawt::Widget
@@ -136,14 +190,44 @@ SetupScreen::createScreenPanel()
             .addChild(
                 label({{-1.0,-0.9},{ 1.0,-0.7}}, StringId::eGameSettings))
             .addChild(std::move(leftSideContents))
-            .addChild(std::move(rightSideContents));
+            .addChild(std::move(rightSideContents));                  // RETURN
 
+}
+
+bool
+SetupScreen::entryCallback(bool listen, Wawt::TextEntry *entry)
+{
+    using namespace Wawt;
+    using namespace Wawt::literals;
+
+    auto address            = entry->entry();
+    auto moveClock          = (*d_moveClock.selectedRow().value())->d_view;
+    auto [success, message] =
+        d_controller->establishConnection(listen,
+                                          address,
+                                          String_t(moveClock.d_viewFn()));
+    auto buttons = pushButtonGrid({}, 5.0, kNOGROUP,
+                                  {{ success ? S("Cancel") : S("Close"),
+                                   [this, listen, success](Widget *) {
+                                        cancelConnect(success, listen); }} });
+    auto label1  = listen ? StringId::eWaitForConnection
+                          : StringId::eConnectToOpponent;
+    auto dialog = dialogBox(
+            Layout().scale(0.33, 0.33),
+            std::move(buttons),
+            { {label1, 1_Sz},
+              {address, 1_Sz},
+              {S(""), 1_Sz},
+              {std::move(message), 2_Sz} });
+    addModalDialogBox(std::move(dialog));
+    return false; // lose focus                                       // RETURN
 }
 
 void
 SetupScreen::initialize()
 {
     d_languageList->children()[0].selected(true);
+    return;                                                           // RETURN
 }
 
 void
@@ -151,6 +235,7 @@ SetupScreen::resetWidgets()
 {
     d_listenPortEntry.entry(S(""));
     d_connectEntry.entry(S(""));
+    return;                                                           // RETURN
 }
 
 // vim: ts=4:sw=4:et:ai

@@ -56,7 +56,8 @@ class SetupScreen : public Wawt::ScreenImpl<SetupScreen,DrawOptions> {
         virtual ~Calls() { }
 
         virtual StatusPair establishConnection(bool                   listen,
-                                               const Wawt::String_t&  address)
+                                               const Wawt::String_t&  address,
+                                               const Wawt::String_t&  movetime)
                                                                         = 0;
 
         virtual void       cancel()                                     = 0;
@@ -76,16 +77,18 @@ class SetupScreen : public Wawt::ScreenImpl<SetupScreen,DrawOptions> {
     // Called by 'WawtScreenImpl::activate()':
     void resetWidgets();
 
-    void connectCallback(bool listen);
+    void cancelConnect(bool success, bool listen);
 
-    void connectionResult(bool success, Wawt::String_t status);
+    void connectionResult(bool success, const Wawt::String_t& status);
+
+    bool entryCallback(bool listen, Wawt::TextEntry *entry);
 
   private:  
     // PRIVATE DATA MEMBERS
-    Wawt::TextEntry         d_connectEntry{35};
-    Wawt::TextEntry         d_listenPortEntry{5};
     int                     d_moveTime = 10;
 
+    Wawt::TextEntry         d_connectEntry;
+    Wawt::TextEntry         d_listenPortEntry;
     Calls                  *d_controller;
     StringIdLookup         *d_mapper;
     Wawt::DropDownList      d_moveClock;

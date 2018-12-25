@@ -50,22 +50,25 @@ Controller::~Controller()
 }
 
 Controller::StatusPair
-Controller::establishConnection(bool listen, const Wawt::String_t& address)
+Controller::establishConnection(bool                   listen,
+                                const Wawt::String_t&  address,
+                                const Wawt::String_t&  moveTime)
 {
     auto  diagnostic = Wawt::String_t{};
     auto  completion =
-        [this] (Wawt::IpcMessage       *dropIndication,
-                Wawt::IpcMessage       *handshake,
-                const Ticket,
-                bool                    success,
-                const Wawt::String_t&   message) -> bool {
+        [this, moveTime] (Wawt::IpcMessage       *dropIndication,
+                          Wawt::IpcMessage       *handshake,
+                          const Ticket&,
+                          bool                    success,
+                          const Wawt::String_t&   message) -> bool {
             std::unique_lock guard(d_cbLock);
             //TBD: set ipc messages
             d_setupTicket.reset();
             return d_router.call(d_setupScreen,
                                  &SetupScreen::connectionResult,
                                  success,
-                                 message).value_or(false);
+                                 success ? S("Connection established.")
+                                         : message).value_or(false);
         };
     d_setupTicket  = d_ipc->remoteSetup(&diagnostic,
                                         listen,
@@ -128,7 +131,9 @@ Controller::startup()
     d_setupScreen = d_router.create<SetupScreen>("Setup Screen",
                                                  this,
                                                  d_mapper);
-    //d_gameScreen  = d_router.create<GameScreen>("Game Screen", this);
+    d_gameScreen  = d_router.create<GameScreen>("Game Screen",
+                                                 this,
+                                                 d_mapper);
     /* ... additional screens here ...*/
 
     d_router.activate<SetupScreen>(d_setupScreen);
@@ -136,19 +141,17 @@ Controller::startup()
     return;                                                           // RETURN
 }
 
-#if 0
 void
 Controller::showSetupScreen()
 {
     d_router.activate<SetupScreen>(d_setupScreen);
 }
-#endif
 
 void
 Controller::startGame(int)
 {
     // game screen:
-    d_router.activate<SetupScreen>(d_setupScreen);
+    d_router.activate<GameScreen>(d_gameScreen);
 }
 
 // vim: ts=4:sw=4:et:ai

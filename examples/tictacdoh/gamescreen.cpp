@@ -17,40 +17,60 @@
  * limitations under the License.
  */
 
-#include "wawt/wawt.h"
-
 #include "gamescreen.h"
+
+#include <wawt/wawt.h>
 
 #include <chrono>
 #include <string>
+
+#undef  S
+#undef  C
+
+#ifdef WAWT_WIDECHAR
+#define S(str) (L"" str)  // wide char strings (std::wstring)
+#define C(c) (L ## c)
+#else
+#define S(str) (u8"" str)      // UTF8 strings  (std::string)
+#define C(c) (U ## c)
+#endif
 
 using namespace std::literals::chrono_literals;
 
 namespace {
 
 } // unnamed namespace
-
-using namespace Wawt;
                             //-----------------
                             // class GameScreen
                             //-----------------
 
-Widget
+Wawt::Widget
 GameScreen::createScreenPanel()
 {
-    auto click = [](auto *w) { w->resetLabel("X"); };
+    using namespace Wawt;
+    using namespace Wawt::literals;
 
-    auto  screen     = panelGrid({}, 1, 3, panel({}));
+    auto  panelFn    =
+        [childLayout = gridLayoutGenerator(-1.0, 3)] (int, int) -> Widget {
+            return panel(childLayout());
+        };
+    auto  screen     = widgetGrid({}, 1, 3, panelFn);
     auto  screenFill = defaultOptions(WawtEnv::sScreen).d_fillColor;
     auto  overlayOpt = DrawOptions(DrawOptions::kCLEAR, screenFill);
     auto& middle     = screen.children()[1];
     auto  border     = 5.0;
+    auto  click      = [](auto *w) { w->resetLabel("X"); };
+    auto  squareFn   =
+        [childLayout = gridLayoutGenerator(border, 9, 3),
+         click] (int, int) -> Widget {
+            return pushButton(childLayout(), click, S(" "));
+        };
     middle.addChild( // 0_wr
-            panelGrid(&d_boardPanel,
-                      {{-1,-1},{ 1, 1}, Layout::Vertex::eCENTER_CENTER},
-                      3,
-                      3,
-                      pushButton(Layout().border(border), click, S(" "))))
+            widgetGrid(d_boardPanel,
+                       {{-1,-1},{ 1, 1}, Layout::Vertex::eCENTER_CENTER},
+                       3,
+                       3,
+                       squareFn))
           .addChild( // 1_wr
             panel({{-1,-1, 0_wr},{ 1, 1, 0_wr}, border}).options(overlayOpt))
           .addChild( // 2_wr - this is a "shim"
@@ -63,7 +83,7 @@ GameScreen::createScreenPanel()
 void
 GameScreen::gameOver(GameResult result)
 {
-    String_t resultString;
+    Wawt::String_t resultString;
 
     if (result == GameResult::eFORFEIT) {
         resultString = S("You have forfeited the game.");
@@ -89,9 +109,8 @@ GameScreen::gameOver(GameResult result)
 }
 
 void
-GameScreen::resetWidgets(const String_t& marker)
+GameScreen::resetWidgets()
 {
-    d_marker    = marker;
 #if 0
     d_boardPanel->setHidden(true);
     d_boardPanel->setDisabled(true);
@@ -118,9 +137,9 @@ GameScreen::showRemainingTime()
         gameOver(eFORFEIT);
     }
     else {
-        String_t message
+        Wawt::String_t message
             = S("Remaining time: ") + Wawt::toString(d_countDown--);
-        d_timeLabel->resetLabel(message, true);
+//        d_timeLabel->resetLabel(message, true);
         resize();
         setTimedEvent(1000ms, [this]() { showRemainingTime(); });
     }
@@ -129,10 +148,9 @@ GameScreen::showRemainingTime()
 void
 GameScreen::startGame()
 {
-    d_boardPanel->setHidden(false);
-    d_boardPanel->setDisabled(false);
+    d_boardPanel->hidden(false).disabled(false);
     d_countDown = 10;
-    showRemainingTime();
+//    showRemainingTime();
 }
 
 // vim: ts=4:sw=4:et:ai

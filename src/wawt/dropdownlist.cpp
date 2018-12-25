@@ -195,6 +195,12 @@ DropDownList::DropDownList(double              maxHeight,
 {
 }
 
+StringView_t
+DropDownList::selectedLabel() const noexcept
+{
+    return d_list.lastLabelClicked();                                 // RETURN
+}
+
 Widget
 DropDownList::widget() noexcept
 {

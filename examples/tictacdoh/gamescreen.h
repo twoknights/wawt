@@ -22,6 +22,8 @@
 #include "stringid.h"
 #include "drawoptions.h"
 
+#include <wawt/screen.h>
+
 #include <iostream>
 
                             //=================
@@ -63,6 +65,8 @@ class GameScreen : public Wawt::ScreenImpl<GameScreen,DrawOptions> {
 
 private:
     // PRIVATE DATA MEMBERS
+    Wawt::Tracker           d_boardPanel{};
+    int                     d_countDown    = 0;
     GameScreen::Calls      *d_controller;
     StringIdLookup         *d_mapper;
 };

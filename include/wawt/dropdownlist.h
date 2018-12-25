@@ -73,6 +73,8 @@ class DropDownList : public Tracker {
         return d_list.rows();
     }
 
+    StringView_t    selectedLabel()                             const noexcept;
+
     OptionalRow     selectedRow()                               const noexcept{
         return d_selectedRow;
     }
