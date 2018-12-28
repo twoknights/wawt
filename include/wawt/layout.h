@@ -174,8 +174,8 @@ using LayoutGenerator = std::function<Layout()>;
 
 LayoutGenerator gridLayoutGenerator(double       borderThickness,
                                     std::size_t  widgetCount,
-                                    std::size_t  columns    = 0,
-                                    std::size_t *rows       = nullptr)noexcept;
+                                    std::size_t  columns   = 0,
+                                    std::size_t *rows      = nullptr) noexcept;
 
 } // end Wawt namespace
 

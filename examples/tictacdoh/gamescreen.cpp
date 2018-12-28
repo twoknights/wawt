@@ -20,6 +20,7 @@
 #include "gamescreen.h"
 
 #include <wawt/wawt.h>
+#include <wawt/drawprotocol.h>
 
 #include <chrono>
 #include <string>
@@ -72,7 +73,7 @@ GameScreen::createScreenPanel()
                        3,
                        squareFn))
           .addChild( // 1_wr
-            panel({{-1,-1, 0_wr},{ 1, 1, 0_wr}, border}).options(overlayOpt))
+            panel({{-1,-1, 0_wr},{ 1, 1, 0_wr}, border+2}).options(overlayOpt))
           .addChild( // 2_wr - this is a "shim"
             panel({{-1,-1},{-1,-1, 0_wr}}))
           .addChild( // 3_wr
@@ -111,6 +112,8 @@ GameScreen::gameOver(GameResult result)
 void
 GameScreen::resetWidgets()
 {
+    auto out = Wawt::DrawMock();
+    d_screen.draw(&out);
 #if 0
     d_boardPanel->setHidden(true);
     d_boardPanel->setDisabled(true);

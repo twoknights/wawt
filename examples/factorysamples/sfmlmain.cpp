@@ -45,7 +45,7 @@
 
 Wawt::EventUpCb
 dumpScreen(double, double, Wawt::Widget *widget, Wawt::Widget*) {
-    auto out = Wawt::DrawStream();
+    auto out = Wawt::DrawMock();
     widget->screen()->draw(&out);
     return Wawt::EventUpCb();
 }

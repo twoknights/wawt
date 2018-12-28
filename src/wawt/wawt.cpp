@@ -543,7 +543,7 @@ Layout::Position::resolvePosition(const Widget& parent) const
     auto yradius = lr_y - yorigin;
 
     if (reference == &parent || reference == parent.screen()) {
-        auto       thickness  = rectangle.d_border;
+        auto       thickness  = rectangle.d_border + 0.49;
         xradius -= thickness;
         yradius -= thickness;
     }
