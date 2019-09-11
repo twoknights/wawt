@@ -139,7 +139,7 @@ SfmlTcpSocket::connect(sf::IpAddress ipAddress, unsigned short port)
             return true;                                              // RETURN
         }
 
-        if (sf::Socket::NotReady != status) {
+        if (sf::Socket::Disconnected == status) {
             // Connect rejections are often immediate, so sleep before retry
             d_socket.disconnect();
             d_lock.unlock(); // UNLOCK

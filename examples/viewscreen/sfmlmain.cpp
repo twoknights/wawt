@@ -153,7 +153,7 @@ int main()
     screen.serializeScreen(std::cout);
     std::cout.flush();
     std::cout << "\nAdapter view:\n";
-    Wawt::DrawStream draw;
+    Wawt::DrawMock draw;
     screen.draw(&draw);
 
     auto width  = float{WIDTH};

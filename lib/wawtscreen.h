@@ -193,7 +193,7 @@ class WawtScreen {
         try {
             d_wawt->draw(d_screen);
         }
-        catch (Wawt::Exception caught) {
+        catch (Wawt::Exception& caught) {
             throw Wawt::Exception("Painting: '" + d_name + "', "
                                                             + caught.what());
         }
@@ -248,7 +248,7 @@ class WawtScreen {
                 return ret;
             };
         }
-        catch (Wawt::Exception caught) {
+        catch (Wawt::Exception& caught) {
             throw Wawt::Exception("Click on screen '" + d_name + "', "
                                                             + caught.what());
         }
@@ -574,7 +574,7 @@ WawtScreenImpl<Derived,Option>::activate(double         width,
         d_wawt->resizeRootPanel(&d_screen, width, height);
         static_cast<Derived*>(this)->resetWidgets(args...);
     }
-    catch (Wawt::Exception caught) {
+    catch (Wawt::Exception& caught) {
             std::ostringstream os;
             os << "Activating screen ''" << d_name << "', "
                << caught.what() << '\n';
@@ -605,7 +605,7 @@ WawtScreenImpl<Derived,Option>::setup(Types&...  args)
         d_screen=reinterpret_cast<Derived*>(this)->createScreenPanel(args...);
         d_wawt->resolveWidgetIds(&d_screen);
     }
-    catch (Wawt::Exception caught) {
+    catch (Wawt::Exception& caught) {
         std::ostringstream os;
         os << "Setup of screen '" << d_name << "', " << caught.what() << '\n';
         serializeScreen(os);
@@ -616,7 +616,7 @@ WawtScreenImpl<Derived,Option>::setup(Types&...  args)
         try {
             reinterpret_cast<Derived*>(this)->initialize();
         }
-        catch (Wawt::Exception caught) {
+        catch (Wawt::Exception& caught) {
             std::ostringstream os;
             os << "Initializing screen ''" << d_name << "', "
                << caught.what() << '\n';

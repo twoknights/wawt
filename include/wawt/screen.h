@@ -160,7 +160,7 @@ class Screen {
         try {
             d_screen.draw(adapter);
         }
-        catch (WawtException caught) {
+        catch (WawtException& caught) {
             throw WawtException("Painting: '" + d_name + "', "
                                                             + caught.what());
         }
@@ -206,7 +206,7 @@ class Screen {
         try {
             return d_screen.downEvent(x, y);
         }
-        catch (WawtException caught) {
+        catch (WawtException& caught) {
             throw WawtException("Click on screen '" + d_name + "', "
                                                             + caught.what());
         }
@@ -456,7 +456,7 @@ ScreenImpl<Derived,Option>::activate(double         width,
         d_screen.synchronizeTextView();
         resize(width, height);
     }
-    catch (WawtException caught) {
+    catch (WawtException& caught) {
             std::ostringstream os;
             os << "Activating screen ''" << d_name << "', "
                << caught.what() << '\n';
@@ -494,7 +494,7 @@ ScreenImpl<Derived,Option>::setup(Types&...  args)
         d_screen.synchronizeTextView();
         d_screen.assignWidgetIds();
     }
-    catch (WawtException caught) {
+    catch (WawtException& caught) {
         std::ostringstream os;
         os << "Setup of screen '" << d_name << "', " << caught.what() << '\n';
         serializeScreen(os);
@@ -505,7 +505,7 @@ ScreenImpl<Derived,Option>::setup(Types&...  args)
         try {
             reinterpret_cast<Derived*>(this)->initialize();
         }
-        catch (WawtException caught) {
+        catch (WawtException& caught) {
             std::ostringstream os;
             os << "Initializing screen ''" << d_name << "', "
                << caught.what() << '\n';

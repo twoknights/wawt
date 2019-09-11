@@ -51,6 +51,8 @@ struct IpcMessage {
     IpcMessage(std::unique_ptr<char[]>&&    data,
                uint16_t                     size,
                uint16_t                     offset);
+    IpcMessage(uint16_t                     size,
+               uint16_t                     offset = 0u);
     IpcMessage(const std::string_view& data);
     IpcMessage(const char* data, uint16_t length);
     IpcMessage(const IpcMessage& copy);
@@ -58,6 +60,11 @@ struct IpcMessage {
     // PUBLIC MANIPULATORS
     IpcMessage& operator=(IpcMessage&&) = default;
     IpcMessage& operator=(const IpcMessage& rhs);
+
+    IpcMessage& operator+=(std::size_t bytes)     noexcept {
+        d_offset += bytes;
+        return *this;
+    }
 
     void        reset()                           noexcept {
         d_data.reset();
@@ -69,6 +76,10 @@ struct IpcMessage {
     }
 
     // PUBLIC ACCESSORS
+    uint16_t        capacity()              const noexcept {
+        return d_size;
+    }
+
     const char  *cbegin()                   const noexcept {
         return d_data.get() + d_offset;
     }
@@ -89,6 +100,14 @@ struct IpcMessage {
         return std::string_view(cbegin(), length());
     }
 };
+
+inline
+IpcMessage::IpcMessage(uint16_t size, uint16_t offset)
+: d_data(std::make_unique<char[]>(size))
+, d_size(size)
+, d_offset(offset)
+{
+}
 
 inline
 IpcMessage::IpcMessage(std::unique_ptr<char[]>&&    data,

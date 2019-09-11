@@ -276,13 +276,13 @@ GameMaster::gameLoop(IpcQueue&            queue,
                     opponent->closeQueue();
                 }
             }
-        } catch (IpcQueue::SessionDrop session) {
+        } catch (IpcQueue::SessionDrop& session) {
             assert(session.sessionId == opponent.sessionId);
             // Cause a pop-up dialog to be shown with the bad news. That
             // dialog will show SetupScreen before closing.
             router.call(gameScreen, &GameScreen::opponentDisconnect);
         }
-    } catch (IpcQueue::ShutdownException) { }
+    } catch (IpcQueue::ShutdownException&) { }
       catch (...) {
           moveCounter = -1;
           if (timer.joinable()) {

@@ -13,7 +13,10 @@ set(CRYPTOPP_INCLUDE_DIR "/usr/include"
 set(CRYPTOPP_LIBRARY_DIR "/usr/lib64"
     CACHE FILEPATH "Install location for crypto++")
 
-find_package(SFML 2.4 COMPONENTS graphics window network system REQUIRED)
+set(ASIO_INCLUDE_DIR "/usr/include/boost/asio"
+    CACHE FILEPATH "Install location for ASIO")
+
+find_package(SFML 2.5 COMPONENTS graphics window network system REQUIRED)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 

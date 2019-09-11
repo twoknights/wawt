@@ -30,6 +30,8 @@
 #include <sfmleventloop.h>
 #include <sfmlipcadapter.h>
 
+#include <ipcadapter.h>
+
 #include <fontconfig/fontconfig.h>
 
 #include <chrono>
@@ -88,7 +90,7 @@ int main()
                                      &drawAdapter,
                                      &idMapper);
     auto router      = Wawt::EventRouter();
-    auto tcp         = SfmlIpV4Provider();
+    auto tcp         = IpcProvider();
     auto queue       = Wawt::IpcQueue(&tcp);
     auto listenPort  =
         [&tcp](const Wawt::IpcProtocol::Provider::SetupTicket& ticket) {

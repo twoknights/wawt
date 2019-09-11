@@ -1,5 +1,6 @@
 /** @file sfmlipcadapter.h
- *  @brief Adapts SFML Graphics and Events to Wawt.
+ *  @brief Adapts SFML Network Events to Wawt.
+ *  @deprecated This adapter is deprecated as of SFML 2.5
  *
  * Copyright 2018 Bruce Szablak
  *
